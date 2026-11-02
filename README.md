@@ -47,6 +47,8 @@ Click any screenshot to view it at full size. These pictures show an earlier int
 
 Choose a track pack, browse **Straights, Corners, Digital pieces and Extras**, then add pieces to the canvas. Each pack has artwork that reflects its own track system.
 
+The right-hand **Track tools** panel keeps a compact track summary above expandable folders. **Selected piece** puts editing actions first, with position and rotation inside their own folder. Open **Heights & bridges**, **Timing line & direction**, **Lengths & measurements**, **Routed materials & checks**, or **Parts list** as needed. Check badges remain visible on closed folders. **Tune profile** has its own tab.
+
 - **Drag and snap:** magnetic connections join track ends. Side snapping aligns parallel straights and matching nested curves for layouts with more than two lanes. Hold Shift while dragging to bypass snapping.
 - **Arrange your layout:** rotate, mirror and duplicate pieces, select several at once, and use Undo/Redo while experimenting. Remembered mirroring makes it easier to keep adding corners in the direction you want.
 - **Include the finishing touches:** add matching borders to selected roads and change the foreground/background order where sections overlap.

@@ -1,5 +1,5 @@
 {
-  "version": "0.3.21",
+  "version": "0.3.22",
   "date": "2026-11-02",
   "automated": {
     "command": "node --test app/additional-packs.test.cjs app/cad-export.test.cjs app/core.test.cjs app/custom-packs.test.cjs app/custom-piece-delete.test.cjs app/disk-api.test.cjs app/disk-store.test.cjs app/editor-features.test.cjs app/elevation.test.cjs app/freeform-editor.test.cjs app/freeform-review.test.cjs app/freeform-shapes.test.cjs app/freeform.test.cjs app/integration.test.cjs app/lane-spread.test.cjs app/library.test.cjs app/local-workspace.test.cjs app/pdf-report.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs app/reference-planning.test.cjs app/review-regressions.test.cjs app/routed-review.test.cjs app/routed-spline.test.cjs app/routed-squeeze.test.cjs app/routed.test.cjs app/server.test.cjs app/side-snap.test.cjs app/space-guide.test.cjs app/table-panels.test.cjs app/table-review.test.cjs app/table-stock.test.cjs app/tabletop-routing.test.cjs app/theme-model.test.cjs app/track-exports.test.cjs app/transfer-review.test.cjs installer/launcher.test.cjs",
@@ -1024,6 +1024,22 @@
     "limitations": [
       "No fresh native macOS/Linux installation or Illustrator/Fusion import audit",
       "Large spacing changes can still produce reverse curvature in moving lanes; the inner anchor preserves its original path"
+    ]
+  },
+  "release0322": {
+    "date": "2026-11-02",
+    "sourceTestsPassed": 431,
+    "handoffTestsPassed": 157,
+    "integrationFixturesPassed": 15,
+    "browser": [
+      "Expandable inspector folders and selected-piece actions",
+      "Borders, position editing and Undo, timing line and direction",
+      "Heights, visible collapsed warning badges, multiple selection",
+      "Keyboard tabs, CSV export, light/dark themes and panel widths",
+      "Routed straight/corner editing and saved reload"
+    ],
+    "limitations": [
+      "No fresh native macOS/Linux installation or Illustrator/Fusion import audit"
     ]
   }
 }

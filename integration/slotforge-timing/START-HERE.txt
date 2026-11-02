@@ -1,4 +1,4 @@
-SlotForge Timing integration handoff — Table panels and Lane Spread (v0.3.21)
+SlotForge Timing integration handoff — Table panels and Lane Spread (v0.3.22)
 2 November 2026
 
 CURRENT CONTRACT
@@ -99,3 +99,6 @@ squeeze metadata and contracts retain their original interpretation.
 
 Included in v0.3.21: routed Spread chooses a shape-aware anchor in the editor.
 Saved geometry, metadata and integration-contract versions are unchanged.
+
+v0.3.22 reorganizes the Builder inspector. Geometry and integration contracts
+are unchanged; the shared runtime only has its producer version updated.

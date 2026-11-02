@@ -39,9 +39,10 @@ function init(h){
   selectedBridge.disabled=model.selectedIds.size!==2||model.items.filter(p=>model.selectedIds.has(p.id)&&model.defs[p.definitionId].parameters.routed).length!==2;
   $('edit-routed-section').hidden=!single||!p||!model.defs[p.definitionId].parameters.routed||model.defs[p.definitionId].parameters.type==='freeform';
   $('squeeze-routed-section').hidden=!single||!p||!model.defs[p.definitionId].parameters.routed||model.defs[p.definitionId].parameters.routed.laneCount<2||model.defs[p.definitionId].parameters.type==='freeform';
-  if(p&&single&&model.defs[p.definitionId].parameters.routed){$('custom-from').hidden=true;$('add-borders').disabled=true;}
+  if(p&&single&&model.defs[p.definitionId].parameters.routed){$('custom-from').hidden=true;$('add-borders').hidden=$('add-borders').disabled=true;}
   $('routed-overview').hidden=!has;
   const reportKey=JSON.stringify([model.items,model.spaceGuide]);if(!lastReport||reportKey!==lastReportKey&&!model.interacting){lastReport={material:R.materials(model.items,model.defs),issues:C.checks(model.items,model.defs,model.spaceGuide)};lastReportKey=reportKey;}const {material,issues}=lastReport;document.body.dataset.routedCatalogue=String(chosen);$('measurement-note').textContent=has?'Routed dimensions are user-entered. Piece outlines and tabletop routing footprints have separate clearance checks; vehicle clearance and heights still need checking.':'Lengths use nominal or user-entered geometry. Footprint is an approximate bounding box; overlap and clearance are not checked.';
+  const badge=$('routed-checks-badge');badge.textContent=model.interacting?'Updating…':issues.length?issues.length+' to check':'Clear';badge.classList.toggle('has-issues',!model.interacting&&issues.length>0);
   for(const[id,compact]of[['routed-materials',false],['routed-materials-compact',true]]){
    const host=$(id);host.replaceChildren();const values=[['Routed design sections',material.sections],['Total slot length',metres(material.slotMm)],['Braid, including allowance',metres(material.orderBraidMm)],['Tape, including allowance',metres(material.orderTapeMm)]];
    for(const[label,value]of values){const row=document.createElement('p');row.className=compact?'fine':'routed-metric';row.textContent=label+': '+value;host.append(row);}

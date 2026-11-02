@@ -1,0 +1,55 @@
+/* Folder hierarchy shared visually with the piece catalogue. */
+.inspector-tabs{position:sticky;top:0;z-index:2;background:var(--panel);padding:5px 8px 0;gap:4px}
+.inspector-tabs .tab{flex:1;justify-content:center;white-space:nowrap}
+.inspector-tabs .tab[aria-selected=true]{background:color-mix(in srgb,var(--accent) 8%,var(--panel))}
+.inspector-overview{padding:16px 14px 8px}
+.inspector-overview h2{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin:0 0 10px}
+.inspector-overview .metric-grid{gap:8px}
+.inspector-overview .metric-grid>div{padding:10px}
+.inspector-overview .metric-grid strong{font-size:21px;overflow-wrap:anywhere}
+.inspector-footprint{margin:10px 0 8px}
+.inspector-footprint dt{font-size:10px;color:var(--muted)}
+.inspector-footprint dd{margin:3px 0 0;font-size:12px;font-variant-numeric:tabular-nums}
+#layout-panel>.inspector-section{padding:0 12px 8px;border:0}
+.inspector-folder{border:1px solid var(--line);border-radius:7px;background:var(--ui-inset,var(--bg));overflow:hidden}
+.inspector-folder>summary{display:flex;align-items:center;gap:7px;cursor:pointer;min-height:44px;padding:10px;font-size:12px;font-weight:650;list-style:none;user-select:none}
+.inspector-folder>summary::-webkit-details-marker{display:none}
+.inspector-folder>summary::before{content:'▸';color:var(--muted);flex:none;font-size:11px}
+.inspector-folder[open]>summary::before{content:'▾';color:var(--accent)}
+.inspector-folder>summary>span:first-of-type{flex:1;min-width:0}
+.inspector-folder>summary:hover{background:var(--ui-hover,var(--panel))}
+.inspector-folder[open]>summary{border-bottom:1px solid var(--line);background:color-mix(in srgb,var(--accent) 6%,var(--panel))}
+.inspector-folder>summary:focus-visible,.inspector-subfolder>summary:focus-visible{outline:2px solid var(--accent);outline-offset:-3px}
+.inspector-folder-body{padding:12px}
+.inspector-folder-body>:first-child{margin-top:0}
+.inspector-folder-body>:last-child{margin-bottom:0}
+.inspector-badge{font-size:10px;font-weight:500;white-space:nowrap;color:var(--muted);background:var(--panel);border:1px solid var(--line);padding:1px 5px;border-radius:4px;flex:none}
+.inspector-badge:empty{display:none}
+.inspector-badge.has-issues{color:var(--ui-warning,#e6c47f);border-color:currentColor}
+#inspector-selection.has-selection .inspector-folder{border-left:3px solid var(--accent)}
+#inspector-selection.has-selection .inspector-badge{color:var(--ink)}
+.inspector-empty{margin:0;line-height:1.6}
+#selection-name{display:block;line-height:1.45;overflow-wrap:anywhere;font-size:13px}
+#selection-code{overflow-wrap:anywhere}
+.inspector-actions{display:flex;flex-direction:column;gap:7px;margin:12px 0}
+.inspector .btn{max-width:100%;white-space:normal;text-align:left;line-height:1.4}
+.inspector .btn:disabled{opacity:.5}
+html[data-theme] .inspector .inspector-accent{background:color-mix(in srgb,var(--accent) 12%,var(--panel));border-color:color-mix(in srgb,var(--accent) 55%,var(--line));color:var(--ink)}
+html[data-theme] .inspector .inspector-accent:hover:not(:disabled){background:color-mix(in srgb,var(--accent) 22%,var(--panel))}
+.inspector-subfolder{border-top:1px solid var(--line);margin-top:12px;padding-top:8px}
+.inspector-subfolder>summary{cursor:pointer;padding:4px 0;font-size:11px;color:var(--muted);font-weight:600}
+.inspector-subfolder[open]>summary{color:var(--ink)}
+.inspector .position-grid{margin-top:8px;gap:8px}
+.inspector .position-grid input{width:100%;min-width:0}
+.inspector .measurements{display:grid;grid-template-columns:1fr auto;gap:8px;margin:12px 0}
+.inspector .measurements dd{margin:0;font-size:11px}
+.inspector .measurements dt{font-size:11px}
+.inspector .field{margin-top:12px}
+.inspector #inventory{margin-top:10px}
+.inspector #height-fields .form-grid{margin-bottom:12px}
+.inspector #height-fields label{font-size:11px;color:var(--muted)}
+.inspector #height-fields input{margin-top:5px}
+.inspector .routed-issues{padding-left:16px;font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+.inspector .routed-issues:empty{display:none}
+.inspector .routed-issues li+li{margin-top:8px}
+.inspector #height-error:empty{display:none}

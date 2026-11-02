@@ -1,9 +1,15 @@
-SlotForge Circuit — editor iteration (v0.3.21)
+SlotForge Circuit — editor iteration (v0.3.22)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. No data migration is required.
+
+NEW IN v0.3.22
+The right-hand Track tools panel now uses compact, expandable folders.
+Selected-piece actions come first, with clear primary buttons. Heights,
+timing, measurements, routed checks and parts have their own folders;
+warning badges stay visible when closed. Tune profile remains a separate tab.
 
 NEW IN v0.3.21
 Theme-aware SlotForge logos in the header and small footer, with one-row

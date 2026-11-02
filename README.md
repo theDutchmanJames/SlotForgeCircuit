@@ -1,209 +1,20 @@
 <p align="left">
+  <img src="app/icon.svg" alt="SlotForge Circuit icon" width="96" align="right">
   <img src="docs/images/slotforge-brand.png" alt="SlotForge — Slotcar App Collection" width="400">
 </p>
+<br clear="both">
 
 # SlotForge Circuit
 
-<img src="app/icon.svg" alt="SlotForge Circuit icon" width="96" align="right">
-
 **Design it. Build it. Race it.**
 
-Plan your next slot-car circuit before building it for real. Choose track pieces and snap them together, design routed wood sections, or draw a flowing circuit with FreeForm. See how your layout fits your available space before you build.
+SlotForge Circuit is a slotcar track designer for planning your next circuit before building it for real. Snap together branded track pieces, create your own pieces with matching artwork, design routed wood sections, or draw a complete circuit with FreeForm.
 
-Create your own pieces with custom dimensions and **automatically generated matching icons and artwork**. Keep them together in reusable track packs, and export your layout and car-animation profile for integration with [SlotForge Timing](https://github.com/theDutchmanJames/SlotForgeTiming).
+Check the space you need, count your pieces, compare lane lengths and watch cars follow your design. Save your tracks and custom packs, export plans for the workshop, and share track geometry and animation profiles with **SlotForge Timing**.
 
-**Version 0.3.19 · Runs in your browser · Saves files on your computer · No account needed**
+**One browser app for Windows, macOS and Linux. Your designs stay on your computer. No account required.**
 
-**[Download SlotForge Circuit](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/download/v0.3.19/SlotForge-Circuit-v0.3.19-complete.zip)** · [Release notes](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/tag/v0.3.19)
-
-## Install and start
-
-Circuit runs in your browser on **Windows, macOS and Linux**. The installer places the app and its local helper on your computer; your tracks and custom packs are saved to local files.
-
-1. Download the ZIP above and **extract it completely**.
-2. Open the extracted folder and run the installer for your system:
-
-| System | File to run |
-| --- | --- |
-| Windows | Double-click **Install Windows.cmd** |
-| macOS | Open **Install macOS.command** |
-| Linux | Run `sh "Install Linux.sh"` in the extracted folder |
-
-3. The installer opens the app in your browser. Choose a track pack and start building!
-
-Setup needs an internet connection the first time. It installs the small local helper automatically—you do not need to install Node.js or other developer tools yourself. After setup, the app works offline.
-
-**Next time:** use the **SlotForge Circuit** desktop shortcut on Windows. On macOS/Linux, use **Start SlotForge** in the installed folder; the installer tells you where that folder is.
-
-An existing **SlotForge Track Builder** shortcut still works. The installation
-and data folders retain their original `SlotForgeTrackBuilder` name so updates
-continue using your saved workspace.
-
-If the browser does not open, Windows shows an error dialog with the local address. Launch details are saved in `data/launcher.log` inside your installed folder. macOS/Linux launchers print that location in the terminal. Run the latest installer again to repair an older shortcut; your saved data is kept.
-
-Windows installation has been tested. **The macOS and Linux installers are available for testing; they have not yet been tested on those systems.**
-
-## Will my work stay saved?
-
-**Yes. When you use the installed launcher, your layouts and custom packs are saved as files on your computer.** Closing the browser, restarting your computer or clearing browser data does not remove those files.
-
-- **Save to Library** keeps a named track in your Track Library.
-- Custom packs and your current drawing are saved locally as you work.
-- The app keeps previous workspace versions as backups.
-- Installing an update keeps your saved data.
-
-If another window has updated a saved track, the app asks you to reopen it or save your edits as a new copy. It also warns before closing when changes have not been saved. Use **Storage → Download workspace backup** if saving fails.
-
-The **Storage** button is in the **bottom-right corner of the app**, in the footer. It reads **Storage: disk** or **Storage: browser**. Click it to see where your files live or choose **Download workspace backup**. Keep a backup on another disk or computer for protection against device loss.
-
-**Use the installed launcher for these disk saves.** Opening the `.html` file directly uses browser storage instead. The footer tells you which mode is active: **Storage: disk** or **Storage: browser**.
-
-## Already have tracks in the older app?
-
-Circuit was previously called **SlotForge Track Builder**. Existing tracks and custom packs remain compatible.
-
-1. Open your original app tab and choose **Storage → Download workspace backup**.
-2. Open the installed app and choose **Storage → Import workspace transfer**.
-3. Choose the backup file, then **Reload imported workspace**.
-
-Your imported tracks and packs are added to the library. Existing work is kept. If the older app has no Storage button, use its JSON export buttons to transfer your tracks and custom packs individually.
-
-## What can I do with it?
-
-- **Build a layout:** drag, snap, rotate, mirror, duplicate and select groups of pieces. Side magnets align parallel straights and matching nested curves for wider layouts; hold Shift while dragging to bypass snapping.
-- **Check your available space:** create a rectangle or L-shaped base with exact dimensions, then move, resize or lock it.
-- **Plan with reference pieces:** Carrera Hybrid roads snap directly into visual layouts. For other references, enable approximate snapping and choose a straight or curved planning shape. PDF/PNG exports and parts counts work even when slot lengths are unknown.
-- **Plan the physical build:** see piece counts, borders, footprint and calculated lane lengths for supported closed circuits.
-- **Create your own packs:** add custom straights, matching curves, borders and lane changers with generated artwork.
-- **Watch a live preview:** tune car speed, acceleration, braking, cornering and visual drift.
-- **Export your design:** download a PDF report, PNG picture, CSV parts list or SlotForge layout file.
-
-PDFs are generated inside the app. Choose **Portrait** or **Landscape**, then **Download PDF**—there is no browser print dialog.
-
-<details>
-<summary>Design tools: routed wood, FreeForm, tables, bridges and exports</summary>
-
-**Appearance:** open **Settings → App Theme** in the top-right corner. Choose from eight themes matching SlotForge Timing, or choose **Custom** and set your own background, panels, text, quiet text, lines and accent colours. Changes appear immediately and are remembered in this browser. You can start a custom palette from any preset, and it stays available when you try other themes. The header also keeps the quick **Light / Dark** switch. Track artwork keeps its physical colours and PDF reports stay printer-friendly.
-
-**Routed tools:** select a routed pack, then open **Routed tools** beside the **Sections** heading on the left. Setup, loop-closing actions and display options open in a compact menu, leaving more room for the section catalogue. Click outside the menu or press Escape to close it. **＋ Section**, search and mirroring stay visible.
-
-**Routed wood tracks:** open **Routed Wood** in the header, or select **Routed wood** in the builder. Start with the example, set your lane and braid/tape dimensions, then add or edit straights, circular corners and flowing curves with draggable handles. Corner radii are measured at the innermost slot. Add a table guide and lock it while building. The app checks the 2D layout and estimates slot and conductor lengths; the PDF includes the table, construction profile and design-section list. Choose **Load flowing example** to try S-bends, or select two routed sections with open ends and choose **Bridge selected ends**. **Fill closing gap** automatically connects the two ends of a routed layout. Alternatively, select a section at either open end and use **Reshape to close**. Both offer an adjustable preview, keep the other sections in place, and support Undo. Radius feedback highlights tight slots. CNC output and true-size cutting templates are planned later. Flowing exports require **draft.4** support in SlotForge Timing; circular/straight routed layouts keep draft.3 and ordinary layouts keep draft.2.
-
-**FreeForm Drawing:** open **FreeForm Drawing** to draw one
-continuous slot on a table. Click to place smooth points, drag their handles,
-and close the loop. Choose which lane you drew—even **Lane 3**—then generate
-the other lanes around it. Insert points without changing the curve,
-Shift-click to move several anchors, lock finished points, and use Undo/Redo.
-Save the result to the builder, then **Save to Library**. **Edit FreeForm**
-reopens the editable design. Valid closed loops support Live Preview and the
-usual exports; unfinished drafts can be saved and continued later. Timing
-imports require **draft.8** support. New drawings start with one lane; saved drawings keep their lane count.
-Select a point and use **Points → Squeeze next stretch → Apply squeeze** for
-a smooth convergence on a straight or curve. The drawn lane stays fixed.
-Use the **Points**, **Lanes**, **Table** and **Checks** tabs to find each tool.
-Advanced tools expand in the same folders as the Track Builder catalogue.
-The track status and errors stay visible at the bottom of the panel.
-See [FreeForm controls and limits](app/FREEFORM-TOOLS.txt).
-
-**Table shapes:** in **Table / Space guide**, choose a rectangle or **L shape** and enter its dimensions. For an L-shaped table, choose which corner to remove and the cut-out size. FreeForm has the same controls in its **Table** tab. The shape is included in fit checks, saved designs and PDF/SVG/DXF output.
-
-**Heights and bridges:** select a piece and use **Heights & bridges** to set its start/end surface heights, deck thickness and required headroom. For a FreeForm figure eight, use **Points → Height & bridge** and raise the anchors on the upper passage. Joined ends must have matching heights. These are 2D planning checks: lengths and CAD remain plan-view values, and Circuit does not engineer ramps, check supports or provide a 3D view. See [height controls and limitations](app/HEIGHTS-AND-BRIDGES.txt).
-
-**Choose how you build:** every routed section has a **Routing type** selector.
-Choose **Individual piece** for a separate wood section with its own outline,
-or **Tabletop routing** for slots cut into one continuous board. In tabletop
-mode, edge clearances apply to the table boundary, so imaginary piece borders
-do not block valid curves. Actual slot or conductor folds are still rejected.
-Set a default in **Routed profile**, then override it for any new or edited
-section. Existing sections keep their own settings. Tabletop exports require
-**draft.5** support in SlotForge Timing; earlier layout types keep their contracts.
-
-**Lane squeeze:** select a routed section and choose **Squeeze…** in the Selection
-panel, or enable it while creating a section. Narrow the lanes on a straight or inside a corner
-(for example **100 → 80 → 100 mm**). Choose **Smooth apex** to gradually narrow
-through the whole section, with the smallest spacing only at its midpoint.
-Choose which lane—or the bundle centre—stays in place. Both ends keep their normal
-spacing. The preview, lane lengths, materials and exports follow the new paths.
-Use **Reset squeeze** to return to uniform spacing. Circular corners become
-editable flowing approximations. Check car clearance separately. Squeezed
-exports need **draft.7** support in SlotForge Timing for Smooth apex. Existing
-squeezes keep **Hold narrow spacing**, with adjustable transition lengths and
-the **draft.6** contract, until you explicitly switch their shape.
-
-**Reusable routed sections:** choose a named track pack in the section editor,
-then **Save to pack** or **Save & add to layout**. Find your saved sets on the
-Routed Wood page and in the Track Pack Library. Circular-to-flowing conversion
-keeps the chosen angle, lane order and clearances on their original sides.
-
-**SVG / DXF construction exports:** choose **SVG / DXF** in the builder, or use the Import & Export page to choose a saved library track. Export routed slot centrelines, slot edges, braid/tape edges, track surface contours and the table as separate layers. SVG defaults to full size; choose **Compact page** or a fixed scale for a smaller Illustrator document. The dialog shows how much to enlarge it again (for example, 1:10 → 1000%). DXF always uses full-size millimetres and retains native circular arcs. A 100 mm scale-check bar is optional. Configure cutters and depths in your CAD/CAM software. [Export details](app/CAD-EXPORTS.txt).
-
-</details>
-
-## Export or import a track
-
-- **Export:** open **Import & Export → Tracks**, choose your current track or a saved Track Library entry, then click **Export track JSON**. The downloaded `.slotforge.json` file keeps the editable layout and its piece definitions. The builder also has an **Export track JSON** shortcut.
-- **Import:** click **Import track JSON** in the builder, Import & Export page or Track Library and choose a track file. If a track is already open, you can export it before replacing it. The imported track opens in the builder; choose **Save to Library** to keep a named copy.
-
-The same JSON file supports SlotForge Timing integration. Track-pack files contain reusable pieces rather than a complete layout; import those using **Import custom pack**.
-
-## Manage track packs
-
-Open **Track Packs** to browse built-in systems and manage your own collections in one place. Use **All packs**, **Built-in** or **My packs**, and search by name or scale.
-
-- **Import pack** adds a shared pack of pieces to My packs.
-- **Create pack** starts a named collection; add pieces in the custom editor.
-- **Use in builder** selects that pack without replacing your current layout.
-- **Browse pieces / Edit pack** opens its catalogue or your editable collection.
-- **Export pack** downloads the supported piece definitions for sharing.
-
-You can also use **Import & Export → Track Packs** to import a pack JSON file or select a pack to export. Track designs and piece packs have separate controls.
-
-This replaces the former Plugins page. Track packs contain dimensions and piece definitions, not executable plugins. To import or export a complete track design, use **Import & Export** instead.
-
-## Included track packs
-
-Ten built-in packs cover several model scales:
-
-| Track system | Model scale | Support |
-| --- | --- | --- |
-| Carrera Evolution / Digital | 1:32 / 1:24 | Core roads and borders; selected specials |
-| Scalextric Sport / Digital | 1:32 | Core roads and borders; selected specials |
-| Policar | 1:32 | Core roads and borders; selected specials |
-| ScaleAuto Pro Track | 1:32 | Core roads and borders; selected specials |
-| Ninco Classic / N-Digital | 1:32 | Core roads and borders; selected specials |
-| SCX Universal / Classic / Advance | 1:32 | Reference artwork |
-| AFX Racing / Tomy | HO / 1:64 | Flat straights and curves; special-piece references |
-| Carrera GO!!! | 1:43 | Flat straights and R1/R2 curves; special-piece references |
-| Carrera Hybrid | 1:50 | Approximate visual layouts with snapping, artwork and piece counts |
-| Fleischmann Auto-Rallye | 1:32 | Historic flat straights and three nested curve families |
-
-Every pack uses physical dimensions in **millimetres**. Model scale does not resize the pieces. Each system has a separate connector family. Modern Tomy/AFX is distinct from vintage Aurora A/FX, which is outside this first pack.
-
-Published dimensions, independent measurements and nominal assumptions are identified in the [pack catalogues](track-packs/index.html). Fleischmann slot spacing is a nominal 90 mm assumption. AFX uses owner-reported 34.925 mm spacing, not Tyco spacing. Hybrid has no guide slots. Approximate magnetic ends let you plan a visual layout and export its picture and piece counts; slot lengths and slot animation remain unavailable.
-
-Support varies by piece. Some special pieces have reference artwork only; **SCX and Carrera Hybrid use reference-based visual planning**. Hybrid has preset planning shapes; other references offer adjustable approximate shapes. The app uses nominal or user-entered dimensions. Height and clearance checks are planning aids; reference-piece footprints are approximate, and physical fit still needs checking.
-
-## SlotForge Timing
-
-Choose **Export track JSON** to download a `.slotforge.json` file. It contains the layout, lane routes, timing-line settings and your tuned car-animation profile for the Timing integration.
-
-Height designs require integration contract **1.0.0-draft.9**; shaped tables and FreeForm squeezes require **1.0.0-draft.10**.
-
-Receiving-side support is being coordinated with [SlotForge Timing](https://github.com/theDutchmanJames/SlotForgeTiming). Preview animation is illustrative; real sensors remain responsible for laps and race results.
-
-## Screenshots
-
-**Track Builder** — plan a circuit with a locked space guide, lane lengths and a start/finish line.
-
-[![Track Builder showing a complete circuit inside a locked available-space guide](docs/screenshots/track-builder.png)](docs/screenshots/track-builder.png)
-
-| Track packs | Custom-piece editor | Export |
-| --- | --- | --- |
-| [![Built-in track packs and the custom pack editor](docs/screenshots/track-packs.png)](docs/screenshots/track-packs.png) | [![Custom curve editor with dimensions and matching radius families](docs/screenshots/custom-piece.png)](docs/screenshots/custom-piece.png) | [![Export page with track selection and PDF, SlotForge Timing, PNG and CSV options](docs/screenshots/export.png)](docs/screenshots/export.png) |
-| Browse branded packs or create your own. | Define dimensions, lane spacing and matching curves. | Choose a track and the format you need. |
-
-Click any screenshot to view it at full size.
-
+[Download Circuit](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/latest) · [See the app](#pictures-of-the-app) · [Explore the features](#features-and-functionality) · [How to install](#how-to-install) · [Report a problem](#reporting-problems)
 
 ## SlotForge App Collection
 
@@ -217,57 +28,222 @@ SlotForge Circuit is part of the **SlotForge App Collection**—apps for buildin
 
 Visit each app's repository for its features, downloads and getting-started guide. Circuit was previously called SlotForge Track Builder; its repository is now SlotForgeCircuit.
 
-## Help and updates
+## Pictures of the app
 
-See [GitHub Releases](https://github.com/theDutchmanJames/SlotForgeCircuit/releases) for version history and detailed change notes.
+**Track Builder** — plan a circuit with a locked space guide, lane lengths and a start/finish line.
 
-To update an installed copy:
+[![Track Builder showing a complete circuit inside a locked available-space guide](docs/screenshots/track-builder.png)](docs/screenshots/track-builder.png)
 
-1. In the old app, click **Storage: disk** in the **bottom-right corner**, then choose **Stop local app** and close that tab.
-2. Download the latest release and run its installer again. Your saved data folder is kept.
+| Track packs | Custom-piece editor | Export |
+| --- | --- | --- |
+| [![Built-in track packs and the custom pack editor](docs/screenshots/track-packs.png)](docs/screenshots/track-packs.png) | [![Custom curve editor with dimensions and matching radius families](docs/screenshots/custom-piece.png)](docs/screenshots/custom-piece.png) | [![Export page with track selection and PDF, SlotForge Timing, PNG and CSV options](docs/screenshots/export.png)](docs/screenshots/export.png) |
+| Browse branded packs or create your own. | Define dimensions, lane spacing and matching curves. | Choose a track and the format you need. |
 
-If the button reads **Storage: browser**, you opened the HTML directly. There is no local helper to stop, so skip that step. If saving has failed, choose **Download workspace backup** in the Storage panel before reloading or updating.
+Click any screenshot to view it at full size. These pictures show an earlier interface under the SlotForge Track Builder name; the app is now SlotForge Circuit.
 
-[Report a problem or suggest a feature](https://github.com/theDutchmanJames/SlotForgeCircuit/issues) · [More setup details](START-HERE.txt)
+## Features and functionality
 
-## License
+### Build with the track pieces you own
 
-SlotForge Circuit uses the [SlotForge Source-Available License 1.0](LICENSE).
+Choose a track pack, browse **Straights, Corners, Digital pieces and Extras**, then add pieces to the canvas. Each pack has artwork that reflects its own track system.
 
-- **Free to use**, including personal, club and internal business use.
-- **Free to study, modify and share**, with the license and notices retained.
-- **Selling copies or charging for access is prohibited**, including modified or hosted versions, unless the relevant copyright holders give separate written permission.
-- **Your own track designs, custom packs and exports remain yours to use commercially.**
+- **Drag and snap:** magnetic connections join track ends. Side snapping aligns parallel straights and matching nested curves for layouts with more than two lanes. Hold Shift while dragging to bypass snapping.
+- **Arrange your layout:** rotate, mirror and duplicate pieces, select several at once, and use Undo/Redo while experimenting. Remembered mirroring makes it easier to keep adding corners in the direction you want.
+- **Include the finishing touches:** add matching borders to selected roads and change the foreground/background order where sections overlap.
+- **Check the plan:** see open ends, piece quantities, the footprint including borders, and calculated track and lane lengths where the geometry supports them.
 
-These are custom **source-available** terms, rather than an OSI-approved open-source license. GitHub may display the license as **Other**. Bundled libraries, fonts and the Node.js runtime keep their [own licenses](THIRD-PARTY-NOTICES.txt). The full license controls over this summary.
+Dimensions are physical **millimetres**. A pack's model scale describes the cars and track system; it does not shrink or enlarge the pieces in your plan.
 
-<details>
-<summary>For developers and technical details</summary>
+### Built-in track packs
 
-[Installer and storage details](installer/README.txt) · [Timing integration specification](integration/slotforge-timing/EXPORT-SPEC-1.0.0-draft.2.txt) · [Historical development notes](README.txt)
+Circuit includes ten manufacturer packs, alongside its routed wood tools and custom pack editor:
 
-### Development notes
+| Track system | Model scale | Coverage |
+| --- | --- | --- |
+| Carrera Evolution / Digital | 1:32 / 1:24 | Core roads and borders, plus selected special pieces |
+| Scalextric Sport / Digital | 1:32 | Core roads and borders, plus selected special pieces |
+| Policar | 1:32 | Core roads and borders, plus selected special pieces |
+| ScaleAuto Pro Track | 1:32 | Core roads and borders, plus selected special pieces |
+| Ninco Classic / N-Digital | 1:32 | Core roads and borders, plus selected special pieces |
+| SCX Universal / Classic / Advance | 1:32 | Reference artwork and approximate visual planning |
+| AFX Racing / Tomy | HO / 1:64 | Flat straights and curves, with special-piece references |
+| Carrera GO!!! | 1:43 | Flat straights and R1/R2 curves, with special-piece references |
+| Carrera Hybrid | 1:50 | Approximate visual layouts with snapping, artwork and piece counts |
+| Fleischmann Auto-Rallye | 1:32 | Historic flat straights and three nested curve families |
 
-The app uses plain HTML, CSS and JavaScript. PDF generation uses bundled jsPDF and Noto Sans fonts, so it works offline without an npm installation or online PDF service. See [third-party notices](THIRD-PARTY-NOTICES.txt).
+The **Track Packs** page brings built-in catalogues and your own packs together. Search by name or scale, filter by **Built-in** or **My packs**, browse pieces, and choose **Use in builder** without replacing your current layout.
 
-| Folder | Contents |
+Coverage varies by piece. Where exact geometry is unavailable, reference artwork and adjustable approximate shapes still let you plan a layout and export its picture and parts list. Unknown slot lengths are not presented as measured values. Carrera Hybrid is slotless, so its visual plans do not provide slot lengths or slot-following animation. The AFX pack covers modern Tomy/AFX, not vintage Aurora A/FX.
+
+Pack catalogues identify their dimension sources and assumptions. Calculated lengths are nominal planning values; check actual pieces and physical fit before building.
+
+### Make your own pieces and reusable packs
+
+**Define the dimensions; Circuit draws the piece and its matching icon.** Create a named custom pack and fill it with straights, curves, borders and lane changers. Set the surface width, lane count, slot spacing, road colour and connector family.
+
+For corners, use **matching radius families** to create R1, R2, R3 and larger curves that nest together. The editor shows the inner and outer road radii and previews how the family fits. Slot spacing and road width are separate settings, so you can describe your own system accurately.
+
+Save the set to the **Track Pack Library**, add more pieces later, or export it for another user. Imported packs appear in **My packs**. These packs contain piece definitions and dimensions, not executable plugins; users can add new systems without waiting for an app update.
+
+### Design routed wood tracks
+
+Use **Routed Wood** to plan straights, circular corners and flowing Bézier curves. Work with separate wooden sections or route slots into a continuous tabletop:
+
+- **Individual piece:** each section has its own wood outline and edge clearances.
+- **Tabletop routing:** the table defines the boundary, so imaginary section edges do not limit a continuous routed layout.
+
+Set your lane count and spacing, slot width and depth, board thickness, edge clearances, and braid or tape dimensions. Circular corners use the **innermost slot radius**. Flowing curves have draggable handles, direction locks and exact coordinates for controlled adjustments.
+
+Save useful sections into a named pack, add them to a layout, and reuse them on another design. Convert circular corners into editable flowing approximations when you need a less uniform bend.
+
+**Need to close a loop?** Use **Fill closing gap**, **Bridge selected ends** or **Reshape to close**. Preview the proposed connection and adjust it while keeping the other sections in place. Undo lets you try another approach.
+
+**Need a tighter hairpin or straight?** Apply a lane squeeze—for example, **100 → 80 → 100 mm**. **Smooth apex** narrows the spacing gradually toward the middle and restores normal spacing at both ends. Choose a lane or the bundle centre to keep fixed. The preview, calculated lengths and exports follow the adjusted paths.
+
+Circuit checks for slot and conductor folds or overlaps, highlights tight radii, and estimates slot and conductor lengths. These are design aids; cutter setup, car clearance and construction decisions remain part of the physical build.
+
+### Draw a circuit freely with FreeForm
+
+**Start with one lane. Shape the circuit first, then generate the others.** FreeForm Drawing gives you a dedicated editor for a continuous slot, with smooth Bézier curves instead of a catalogue of fixed pieces.
+
+Place points, drag curve handles and close the loop. Add points without changing the existing curve, move several anchors together, lock finished points, and experiment with Undo/Redo. The **Points, Lanes, Table and Checks** tabs keep the controls organised.
+
+Your drawn slot can become **any lane**. If it is Lane 3 of a four-lane circuit, choose Lane 3, set the spacing and generation side, and Circuit places the other lanes around it. New drawings start with one lane; saved designs retain their settings.
+
+Apply a squeeze to a straight or curved stretch to narrow the other lanes smoothly toward its midpoint while leaving the drawn slot in place. For a figure eight, give the upper passage enough height and headroom using the point height controls.
+
+Save unfinished drawings and continue later. Send a finished design to the builder, keep it in the **Track Library**, and use **Edit FreeForm** to return to its editable points. Supported closed loops can use Live Preview and the normal exports.
+
+[FreeForm controls and limits](app/FREEFORM-TOOLS.txt)
+
+### Plan your table, space and bridges
+
+Create a **rectangle or L-shaped table / space guide** with your actual dimensions. For an L shape, choose the removed corner and its cut-out size. Move and resize the guide, then lock it so it stays out of the way while arranging track. Routed and FreeForm plans include the table in fit checks and relevant exports.
+
+Use **Heights & bridges** on track pieces to set start and end surface heights, deck thickness and required headroom. FreeForm provides the same planning through its point controls. Joined ends need matching heights, and crossings need enough clearance for the lower passage.
+
+The editor remains a **2D planning tool**. Lengths and CAD geometry are plan-view values; Circuit does not engineer ramps, check structural supports or provide a 3D simulation. Reference-piece footprints are approximate.
+
+[Height controls and limitations](app/HEIGHTS-AND-BRIDGES.txt)
+
+### Watch your layout and tune the animation
+
+Run **Live Preview** on a supported closed circuit to watch two cars follow its slots. Adjust the profile's speed, acceleration, braking, cornering and outward visual drift to change how they move through the layout.
+
+The profile shapes an illustrative animation. It does not predict real lap times or replace physical testing.
+
+### Keep a Track Library
+
+Use **Save to Library** to keep named designs you can reopen, compare, share or export. Your current drawing and custom packs are saved locally as you work; saving to the library keeps a named snapshot.
+
+With the installed launcher, the workspace is stored as **files on your computer**, with previous workspace versions kept as backups. Closing the browser, restarting or clearing browser data does not remove those disk files. Updates preserve your saved workspace.
+
+The **Storage** button in the **bottom-right footer** shows **Storage: disk** or **Storage: browser**. Open it to check the storage location, download a workspace backup or import a workspace transfer. Keep a backup on another device as well.
+
+Opening the HTML file directly uses browser storage instead of the installed disk workspace. That workspace can differ between browsers, folders and addresses. Use the installed launcher for consistent local file storage.
+
+### Import, share and export
+
+The **Import & Export** page separates **Tracks** from **Track Packs**, with a selector for exactly what you want to export.
+
+**To share an editable track:** choose your current builder track or a saved Track Library entry, then click **Export track JSON**. The `.slotforge.json` file carries the layout and its piece definitions. On another computer, choose **Import track JSON**, open the file, then **Save to Library** to keep a named copy. Importing offers a chance to export the current track before replacing it.
+
+**To share reusable pieces:** choose **Track Packs**, select a pack and click **Export pack JSON**. **Import pack JSON** adds a pack to My packs without replacing the track being built. Built-in pack exports contain supported piece definitions; some reference-only catalogue artwork is excluded.
+
+| Format | What you can do with it |
 | --- | --- |
-| `app/` | Editor, geometry/integration runtime, local server and tests |
-| `track-packs/` | Track catalogues, SVG artwork, source notes and generators |
-| `designs/` | Shared visual style and early design studies |
-| `integration/slotforge-timing/` | Integration specifications and example fixtures |
-| `installer/` | Per-user file-copy setup and local launcher |
-| `downloads/` | Ready-to-share complete app ZIP |
+| Track JSON | Reopen and edit a complete design in Circuit, or transfer supported track data to SlotForge Timing |
+| Track pack JSON | Share a reusable collection of pieces |
+| PDF | Download a printer-friendly report with the track name, drawing, piece quantities and available calculated lengths; choose portrait or landscape |
+| PNG | Save a transparent track picture, with optional borders |
+| CSV | Open the parts list in a spreadsheet |
+| SVG / DXF | Take routed construction geometry into drawing and CAD software |
 
-Run the source tests with a current Node.js runtime:
+PDFs are generated **inside Circuit** and downloaded directly—there is no browser print dialog to configure.
 
-```sh
-node --test app/transfer-review.test.cjs app/freeform-review.test.cjs app/freeform-editor.test.cjs app/freeform-shapes.test.cjs app/elevation.test.cjs app/freeform.test.cjs app/routed-squeeze.test.cjs app/tabletop-routing.test.cjs app/routed-review.test.cjs app/cad-export.test.cjs app/routed-spline.test.cjs app/routed.test.cjs app/theme-model.test.cjs app/core.test.cjs app/integration.test.cjs app/custom-packs.test.cjs app/editor-features.test.cjs app/library.test.cjs app/track-exports.test.cjs app/space-guide.test.cjs app/pdf-report.test.cjs app/server.test.cjs app/disk-store.test.cjs app/disk-api.test.cjs app/additional-packs.test.cjs app/side-snap.test.cjs app/local-workspace.test.cjs app/review-regressions.test.cjs app/reference-planning.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs installer/launcher.test.cjs
-node integration/slotforge-timing/check-fixtures.cjs
-```
+### Take routed designs into CAD
 
-The current source was checked with **378 passing automated tests and 15 passing integration fixtures**. See [validation details](app/validation.json) for the scope and limitations. Rebuild the complete ZIP with Python 3 using `python app/package-share.py`.
+Export slot centrelines, slot edges, braid or tape edges, surface contours and the table on separate SVG/DXF layers.
 
-Found a rough edge or have an idea for a new piece? [Open an issue](https://github.com/theDutchmanJames/SlotForgeCircuit/issues) with the track system, piece details and a small example layout where possible.
+**SVG** defaults to full size. Choose **Compact page** or a fixed scale for a smaller drawing document; the export dialog tells you how much to enlarge it again. **DXF** uses full-size millimetres and retains native circular arcs. An optional 100 mm scale-check bar helps verify the import.
 
-</details>
+Use your CAD/CAM software to configure cutters, machining depths and toolpaths. Circuit supplies planning geometry, not machine-ready cutting instructions.
+
+[SVG / DXF export details](app/CAD-EXPORTS.txt)
+
+### Connect your design to SlotForge Timing
+
+The **track JSON export** also carries lane routes, timing-line settings and the tuned car-animation profile for [SlotForge Timing](https://github.com/theDutchmanJames/SlotForgeTiming). It provides the design data for track database and Live Tracker integration, so your race display can follow the layout you planned.
+
+The Timing importer must support the features used by the design. Imported lengths are calculated nominal values. During a race, **real sensor crossings remain authoritative**: animation profiles only shape estimated movement and cannot award laps or change results.
+
+### Make Circuit look the way you want
+
+Use the prominent **Light / Dark** switch for a quick change, or open **Settings → App Theme** for the SlotForge theme presets and custom colours. Set backgrounds, panels, text, lines and accents, with an immediate preview.
+
+Track artwork keeps its physical colours, and PDF reports remain printer-friendly regardless of your chosen app theme.
+
+## How to install
+
+**Circuit runs in your browser.** The installer places the app and a local helper on your computer so tracks and custom packs can be saved to disk. You do not need an account, npm or a manual Node.js installation.
+
+1. Open the **[latest release](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/latest)** and download the **complete ZIP package** from its Assets.
+2. **Extract the entire ZIP** into a folder.
+3. Run the installer for your operating system:
+
+| System | File to run |
+| --- | --- |
+| Windows | Double-click **Install Windows.cmd** |
+| macOS | Open **Install macOS.command** |
+| Linux | Run `sh "Install Linux.sh"` in the extracted folder |
+
+The installer opens Circuit in your browser. Choose a track pack or open **Routed Wood** or **FreeForm Drawing** to start designing.
+
+First-time setup needs an internet connection to download the local runtime. **After setup, Circuit works offline.** Next time, use the **SlotForge Circuit** desktop shortcut on Windows, or **Start SlotForge** in the installed folder on macOS/Linux. The installer shows that location.
+
+Windows installation has been tested. The macOS and Linux installers are available for testing but have not yet been tested on those systems.
+
+### Update an installed copy
+
+1. In Circuit, click **Storage: disk** in the **bottom-right corner**, choose **Stop local app**, then close the tab.
+2. Download and fully extract the latest complete ZIP.
+3. Run its installer again. **Your saved data is kept.**
+
+If the footer reads **Storage: browser**, there is no local helper to stop. If saving has failed, use **Storage → Download workspace backup** before reloading or updating.
+
+### Bring your existing work with you
+
+In the original app, choose **Storage → Download workspace backup**. In the installed copy, choose **Storage → Import workspace transfer**, select the file, then **Reload imported workspace**. Imported tracks and packs are added to the library; existing work is kept. You can also transfer tracks and packs individually using JSON exports.
+
+Circuit was previously called SlotForge Track Builder. Older shortcuts still work, and the installation and data folders retain the `SlotForgeTrackBuilder` name so your saved workspace stays intact.
+
+[More setup details](START-HERE.txt) · [Installer and storage details](installer/README.txt)
+
+## Reporting Problems
+
+Found a bug, an incorrect piece or a tool that could work better? **[Open a GitHub issue](https://github.com/theDutchmanJames/SlotForgeCircuit/issues)**. Feature suggestions are welcome too.
+
+Please include:
+
+- Your Circuit version, operating system and browser.
+- What you were trying to do, the steps to reproduce it, and what happened instead.
+- Any error message and a screenshot where useful.
+- For a layout problem, a small exported track JSON that reproduces it.
+- For a track-piece problem, its brand, product code and any published dimensions or reference pictures.
+
+If the launcher does not open the browser, check its error message and `data/launcher.log` in the installed folder. Windows shows the local address in its error dialog; macOS/Linux launchers print the log location in the terminal. Re-running the latest installer can repair an older shortcut while keeping saved data.
+
+If a save fails, download a workspace backup from **Storage** before reloading. Only attach files and logs you are comfortable sharing publicly.
+
+## License and Copyright
+
+**Copyright © 2026 theDutchmanJames and contributors.**
+
+Circuit uses the **[SlotForge Source-Available License 1.0 — No Software Sales or Paid Access](LICENSE)**.
+
+- **Free to use**, including personal, educational, club and internal business use.
+- **Free to study, modify and share**, with the license and notices retained.
+- **Selling the software or charging for access is prohibited**, including modified or hosted versions, without separate written permission from the relevant copyright holders.
+- **Your own track designs, custom packs and exports may be used commercially**, subject to rights in any third-party material they contain. This does not permit selling copied stock catalogues or the software itself as an output.
+
+These are **source-available** terms, not an OSI-approved open-source license. Bundled libraries, fonts and the Node.js runtime retain their [own licenses](THIRD-PARTY-NOTICES.txt). The full license controls over this summary.

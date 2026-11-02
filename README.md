@@ -213,6 +213,16 @@ Receiving-side support is being coordinated with [SlotForge Timing](https://gith
 Click any screenshot to view it at full size.
 
 
+## SlotForge App Collection
+
+SlotForge Circuit is part of the **SlotForge App Collection**, a family of tools for building, maintaining, designing and racing your slotcars. Explore the other apps:
+
+- [**SlotForge Timing**](https://github.com/theDutchmanJames/SlotForgeTiming) — Lap timing, race management and custom race displays.
+- [**SlotForge Paddock**](https://github.com/theDutchmanJames/SlotForgePaddock) — Your digital slotcar garage, with collections, parts, setups and maintenance.
+- [**SlotForge Telemetry**](https://github.com/theDutchmanJames/SlotForgeTelemetry) — Calculate and compare gearing, motors, tyres and weight, and analyse recorded lap times.
+- [**SlotForge Decals**](https://github.com/theDutchmanJames/SlotForgeDecals) — Size and arrange your artwork into printable decal sheets.
+- [**SlotForge Livery**](https://github.com/theDutchmanJames/SlotForgeLivery) — Plan paint schemes, stripes, race numbers and decals on editable 2D car templates.
+
 ## Help and updates
 
 To update an installed copy:

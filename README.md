@@ -6,7 +6,7 @@
 
 <img src="app/icon.svg" alt="SlotForge Circuit icon" width="96" align="right">
 
-## Design it. Build it. Race it.
+**Design it. Build it. Race it.**
 
 Plan your next slot-car circuit before building it for real. Choose track pieces and snap them together, design routed wood sections, or draw a flowing circuit with FreeForm. See how your layout fits your available space before you build.
 

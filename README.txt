@@ -1,9 +1,13 @@
-SlotForge Circuit — editor iteration (v0.3.16)
+SlotForge Circuit — editor iteration (v0.3.17)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. No data migration is required.
+
+NEW IN v0.3.17
+The app icon now uses SlotForge coral red and white, keeping the same track
+shape. SVG, PNG and Windows ICO versions all use the matching colours.
 
 NEW IN v0.3.16
 Safer FreeForm editing, bounded lane generation, reliable Save dialogs,

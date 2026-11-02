@@ -10,6 +10,10 @@ Previously called SlotForge Track Builder. The new name joins SlotForge Timing
 and SlotForge Paddock in the SlotForge app family. Existing tracks and custom
 packs remain compatible; no data migration is needed.
 
+### App Collection colours (v0.3.17)
+
+Circuit’s app icon now matches the SlotForge family: coral red with white track lines. Its familiar shape is unchanged, and the browser, PNG and Windows shortcut icons use the same colours.
+
 ### Reliability update (v0.3.16)
 
 This update protects unsaved FreeForm drawings when switching tracks, checks lane counts before generating lanes, prevents stale Save dialog responses, fixes unknown lengths in exports, and preserves empty custom packs when restoring a workspace backup.
@@ -56,9 +60,9 @@ Plan your next slot-car circuit before building it for real. Choose track pieces
 
 Create your own pieces with custom dimensions and **automatically generated matching icons and artwork**. Keep them together in reusable track packs, and export your layout and car-animation profile for integration with [SlotForge Timing](https://github.com/theDutchmanJames/SlotForgeTiming).
 
-**Version 0.3.16 · Runs in your browser · Saves files on your computer · No account needed**
+**Version 0.3.17 · Runs in your browser · Saves files on your computer · No account needed**
 
-**[Download SlotForge Circuit](https://github.com/theDutchmanJames/SlotForgeTrackBuilder/releases/download/v0.3.16/SlotForge-Circuit-v0.3.16-complete.zip)** · [Release notes](https://github.com/theDutchmanJames/SlotForgeTrackBuilder/releases/tag/v0.3.16)
+**[Download SlotForge Circuit](https://github.com/theDutchmanJames/SlotForgeTrackBuilder/releases/download/v0.3.17/SlotForge-Circuit-v0.3.17-complete.zip)** · [Release notes](https://github.com/theDutchmanJames/SlotForgeTrackBuilder/releases/tag/v0.3.17)
 
 ## Install and start
 

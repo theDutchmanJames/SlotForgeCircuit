@@ -19,6 +19,16 @@ function evaluate(c,t){
  return{t,p,speed,normal:[-v[1]/speed,v[0]/speed],heading:deg(Math.atan2(v[1],v[0])),curvature:crossVA/speed**3,curvatureDerivative:(v[0]*jerk[1]-v[1]*jerk[0])/speed**4-3*crossVA*(v[0]*a[0]+v[1]*a[1])/speed**6};
 }
 const offset=(q,d)=>[q.p[0]+q.normal[0]*d,q.p[1]+q.normal[1]*d];
+// Find a single inside edge from the cubic's signed curvature numerator.
+// That numerator is quadratic: check its extremum too, so a short reverse
+// bend cannot be mistaken for a one-direction corner. Reflection of a placed
+// section does not change which numbered lane is on its inside.
+function innerLane(points,laneCount){
+ const c=curve(points),crossAt=t=>{const q=evaluate(c,t);return q.curvature*q.speed**3;},start=crossAt(0),end=crossAt(1),mid=crossAt(.5),a=2*(end+start-2*mid),b=end-start-a,values=[start,end],t=a===0?-1:-b/(2*a);
+ if(t>0&&t<1)values.push(crossAt(t));
+ const tolerance=Math.max(1,...values.map(Math.abs))*1e-10,positive=values.some(v=>v>tolerance),negative=values.some(v=>v<-tolerance);
+ return positive&&!negative?laneCount:negative&&!positive?1:null;
+}
 const path=points=>'M '+points.map(p=>p.map(v=>Number(v.toFixed(6))).join(' ')).join(' L ');
 const cross=(a,b,c)=>(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);
 function intersects(a,b,c,d){
@@ -141,5 +151,5 @@ function at(segment,d){const {lo,hi,f}=interval(segment.distancesMm,Math.max(0,M
 function distanceAtFraction(segment,fraction){const {lo,hi,f}=interval(segment.referenceFractions,Math.max(0,Math.min(1,fraction)));return segment.distancesMm[lo]+(segment.distancesMm[hi]-segment.distancesMm[lo])*f;}
 function crossSection(p,g,fraction){const {lo,hi,f}=interval(g.reference.distancesMm,fraction*g.reference.lengthMm);if(p.squeeze!==undefined)return[0,p.widthMm].map(d=>{const pts=edgePoints(p,g,d);return pts[lo].map((v,i)=>v+(pts[hi][i]-v)*f);});const t=g.parametersT[lo]+(g.parametersT[hi]-g.parametersT[lo])*f,q=evaluate(p.controlPointsMm,t),s=p.routed,edges=clearances(s),span=(s.laneCount-1)*s.laneSpacingMm;return[offset(q,-span/2-edges.first),offset(q,span/2+edges.last)];}
 function preset(name,s){const r=Math.max(600,((s.laneCount-1)*s.laneSpacingMm+s.innerClearanceMm+s.outerClearanceMm)*1.1),k=.5522847498307936;if(name==='s-bend')return[[0,0],[r*.65,r*.3],[r*1.35,-r*.3],[r*2,0]];if(name==='transition')return[[0,0],[r*.6,0],[r*1.4,0],[r*2,0]];return[[0,0],[r*k,0],[r,r*(1-k)],[r,r]];}
-return{arcMeasure,TYPE,EPS,clearances,curve,evaluate,offset,path,geometry,validate,at,distanceAtFraction,crossSection,preset,squeezeSettings,edgePoints};
+return{arcMeasure,TYPE,EPS,clearances,curve,evaluate,offset,innerLane,path,geometry,validate,at,distanceAtFraction,crossSection,preset,squeezeSettings,edgePoints};
 });

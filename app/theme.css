@@ -98,5 +98,18 @@ html[data-theme] .sf-header .sf-nav-link:hover{color:var(--ink);background:var(-
 .theme-contrast{padding:12px 14px;color:var(--ui-warning);border:1px solid var(--ui-warning);border-radius:7px;line-height:1.6}
 @media(max-width:1180px){.sf-header{gap:12px;padding-right:14px}.sf-header .sf-brand{min-width:170px}.sf-header .sf-nav-link{padding:0 10px}.sf-header-tools .sf-version{display:none}}
 @media(max-width:760px){.theme-presets{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:640px){.sf-header .sf-brand{min-width:0}.sf-header .sf-header-tools{height:42px;gap:6px}.sf-header .sf-settings-link{padding:6px 8px}.sf-header .settings-label{display:none}.sf-header .theme-switch{padding:2px}.sf-header .theme-switch button{padding:6px 8px;min-height:30px}.sf-header nav{order:3;flex:0 0 100%}.theme-colors{grid-template-columns:1fr}.theme-presets-card,.theme-custom-card{padding:18px}}
+@media(max-width:640px){.sf-header .sf-brand{min-width:0}.sf-header .sf-header-tools{height:42px;gap:6px}.sf-header .sf-settings-link{padding:6px 8px}.sf-header .settings-label{display:none}.sf-header .theme-switch{padding:2px}.sf-header .theme-switch button{padding:6px;min-height:30px;font-size:0;gap:0}.sf-header .theme-switch button span{font-size:14px}.theme-colors{grid-template-columns:1fr}.theme-presets-card,.theme-custom-card{padding:18px}}
 @media(max-width:400px){.theme-presets{grid-template-columns:1fr}}
+
+/* Keep the original brand text footprint, as in SlotForge Telemetry. */
+.sf-header .sf-brand .sf-wordmark{display:inline-block;position:relative;vertical-align:baseline}
+.sf-wordmark-size{visibility:hidden}
+.sf-header .sf-wordmark img{position:absolute;left:0;top:50%;transform:translateY(-50%);width:100%;height:auto}
+.sf-header .sf-wordmark .sf-logo-light,.sf-footer-brand .sf-logo-light{display:none}
+html[data-tone="light"] .sf-header .sf-wordmark .sf-logo-light,html[data-tone="light"] .sf-footer-brand .sf-logo-light{display:block}
+html[data-tone="light"] .sf-header .sf-wordmark .sf-logo-dark,html[data-tone="light"] .sf-footer-brand .sf-logo-dark{display:none}
+.statusbar{gap:12px}
+.statusbar #status{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.statusbar #storage-open{margin-left:auto;flex-shrink:0;white-space:nowrap}
+.sf-footer-brand{display:block;width:120px;height:22px;flex:0 0 120px}
+.sf-footer-brand img{display:block;width:120px;height:22px;object-fit:contain}

@@ -10,6 +10,6 @@
 .sf-header a:focus-visible{outline:2px solid #75b6df;outline-offset:-3px}
 .sf-header .sf-version{margin-left:auto;color:var(--muted);font-size:10px;letter-spacing:.8px}
 @media(max-width:1000px){.sf-header{gap:12px;padding:0 14px}.sf-header .sf-brand{min-width:170px}.sf-header .sf-version{display:none}.sf-header .sf-nav-link{padding:0 12px}}
-@media(max-width:640px){.sf-header{height:108px;min-height:108px;flex-wrap:wrap;gap:0;padding:8px 12px 0}.sf-header .sf-brand{height:42px}.sf-header nav{width:100%;height:50px}.sf-header .sf-nav-link{padding:0 10px;font-size:12px}}
+@media(max-width:640px){.sf-header{gap:8px;padding:0 8px}.sf-header .sf-brand{min-width:0;gap:6px}.sf-header .sf-brand>img{width:28px;height:28px}.sf-header .sf-brand strong{font-size:16px}.sf-header .sf-brand small{font-size:8px}.sf-header nav{flex:1 1 auto}.sf-header .sf-nav-link{padding:0 10px;font-size:12px}}
 @media print{.sf-header{display:none!important}}
 .custom-pack-art svg{width:100%;height:100%}

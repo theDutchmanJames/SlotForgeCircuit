@@ -1,4 +1,4 @@
-SlotForge Timing integration handoff — Table panels and Lane Spread (v0.3.20)
+SlotForge Timing integration handoff — Table panels and Lane Spread (v0.3.21)
 2 November 2026
 
 CURRENT CONTRACT
@@ -96,3 +96,6 @@ requires table-stock.js and table-boards.js beside table-shape.js, including for
 Lane Spread (v0.3.20): see EXPORT-SPEC-1.0.0-draft.12.txt.
 Widened routed and FreeForm lanes require the updated shared runtime; old
 squeeze metadata and contracts retain their original interpretation.
+
+Included in v0.3.21: routed Spread chooses a shape-aware anchor in the editor.
+Saved geometry, metadata and integration-contract versions are unchanged.

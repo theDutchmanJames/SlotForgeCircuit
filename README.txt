@@ -1,9 +1,15 @@
-SlotForge Circuit — editor iteration (v0.3.20)
+SlotForge Circuit — editor iteration (v0.3.21)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. No data migration is required.
+
+NEW IN v0.3.21
+Theme-aware SlotForge logos in the header and small footer, with one-row
+navigation. Routed Spread defaults to the bundle centre on straights and
+the inner lane on corners. Existing spreads keep their settings; use the
+Spread outward button in Lane spacing to update a corner.
 
 NEW IN v0.3.20
 Build tables from rectangular boards, split them into transportable panels,

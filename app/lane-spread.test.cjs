@@ -15,6 +15,38 @@ test('Spread hold profile reaches a plateau and retains smooth endpoints',()=>{c
 test('Spread supports each lane as anchor on curved sections and both mirrored placements',()=>{
  const s=profile(),points=S.preset('bend',s);for(const anchor of[1,2,3,4]){const d=section(spread('apex',anchor),points,s),lane=d.geometry.lanePaths[anchor-1].segments[0];d.geometry.parametersT.forEach((t,j)=>near(F.dist(lane.points[j],S.offset(S.evaluate(points,t),-150+(anchor-1)*100)),0));for(const flip of[false,true]){const p={...F.pose(d),id:'p',flip},ports=F.ports(p,{[d.id]:d});for(let k=0;k<2;k++)for(let i=0;i<4;i++)near(F.dist(ports[k].lanes[i],F.point(k?d.geometry.lanePaths[i].end:d.geometry.lanePaths[i].start,p)),0);}}
 });
+test('Corner spread recommendation identifies the inner lane, while straights and S-bends remain centred',()=>{
+ const s=profile(),c=R.flowingFromCurve(s,{type:'curve',slotRadiusMm:400,angleDeg:90}).shape.controlPointsMm;
+ assert.equal(S.innerLane(c,4),1);
+ assert.equal(S.innerLane(c.map(([x,y])=>[x,-y]),4),4);
+ assert.equal(S.innerLane([[0,0],[300,0],[900,0],[1800,0]],4),null);
+ assert.equal(S.innerLane(S.preset('s-bend',s),4),null);
+ // A brief reversal close to the end is still an S-bend, not an outward-only corner.
+ assert.equal(S.innerLane([[0,0],[100,0],[200,100],[300,199]],4),null);
+});
+test('Outward corner spread preserves the inner slot and both joins for either turn and mirrored placement',()=>{
+ const s=profile(),original=R.flowingFromCurve(s,{type:'curve',slotRadiusMm:400,angleDeg:90}).shape.controlPointsMm;
+ for(const sign of[1,-1]){
+  const points=original.map(([x,y])=>[x,y*sign]),anchor=S.innerLane(points,4),d=section(spread('apex',anchor),points,s),base=F.validateDefinition(R.definition(s,{type:S.TYPE,controlPointsMm:points},'routed:base'));
+  for(let j=0;j<d.geometry.parametersT.length;j++){
+   const t=d.geometry.parametersT[j],q=S.evaluate(points,t),fixed=S.offset(q,-150+(anchor-1)*100);
+   near(F.dist(d.geometry.lanePaths[anchor-1].segments[0].points[j],fixed),0);
+   for(let i=0;i<4;i++){
+    const moved=d.geometry.lanePaths[i].segments[0].points[j],plain=S.offset(q,-150+i*100),delta=(moved[0]-plain[0])*q.normal[0]+(moved[1]-plain[1])*q.normal[1];
+    assert.ok(delta*sign>=-1e-7,'moving lanes must expand outward');
+   }
+  }
+  assert.ok(d.geometry.lanePaths[anchor-1].segments[0].curvaturesPerMm.every(k=>k*sign<0));
+  for(const flip of[false,true]){
+   const pose={...F.pose(d),flip};for(let i=0;i<4;i++)for(const end of['start','end'])near(F.dist(F.point(d.geometry.lanePaths[i][end],pose),F.point(base.geometry.lanePaths[i][end],pose)),0);
+  }
+ }
+});
+test('Existing centre-anchored corner spreads keep their saved geometry on import',()=>{
+ const s=profile(),points=R.flowingFromCurve(s,{type:'curve',slotRadiusMm:600,angleDeg:90}).shape.controlPointsMm,d=section(spread(),points,s),out=I.prepare(raw(d)),imported=I.importLayout(out);
+ assert.equal(imported.definitions[d.id].parameters.squeeze.anchorLane,'centre');
+ assert.deepEqual(imported.definitions[d.id].geometry.lanePaths,d.geometry.lanePaths);
+});
 test('Spread validates direction, bounds, shapes, metadata and unsafe geometry without loosening legacy squeeze rules',()=>{
  for(const update of[{version:4},{mode:'squeeze'},{shape:'unknown'},{spacingMm:100},{spacingMm:80},{spacingMm:301},{spacingMm:NaN},{anchorLane:5},{transitionMm:100},{unknown:true}])assert.throws(()=>section({...spread(),...update}));
  assert.throws(()=>section(spread(),undefined,profile(1)),/two lanes/);assert.throws(()=>section({...spread('hold'),transitionMm:901}),/half/);

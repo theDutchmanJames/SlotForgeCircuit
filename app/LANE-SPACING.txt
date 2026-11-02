@@ -5,6 +5,17 @@ Select a routed straight or bend in the builder and choose Lane spacing.
 Enable Adjust spacing, then choose Squeeze or Spread. Enter the target spacing
 and choose which lane, or the bundle centre, should stay fixed.
 
+Choosing Spread now defaults to the innermost lane on a one-direction corner,
+so the inner slot keeps its original curve and the other slots move outward.
+On a straight or S-bend it defaults to the bundle centre, spreading equally
+to both sides; an S-bend has no single inside lane.
+Existing saved spreads retain their anchor. To change one, open Lane spacing
+and click Spread outward - keep Lane N fixed. On converted circular corners
+this is Lane 1; on a flowing bend it can be the last lane. Mirroring retains
+the lane numbers. The button preserves your target spacing and transition.
+Large changes over short bends can still create reverse curvature in moving
+lanes: use a smaller spread or a longer section for a gentler transition.
+
 Smooth midpoint / apex is the default: for example, Spread can run from
 100 mm at entry to 140 mm in the middle and back to 100 mm at exit. Hold target
 spacing keeps a constant middle region with adjustable transitions at each end.

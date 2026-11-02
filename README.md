@@ -100,7 +100,7 @@ Save useful sections into a named pack, add them to a layout, and reuse them on 
 
 **Need to close a loop?** Use **Fill closing gap**, **Bridge selected ends** or **Reshape to close**. Preview the proposed connection and adjust it while keeping the other sections in place. Undo lets you try another approach.
 
-**Adjust lane spacing on a straight or bend.** Choose **Squeeze** to bring lanes closer—for example, **100 → 80 → 100 mm**—or **Spread** to move them apart, such as **100 → 140 → 100 mm**. **Smooth midpoint / apex** blends gradually toward the target and restores normal spacing at both ends. Choose a lane or the bundle centre to keep fixed. The preview, calculated lengths and exports follow the adjusted paths.
+**Adjust lane spacing on a straight or bend.** Choose **Squeeze** to bring lanes closer—for example, **100 → 80 → 100 mm**—or **Spread** to move them apart, such as **100 → 140 → 100 mm**. **Smooth midpoint / apex** blends gradually toward the target and restores normal spacing at both ends. New routed spreads keep the bundle centre fixed on straights and the innermost lane fixed on corners, so the other lanes expand outward. You can still choose another anchor. Existing spreads keep their saved settings; use **Lane spacing → Spread outward** to update a corner. The preview, calculated lengths and exports follow the adjusted paths.
 
 Circuit checks for slot and conductor folds or overlaps, highlights tight radii, and estimates slot and conductor lengths. These are design aids; cutter setup, car clearance and construction decisions remain part of the physical build.
 

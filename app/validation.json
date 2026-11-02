@@ -1,9 +1,9 @@
 {
-  "version": "0.3.20",
+  "version": "0.3.21",
   "date": "2026-11-02",
   "automated": {
     "command": "node --test app/additional-packs.test.cjs app/cad-export.test.cjs app/core.test.cjs app/custom-packs.test.cjs app/custom-piece-delete.test.cjs app/disk-api.test.cjs app/disk-store.test.cjs app/editor-features.test.cjs app/elevation.test.cjs app/freeform-editor.test.cjs app/freeform-review.test.cjs app/freeform-shapes.test.cjs app/freeform.test.cjs app/integration.test.cjs app/lane-spread.test.cjs app/library.test.cjs app/local-workspace.test.cjs app/pdf-report.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs app/reference-planning.test.cjs app/review-regressions.test.cjs app/routed-review.test.cjs app/routed-spline.test.cjs app/routed-squeeze.test.cjs app/routed.test.cjs app/server.test.cjs app/side-snap.test.cjs app/space-guide.test.cjs app/table-panels.test.cjs app/table-review.test.cjs app/table-stock.test.cjs app/tabletop-routing.test.cjs app/theme-model.test.cjs app/track-exports.test.cjs app/transfer-review.test.cjs installer/launcher.test.cjs",
-    "passed": 428,
+    "passed": 431,
     "failed": 0,
     "scope": [
       "Closed circuit and per-lane lengths",
@@ -1009,6 +1009,21 @@
     "limitations": [
       "No fresh native macOS/Linux installation or Illustrator/Fusion import audit",
       "Timing must explicitly adopt draft.11 boards and draft.12 Spread"
+    ]
+  },
+  "release0321": {
+    "date": "2026-11-02",
+    "sourceTestsPassed": 431,
+    "handoffTestsPassed": 157,
+    "integrationFixturesPassed": 15,
+    "browser": [
+      "Theme-aware branding: five themes, seven screen widths, catalogue and file mode, Storage control retained",
+      "Centred straight Spread, outward circular and flowing corners, mirrored corners and correction of existing spreads",
+      "Saved reload retains chosen anchor; no captured browser page errors"
+    ],
+    "limitations": [
+      "No fresh native macOS/Linux installation or Illustrator/Fusion import audit",
+      "Large spacing changes can still produce reverse curvature in moving lanes; the inner anchor preserves its original path"
     ]
   }
 }

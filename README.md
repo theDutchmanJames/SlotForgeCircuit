@@ -14,7 +14,7 @@ Create your own pieces with custom dimensions and **automatically generated matc
 
 **Version 0.3.18 · Runs in your browser · Saves files on your computer · No account needed**
 
-**[Download SlotForge Circuit](https://github.com/theDutchmanJames/SlotForgeTrackBuilder/releases/download/v0.3.18/SlotForge-Circuit-v0.3.18-complete.zip)** · [Release notes](https://github.com/theDutchmanJames/SlotForgeTrackBuilder/releases/tag/v0.3.18)
+**[Download SlotForge Circuit](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/download/v0.3.18/SlotForge-Circuit-v0.3.18-complete.zip)** · [Release notes](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/tag/v0.3.18)
 
 ## Install and start
 
@@ -194,11 +194,11 @@ SlotForge Circuit is part of the **SlotForge App Collection**—apps for buildin
 - <img src="https://raw.githubusercontent.com/theDutchmanJames/SlotForgeDecals/main/assets/icon.png" alt="" width="24" height="24" align="absmiddle"> **[SlotForge Decals](https://github.com/theDutchmanJames/SlotForgeDecals)** — Size and arrange artwork into decal sheets, then export a PDF for printing.
 - <img src="https://raw.githubusercontent.com/theDutchmanJames/SlotForgeLivery/main/assets/icon.png" alt="" width="24" height="24" align="absmiddle"> **[SlotForge Livery](https://github.com/theDutchmanJames/SlotForgeLivery)** — Plan paint schemes, stripes, race numbers and decals on editable 2D car templates.
 
-Visit each app's repository for its features, downloads and getting-started guide. Circuit was previously called SlotForge Track Builder, which remains its repository name.
+Visit each app's repository for its features, downloads and getting-started guide. Circuit was previously called SlotForge Track Builder; its repository is now SlotForgeCircuit.
 
 ## Help and updates
 
-See [GitHub Releases](https://github.com/theDutchmanJames/SlotForgeTrackBuilder/releases) for version history and detailed change notes.
+See [GitHub Releases](https://github.com/theDutchmanJames/SlotForgeCircuit/releases) for version history and detailed change notes.
 
 To update an installed copy:
 
@@ -207,7 +207,7 @@ To update an installed copy:
 
 If the button reads **Storage: browser**, you opened the HTML directly. There is no local helper to stop, so skip that step. If saving has failed, choose **Download workspace backup** in the Storage panel before reloading or updating.
 
-[Report a problem or suggest a feature](https://github.com/theDutchmanJames/SlotForgeTrackBuilder/issues) · [More setup details](START-HERE.txt)
+[Report a problem or suggest a feature](https://github.com/theDutchmanJames/SlotForgeCircuit/issues) · [More setup details](START-HERE.txt)
 
 ## License
 
@@ -247,6 +247,6 @@ node integration/slotforge-timing/check-fixtures.cjs
 
 The current source was checked with **370 passing automated tests and 15 passing integration fixtures**. See [validation details](app/validation.json) for the scope and limitations. Rebuild the complete ZIP with Python 3 using `python app/package-share.py`.
 
-Found a rough edge or have an idea for a new piece? [Open an issue](https://github.com/theDutchmanJames/SlotForgeTrackBuilder/issues) with the track system, piece details and a small example layout where possible.
+Found a rough edge or have an idea for a new piece? [Open an issue](https://github.com/theDutchmanJames/SlotForgeCircuit/issues) with the track system, piece details and a small example layout where possible.
 
 </details>

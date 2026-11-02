@@ -52,7 +52,7 @@ If the footer says Storage: browser, open the installed launcher rather than HTM
 If it says saving failed, export your work as JSON before reloading.
 
 More installation, storage, recovery and developer details: installer/README.txt.
-Project and releases: https://github.com/theDutchmanJames/SlotForgeTrackBuilder
+Project and releases: https://github.com/theDutchmanJames/SlotForgeCircuit
 
 ADDITIONAL TRACK SYSTEMS
 AFX Racing / Tomy (HO / 1:64), Carrera GO!!! (1:43), Carrera Hybrid

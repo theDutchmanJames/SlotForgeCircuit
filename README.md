@@ -2,9 +2,9 @@
   <img src="docs/images/slotforge-brand.png" alt="SlotForge — Slotcar App Collection" width="400">
 </p>
 
-<p align="center"><img src="app/icon.svg" width="88" height="88" alt="SlotForge Circuit icon"></p>
-
 # SlotForge Circuit
+
+<img src="app/icon.svg" alt="SlotForge Circuit icon" width="96" align="right">
 
 Previously called SlotForge Track Builder. The new name joins SlotForge Timing
 and SlotForge Paddock in the SlotForge app family. Existing tracks and custom

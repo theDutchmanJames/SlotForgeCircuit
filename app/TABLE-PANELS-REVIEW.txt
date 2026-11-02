@@ -1,0 +1,74 @@
+TABLE DESIGNER / PANEL EXPORT VALIDATION - 2 November 2026
+
+Local implementation; no release or GitHub push performed.
+
+Automated checks
+- 392 application and installer tests passed, including 14 new panel tests.
+- 15 existing integration fixtures passed without changing their snapshots.
+- New coverage: strict board validation, union boundaries, internal seams,
+  holes, disconnected / corner-touching boards, snapping, splits, locking,
+  resizing, draft.11 negotiation, persistence, stable route identity and
+  physical revision rules; exact circular arc clipping including major and
+  mirrored arcs; boundary tangencies; conductor clipping; FreeForm length
+  conservation; outline-only export; flat-height acceptance and bridge guard;
+  assembly PDF page counts and ZIP CRC / directory records.
+- Existing rectangle/L-shape and earlier integration contracts still pass.
+- git diff --check passed.
+
+Browser checks (isolated Edge, Windows; temporary browser-only workspace)
+- Convert a routed tabletop example to boards and split into three panels.
+- Edit dimensions/name, rotate, add, undo and lock/unlock.
+- Actual pointer drag with Shift bypass and undo restores original position.
+- Save and reload board metadata; original track placements remain identical.
+- Select and preview a panel; download individual SVG and all-panel ZIP.
+- ZIP opens independently with Python zipfile; every entry passes CRC check.
+- FreeForm reuses the arrangement, edits it and applies table settings.
+- Desktop 1440 x 1050 and narrow 600 x 900; no horizontal dialog overflow.
+- No uncaught browser errors during these flows.
+
+Visual checks
+- Inspected Table Designer and panel-export dialog screenshots.
+- Rendered all four pages of the downloaded assembly PDF using Poppler.
+  Verified white pages, numbering, clipped panel drawings, dimensions and
+  readable assembly origins; corrected floating-point display noise.
+
+Practical scope
+- Rectangular boards; 90-degree rotation; horizontal/vertical splits.
+- Board joins currently define transport panels; no independent cut graph,
+  polygon cuts, automatic nesting, alignment hardware or kerf compensation.
+- Flat routed / FreeForm panel geometry only; non-zero heights reject.
+- PDF is an assembly reference; SVG/DXF carry full-size construction geometry.
+- No fresh native Fusion/Illustrator import or macOS/Linux UI audit performed.
+- Timing needs explicit draft.11 support for new board tables; its repository
+  was not modified. Package collection includes the new runtime dependency.
+
+SECOND ITERATION - SPLIT SUGGESTIONS / STOCK SHEET PLANNING
+Local development, 2 November 2026. No push, version bump or release.
+
+- Full suite: 403 application/installer tests passed; 15 existing integration
+  fixtures passed. Focused final panel/stock/PDF run: 35 tests passed.
+- 11 new stock tests cover strict settings, a 10 x 5 metre table split with
+  conserved area and extents, locked blockers, deterministic unique IDs,
+  transport limits, margins/gaps, rotation flags, exact sheet fit and overflow,
+  randomized no-overlap/no-loss checks, persistence/revision neutrality,
+  rigid CAD transforms including arcs, PDF page counts, and export guards.
+- Browser: preview/apply separation, disabled stale previews, locked-board
+  refusal, four-panel/two-sheet proposal, undo restores boards AND settings,
+  save/reload keeps settings, original track placements remain unchanged.
+- Stock ZIP: 15 independently CRC-verified files for four panels/two sheets;
+  includes full-size sheet SVG/DXF, stock placement metadata and PDF diagrams.
+- Existing manual table editing, pointer drag, undo, FreeForm, individual SVG
+  and panel ZIP workflows also passed their browser regression checks.
+- Inspected desktop split/sheet previews, 600px-wide dialog with no horizontal
+  overflow, and rendered stock pages in the generated PDF. No browser errors.
+- Removed superseded temporary size-check fields to keep the designer clearer.
+- Updated runtime packaging to include table-stock.js; earlier contracts keep
+  working. Optional planning metadata remains within unreleased draft.11 and
+  does not change physical revision hashes or slot geometry.
+
+Remaining scope: rectangular panels only, one stock size per plan, heuristic
+packing (not guaranteed optimal), no manual nesting placement or cutting order,
+no kerf compensation, arbitrary cuts, independent transport boundaries,
+alignment hardware or bridge-to-board assignment. Suggested seams are based
+on sizes, so users still review the track crossings before manufacturing.
+No fresh native CAD imports or macOS/Linux UI audit were performed.

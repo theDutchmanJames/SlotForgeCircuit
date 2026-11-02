@@ -2,7 +2,7 @@
 'use strict';
 const R=F.Routed,S=R.Spline,TOL=.00001;
 const defaults={slots:true,slotEdges:false,conductors:false,surfaces:true,table:true,timing:false,scale:false};
-const layers={SLOT_CENTRES:{label:'Slot centrelines',color:'#2563a5',aci:5},SLOT_EDGES:{label:'Slot edges',color:'#cc4040',aci:1},BRAID_EDGES:{label:'Braid edges',color:'#946300',aci:3},TAPE_EDGES:{label:'Copper tape edges',color:'#a35722',aci:30},SURFACE_EDGES:{label:'Track surface contours',color:'#444c55',aci:7},TABLE:{label:'Table outline',color:'#7b8794',aci:8},TIMING_LINE:{label:'Timing reference',color:'#8947ac',aci:6},SCALE_CHECK:{label:'100 mm scale check',color:'#111827',aci:7}};
+const layers={STOCK_SHEET:{label:'Stock sheet boundary',color:'#7b8794',aci:8},SLOT_CENTRES:{label:'Slot centrelines',color:'#2563a5',aci:5},SLOT_EDGES:{label:'Slot edges',color:'#cc4040',aci:1},BRAID_EDGES:{label:'Braid edges',color:'#946300',aci:3},TAPE_EDGES:{label:'Copper tape edges',color:'#a35722',aci:30},SURFACE_EDGES:{label:'Track surface contours',color:'#444c55',aci:7},TABLE:{label:'Table outline',color:'#7b8794',aci:8},TIMING_LINE:{label:'Timing reference',color:'#8947ac',aci:6},SCALE_CHECK:{label:'100 mm scale check',color:'#111827',aci:7}};
 const number=v=>{if(!Number.isFinite(v))throw Error('CAD geometry must contain finite coordinates.');return String(Number(v.toFixed(6)));};
 const bulgeNumber=v=>String(Number(v.toFixed(12)));
 const xml=v=>String(v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g,'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
@@ -59,7 +59,7 @@ function build(raw,requested){
   if(config.surfaces&&s.constructionMode!=='table'){add(edge(d,0),placement,'SURFACE_EDGES');add(edge(d,p.widthMm),placement,'SURFACE_EDGES');for(const index of[0,1]){const ends=cap(placement,index),link=net.links.get(placement.id+':'+index),other=link&&defs[byId.get(link.pieceId).definitionId].parameters.routed.constructionMode!=='table'?cap(byId.get(link.pieceId),link.index):null;if(other&&(F.dist(ends[0],other[0])<TOL&&F.dist(ends[1],other[1])<TOL||F.dist(ends[0],other[1])<TOL&&F.dist(ends[1],other[0])<TOL)){removedCaps++;continue;}push({layer:'SURFACE_EDGES',points:ends,bulges:[0,0],closed:false});}}
  }
  const table=model.layout.workspace?.spaceGuide,tableAvailable=table?.kind==='table';
- if(config.table&&tableAvailable){const points=F.Routed.Table.polygon(table);push({layer:'TABLE',points,bulges:points.map(()=>0),closed:true});}
+ if(config.table&&tableAvailable)for(const points of F.Routed.Table.contours(table))push({layer:'TABLE',points,bulges:points.map(()=>0),closed:true});
  const timing=model.layout.timing.startFinish,piece=timing&&byId.get(timing.pieceId);let timingAvailable=!!piece;
  if(config.timing&&piece){const d=defs[piece.definitionId],p=d.parameters,f=timing.fraction,ends=p.type==='freeform'?F.FreeForm.crossSection(d,f):p.type==='routed-spline'?S.crossSection(p,d.geometry,f):p.type==='straight'?[[f*p.lengthMm,0],[f*p.lengthMm,p.widthMm]]:[F.G.pt(p.innerRadiusMm,F.rad(p.angleDeg*f)),F.G.pt(p.innerRadiusMm+p.widthMm,F.rad(p.angleDeg*f))];add({points:ends,bulges:[0,0]},piece,'TIMING_LINE');}
  if(!paths.length)throw Error('Choose at least one available geometry layer.');
@@ -112,5 +112,5 @@ function serializeDXF(model){
  return header+codes(0,'SECTION',2,'CLASSES',0,'ENDSEC')+tables+blocks+entities+objects+codes(0,'EOF');
 }
 function svg(raw,config,scale=1){return serializeSVG(build(raw,config),false,scale);}function dxf(raw,config){return serializeDXF(build(raw,config));}function preview(model){return serializeSVG(model,true).replace(/^<\?xml[^>]*>\s*/,'');}
-return{defaults,layers,options,info,build,svg,dxf,preview,pathData,svgSize};
+return{defaults,layers,options,info,build,svg,dxf,preview,pathData,svgSize,serializeSVG,serializeDXF,join,arc,bounds};
 });

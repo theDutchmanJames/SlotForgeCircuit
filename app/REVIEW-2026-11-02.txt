@@ -1,0 +1,80 @@
+SlotForge Circuit - review of table planning and Lane Spacing
+2 November 2026. Local changes only; no push, version change or release.
+
+Scope
+Reviewed the pending implementation of board-based tables, manual splitting,
+stock-sheet split suggestions and arrangement, panel clipping, SVG/DXF/ZIP/PDF
+exports, routed and FreeForm Spread, persistence and Timing contract negotiation.
+Included the affected builder/editor controls, shared geometry, source packaging,
+documentation and regression tests. Earlier table validation notes are retained
+in TABLE-PANELS-REVIEW.txt.
+
+Fixes
+- Scaling a rectangle no longer scales a hidden, previously edited board table
+  or rejects the operation because those hidden boards are locked.
+- Returning to a cached board arrangement restores its actual outer dimensions;
+  dimensions from an intervening rectangle no longer carry over to the boards.
+- L-table scale validation happens before changing either cut-out dimension.
+  Failed scaling restores outer dimensions and leaves the original shape intact.
+- A rejected Table Designer save no longer changes working boards outside undo
+  history. Overlap/validation checks complete before the proposed table commits.
+- A pending panel export is cancelled when its dialog closes or reopens. It
+  cannot download an obsolete request or alter the new dialog's controls/status.
+- A rejected stock-plan commit leaves the planning dialog open with an error,
+  instead of closing as if the parent table had accepted it.
+
+Verification
+- 419 application and installer tests passed, including five new review tests.
+- 15 integration fixtures passed, including round trips and expected rejection.
+- Built source and standalone Timing handoff archives in a temporary review
+  directory; both archives passed CRC checks. The extracted handoff passed all
+  154 supplied tests using only its packaged files.
+- Isolated Edge browser checks passed for hidden-board scaling, restoring board
+  extents, failed L scaling, failed table save, undo and cancelled panel export.
+- Existing end-to-end board, stock-sheet and Spread browser checks also passed:
+  pointer dragging, snapping, locks, undo, preview/apply separation, persistence,
+  FreeForm, layer previews, individual SVG and panel/stock ZIP downloads, and
+  narrow layouts. No uncaught browser errors in those flows.
+- Geometry tests include clipped arc/line/FreeForm paths, shared panel seams,
+  stock transforms and spacing-adjusted exports. Legacy squeeze formats and
+  earlier integration contracts retain their previous behaviour.
+- git diff --check passed.
+
+Limits
+This is a source, automated-test and isolated Windows/Edge browser review.
+No fresh native Fusion/Illustrator import, physical construction validation,
+or macOS/Linux browser UI audit was performed. Geometry and clearance checks
+remain planning aids; stock arrangement is heuristic and does not provide
+machine toolpaths or kerf compensation. Timing must explicitly support draft.11
+boards and draft.12 Spread before receiving those designs. No Timing repository
+was changed, and the user's saved workspace was not used for testing.
+
+FOLLOW-UP REVIEW - CUSTOM PACK PIECE DELETION
+2 November 2026. Changes since the preceding table/spacing review only.
+
+Reviewed single and bulk deletion, selection scope, confirmation behaviour,
+custom-library removal, disk/browser persistence, empty packs, definition
+retention for placed tracks and undo/redo, and the new documentation/styles.
+
+Fixed:
+- Browser-only deletion now checks the saved-pack baseline from this tab's
+  last load or successful write. A newer save by another tab blocks deletion
+  with a reload/export instruction rather than overwriting that newer library.
+  This guard is specific to deletion; it is not a general multi-tab merge system.
+- A rendering error after a successful save no longer reports that deletion
+  failed. The committed library remains current, the delete request is cleared,
+  and the user is told that deletion was saved but the display needs a reload.
+
+Validation:
+- 428 application/installer tests and 15 integration fixtures passed.
+- Four added regression tests cover stale browser data, saved baselines,
+  post-save display errors and repeated confirmation during a pending write.
+- Two real browser tabs tested in both browser-only and temporary disk modes:
+  save a changed pack in the second tab, reject deletion from the older tab,
+  reload, delete successfully, retain the new pack name and the placed track.
+- Re-ran single/bulk deletion, cancel, changing packs, empty-pack reload,
+  simulated save failures and retry, placed-track undo and saved-design retention
+  in both storage modes. No uncaught browser errors.
+- git diff --check passed. No personal workspace data was used.
+
+All changes remain local. No version bump, push or release performed.

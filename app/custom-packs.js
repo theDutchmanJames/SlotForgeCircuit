@@ -33,5 +33,11 @@ function importPack(raw,library){
 }
 function exportPack(pack){return{format:'slotforge.custom-pack',version:pack.pieces.some(d=>d.parameters?.squeeze)?2:1,name:name(pack.name),units:'mm',...(pack.curveFamily?{curveFamily:curveParameters(pack.curveFamily)}:{}),pieces:pack.pieces.filter(d=>d.parameters).map(d=>({...definition(validatePiece(d)),pack:pack.name}))};}
 function addRouted(library,raw,{packId,packName='My routed sections',flip=false}={}){const next=read(serialize(library));if(!raw?.parameters?.routed)throw Error('Choose a routed section to save.');if(next.packs.reduce((n,p)=>n+p.pieces.length,0)>=500)throw Error('The custom library supports up to 500 pieces. Export a pack before making room.');let pack;if(packId&&packId!=='new'){pack=next.packs.find(p=>p.id===packId);if(!pack)throw Error('The selected track pack is no longer available.');}else{if(next.packs.length>=100)throw Error('The library supports up to 100 custom packs. Choose an existing pack.');pack={id:'custom-pack-'+F.uid(),name:name(packName),inLibrary:true,pieces:[]};next.packs.push(pack);}const d=validatePiece({...raw,id:'custom:'+F.uid(),pack:pack.name,catalogueFlip:!!flip});pack.pieces.push(d);pack.inLibrary=true;next.activePackId=pack.id;return{library:next,pack,definition:d};}
-return{STORAGE,name,empty,read,serialize,importPack,exportPack,curveParameters,addRouted,preferredFlip};
+function removePieces(library,packId,ids){
+ if(!Array.isArray(ids)||!ids.length||ids.some(id=>typeof id!=='string')||new Set(ids).size!==ids.length)throw Error('Choose one or more pieces to delete.');
+ const pack=library.packs.find(p=>p.id===packId);if(!pack)throw Error('This custom pack is no longer available.');
+ const chosen=new Set(ids);if(ids.some(id=>!pack.pieces.some(d=>d.id===id)))throw Error('One of these pieces is no longer in this pack. Close this dialog and select the pieces again.');
+ return{...library,packs:library.packs.map(p=>p.id===packId?{...p,pieces:p.pieces.filter(d=>!chosen.has(d.id))}:p)};
+}
+return{STORAGE,name,empty,read,serialize,importPack,exportPack,curveParameters,addRouted,preferredFlip,removePieces};
 });

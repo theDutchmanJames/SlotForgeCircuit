@@ -1,0 +1,28 @@
+Lane Spacing: Squeeze and Spread
+
+Routed sections
+Select a routed straight or bend in the builder and choose Lane spacing.
+Enable Adjust spacing, then choose Squeeze or Spread. Enter the target spacing
+and choose which lane, or the bundle centre, should stay fixed.
+
+Smooth midpoint / apex is the default: for example, Spread can run from
+100 mm at entry to 140 mm in the middle and back to 100 mm at exit. Hold target
+spacing keeps a constant middle region with adjustable transitions at each end.
+Circular corners convert to editable flowing approximations as before.
+
+FreeForm Drawing
+Generate at least two lanes, select the start point of the stretch, and open
+Points > Lane spacing - next stretch. Choose Squeeze or Spread, enter the
+midpoint spacing and Apply spacing. The drawn lane remains fixed. Normal
+spacing returns at the next point. Undo/redo and Reset this stretch are available;
+Lanes > Numbering & lane spacing can reset the whole drawing.
+
+Spread targets must be above normal spacing and at most 300 mm. Existing
+squeezes retain their settings. Spacing is measured across the reference path,
+not as the shortest distance between bending slots. Wider lanes can require
+a larger table or gentler curve; existing geometry and clearance checks apply.
+
+The actual slot and conductor paths drive lengths, previews, SVG/DXF and panel
+exports. Saved layouts and reusable packs preserve the adjustment. Spread files
+declare integration contract 1.0.0-draft.12; SlotForge Timing must support that
+contract and its shared runtime before importing them.

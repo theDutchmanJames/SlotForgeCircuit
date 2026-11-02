@@ -1,9 +1,16 @@
-SlotForge Circuit — editor iteration (v0.3.19)
+SlotForge Circuit — editor iteration (v0.3.20)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. No data migration is required.
+
+NEW IN v0.3.20
+Build tables from rectangular boards, split them into transportable panels,
+and arrange panels on stock sheets. Export panel and sheet SVG/DXF with
+assembly PDFs. Lane spacing now supports Spread as well as Squeeze.
+Delete unwanted custom pieces individually or in bulk while keeping copies
+already used by your saved tracks. See app/TABLE-PANELS.txt and LANE-SPACING.txt.
 
 NEW IN v0.3.19
 Import & Export has separate Tracks and Track Packs options. Track Packs

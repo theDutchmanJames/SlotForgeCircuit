@@ -1,0 +1,51 @@
+SlotForge integration draft.12 - Lane Spread
+Local development, 2 November 2026. Layout envelope remains version 1.
+
+Negotiate draft.12 when any definition contains routed squeeze.version=3
+or FreeForm nodes[].squeeze.version=2, including unused definitions. This
+takes precedence over the board assembly contract draft.11. Previous files
+keep their existing contracts and geometry. Unknown contracts must reject
+before normalization. No receiving-side repository changes are included.
+
+The UI calls this tool Lane Spacing, with Squeeze and Spread modes. The
+serialized property remains "squeeze" for compatibility. Legacy routed
+versions 1/2 and FreeForm version 1 remain narrowing-only; their validation
+must not be relaxed to reinterpret older files as spread designs.
+
+Routed section parameters.squeeze:
+  {"version":3,"mode":"spread","shape":"apex",
+   "spacingMm":140,"anchorLane":"centre"}
+
+For a constant-spacing middle, shape="hold" requires transitionMm (10 to
+10,000 mm, no longer than half the reference path). Apex forbids transitionMm.
+anchorLane is "centre" or a 1-based lane number. Target spacing must exceed
+the normal routed.laneSpacingMm, not exceed 300 mm, and leave conductor room.
+At least two lanes are required. Unknown keys, modes and shapes reject.
+
+FreeForm outgoing node.squeeze:
+  {"version":2,"mode":"spread","spacingMm":140,"domain":[0,1]}
+
+FreeForm uses the apex shape, fixes the originally drawn lane and respects
+generation side and referenceLane. The same target constraints apply.
+domain retains its draft.10 arc-length meaning: splitting an existing span
+divides its domain, preserving the original spacing profile, rather than
+creating two independent bulges. Invalid metadata or domain bounds reject.
+
+Geometry uses the existing variable-offset engine. At reference arc fraction
+u, the apex weight is w=64*u^3*(1-u)^3. Lane offset changes by
+(laneIndex-anchorIndex)*(targetSpacing-normalSpacing)*w. This has zero first
+and second derivatives at the ends and reaches target spacing at the midpoint.
+The legacy hold profile uses quintic transitions at each end. Normal endpoint
+positions and tangents are retained. Spacing is across the reference normal,
+not the shortest distance between two curving slots.
+
+Conductors and individual-piece edges follow the actual slot normals. Folding,
+self-crossing, conductor overlap, table fit and bridge checks still apply.
+Lengths, CAD and panel clipping use these same sampled paths. Enlarging spacing
+does not guarantee safe car clearance or table fit.
+
+Copy the updated routed-spline.js, freeform.js and integration.js with the
+existing shared runtime dependency set. Run lane-spread.test.cjs plus existing
+squeeze, FreeForm and integration tests. Timed sensor events remain authoritative;
+the animation profile never awards laps. Route identity and measured-length
+handling are unchanged.

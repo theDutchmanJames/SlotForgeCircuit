@@ -233,3 +233,31 @@ squeezes work on straights and bends and preserve the drawn reference slot.
 Splitting a squeezed span retains its profile. Integration draft.10 covers
 shaped bases and per-anchor outgoing squeeze metadata. Layout envelope is v1.
 Arbitrary polygonal bases remain future work.
+
+2 November 2026 - Table Designer and panel export first iteration (local)
+Dimensioned rectangular boards with snapping, 90-degree rotation, duplication,
+locks and manual horizontal/vertical splits. Existing rectangle/L-shape presets
+remain. Actual union geometry drives fit checks, pictures and saved designs.
+Routed flat-panel SVG/DXF clips geometry to each board, retaining analytic arcs.
+All-panels ZIP includes construction layers, assembly PDF and origin manifest.
+Contract draft.11 covers the new boards shape; envelope v1 stays unchanged.
+Future: arbitrary cuts, distinct stock/construction/transport layouts, automatic
+split suggestions and nesting, alignment marks, mounting holes, bridge assignment.
+See app/TABLE-PANELS.txt for controls and exact first-iteration limits.
+
+2 November 2026 - Table panel second iteration (local, unreleased)
+Added explicit preview/apply for size-based split suggestions. Oversized unlocked
+boards split on an even rectangular grid; locked boards remain blockers. Saved
+sheet/transport settings, margins, inter-panel gaps and rotation preference.
+Deterministic rectangle nesting tries three orders and reports estimated sheet
+count and area usage. It does not guarantee an optimal layout or cut sequence.
+Panel ZIP optionally adds full-size sheet SVG/DXF with transformed track paths,
+stock pages in assembly.pdf and placement/rotation metadata in assembly.json.
+Remaining: arbitrary cuts, independent transport seams, mixed stock sizes,
+manual sheet placement, hardware/alignment guides and bridge assignment.
+
+Lane Spacing - local implementation
+- Squeeze and Spread for routed straights/bends and FreeForm stretches.
+- Smooth apex default; routed hold option; fixed lane or centre for sections, drawn lane for FreeForm.
+- Existing squeezes preserved; spread metadata negotiates integration draft.12.
+- Shared variable geometry drives previews, lengths and construction exports.

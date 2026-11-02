@@ -1,10 +1,10 @@
-SlotForge Timing integration handoff — FreeForm, heights and shaped tables (v0.3.15)
-1 November 2026
+SlotForge Timing integration handoff — Table panels and Lane Spread (v0.3.20)
+2 November 2026
 
 CURRENT CONTRACT
 slotforge.layout envelope: version 1 (unchanged)
-integration.contractVersion: draft.10 for shaped tables/FreeForm squeezes; draft.9 for heights; draft.8 for FreeForm; otherwise draft.7 for smooth-apex squeezes; otherwise draft.6 for legacy squeezes, draft.5 for tabletop routing, draft.4 for flowing curves, draft.3 for circular/straight routed, draft.2 otherwise
-Supported imports: draft.10, draft.9, draft.8, draft.7, draft.6, draft.5, draft.4, draft.3, draft.2, draft.1, and documented legacy/unversioned v1.
+integration.contractVersion: draft.12 for Lane Spread; draft.11 for board assemblies; draft.10 for shaped tables/FreeForm squeezes; draft.9 for heights; draft.8 for FreeForm; otherwise draft.7 for smooth-apex squeezes; otherwise draft.6 for legacy squeezes, draft.5 for tabletop routing, draft.4 for flowing curves, draft.3 for circular/straight routed, draft.2 otherwise
+Supported imports: draft.12, draft.11, draft.10, draft.9, draft.8, draft.7, draft.6, draft.5, draft.4, draft.3, draft.2, draft.1, and documented legacy/unversioned v1.
 Explicit unknown versions and unsupported units are rejected before normalization.
 The app is now named SlotForge Circuit. New exports use that producer.name;
 older SlotForge Track Builder exports retain full compatibility. The rename
@@ -31,7 +31,7 @@ Squeezed packs use custom-pack v2; saved libraries containing them use v3.
 6. TEST-RESULTS-AND-LIMITS.txt — current verification and limitations.
 
 RUN FROM THE HANDOFF ARCHIVE ROOT (modern Node; no npm install)
- node --test app/freeform-review.test.cjs app/freeform-shapes.test.cjs app/elevation.test.cjs app/integration.test.cjs app/editor-features.test.cjs app/routed.test.cjs app/routed-spline.test.cjs app/routed-squeeze.test.cjs app/freeform.test.cjs
+ node --test app/lane-spread.test.cjs app/freeform-review.test.cjs app/freeform-shapes.test.cjs app/elevation.test.cjs app/integration.test.cjs app/editor-features.test.cjs app/routed.test.cjs app/routed-spline.test.cjs app/routed-squeeze.test.cjs app/freeform.test.cjs
  node integration/slotforge-timing/check-fixtures.cjs
 All tests and all 15 legacy fixture cases should pass.
 The catalogue and custom-packs module are included for these tests; Timing's
@@ -89,3 +89,10 @@ runtime. Figure-eight-with-bridge example is in routed-examples.
 Included in v0.3.15: shaped tables and FreeForm squeezes require draft.10.
 Read EXPORT-SPEC-1.0.0-draft.10.txt. Copy app/table-shape.js alongside the
 shared runtime; routed.js now requires it even for rectangular tables.
+
+Board assemblies: see EXPORT-SPEC-1.0.0-draft.11.txt. The shared runtime now
+requires table-stock.js and table-boards.js beside table-shape.js, including for legacy layouts.
+
+Lane Spread (v0.3.20): see EXPORT-SPEC-1.0.0-draft.12.txt.
+Widened routed and FreeForm lanes require the updated shared runtime; old
+squeeze metadata and contracts retain their original interpretation.

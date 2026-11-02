@@ -1,0 +1,108 @@
+TABLE DESIGNER AND PANEL EXPORTS
+
+Open Table / Space guide in Track Builder, choose Base shape > Table Designer
+and open the designer. The same controls are available in FreeForm > Table.
+Existing rectangles and L-shaped guides remain supported. Converting an
+L shape seeds rectangular boards covering the same surface.
+
+Add boards, edit their dimensions and positions, duplicate or rotate 90 degrees.
+Drag to arrange them. Magnetic edges also align board corners; hold Shift to
+bypass snapping. Positions are relative to the table's upper-left origin.
+Boards cannot extend left/up of that origin in this first iteration; move the
+whole guide in the builder if more room is needed on those sides.
+
+Lock an individual board to prevent dimension changes, movement or splitting.
+Lock the whole guide in the builder to prevent the assembly being moved.
+The displayed track is a reference overlay and is never moved by this editor.
+Use Undo in the designer, or Cancel to discard the entire designer session.
+Use this table returns the arrangement to the table settings; Save guide
+(or Apply construction in FreeForm) commits it to the design.
+
+SPLITTING
+Select a board, choose a vertical or horizontal cut, and enter its distance
+from the board's left or top edge. The dashed line previews the proposed cut.
+Split selected board replaces it with two rectangular panels. Each panel must
+be at least 10 mm wide. Their shared edge remains exact: no kerf is removed.
+Use Splits & stock sheets to save your sheet size, edge margin, panel gap,
+rotation permission and transport limits.
+Overlapping boards are highlighted and must be resolved before applying.
+Separate boards and openings are allowed; the outer dimensions alone do not
+describe the available surface. Fit checks use the actual union of boards.
+
+SPLIT SUGGESTIONS AND STOCK SHEETS
+Open Splits & stock sheets from the Table Designer toolbar.
+- Enter sheet length/width, edge margin and the gap between finished panels.
+- Set the maximum transport dimensions. A panel may be turned for transport;
+  the separate rotation checkbox controls 90-degree turns on stock sheets.
+- Preview suggested splits divides each oversized, unlocked board into an
+  even rectangular grid. Table & seams shows the proposed boundaries over
+  your track. Locked boards stay intact and report why they cannot fit.
+- Arrange current panels leaves existing panels intact and estimates the
+  sheets needed. Stock sheets shows numbered panels and their orientation.
+- Apply splits & sheet settings commits the proposal; Use sheet settings
+  saves settings without changing panel boundaries. Undo restores the previous
+  boards and settings together. Cancel leaves the table unchanged.
+
+Nothing is applied until you confirm. Changing a setting disables Apply until
+its preview is updated. The planner tries several rectangle-packing orders;
+its estimate is deterministic but is not guaranteed to use the fewest sheets.
+It does not optimize seam placement around the track. Review those joins.
+The gap reserves space between finished-size panels. It is not automatic
+saw kerf or cutter compensation and does not shrink any panel or slot path.
+One stock sheet size is supported per plan. All panels must fit both the
+usable sheet and transport limits before the plan can be applied.
+
+EXPORTING
+Save the table first. Open SVG / DXF from the builder or Import & Export.
+Choose a panel in Export scope to preview and download it separately, or use
+Download all panels - ZIP. Choose the slot and conductor layers you need. If sheet settings are saved,
+Include stock-sheet layouts adds their full-size drawings and PDF pages.
+Uncheck it to export individual panels without a stock plan.
+
+The ZIP contains:
+  panel-001.svg / .dxf, etc. - full-size millimetres; board outline plus clipped
+    selected routed geometry. Circular arcs retain analytic arc geometry;
+    flowing / FreeForm offsets retain their existing sampled precision.
+  assembly.pdf - overview and one fitted-to-page drawing per numbered panel.
+  assembly.json - panel names, dimensions and original assembly coordinates.
+  READ-ME.txt - origin conventions, geometry notes and manufacturing limits.
+  sheet-001.svg / .dxf, etc. (optional) - panels arranged onto stock sheets,
+    with their clipped track geometry and exact finished outlines.
+The PDF includes numbered stock-sheet diagrams when requested. assembly.json
+also records each stock placement, panel number and clockwise rotation.
+Sheet geometry is translated/rotated only, never scaled or mirrored.
+
+SVG panel coordinates start at the panel's top-left, X right / Y down.
+DXF uses the same origin with Y negated (CAD Y up). Translation to panel-local
+coordinates does not scale geometry. Individual SVG exports may use the
+existing explicit page scales; the all-panels ZIP always uses 1:1.
+The panel outline is always included. The scale-check bar is for whole-layout
+exports only. Slots and braid/tape paths are genuinely trimmed to boundaries,
+not hidden behind a clip mask. Paths outside all boards are excluded.
+
+CURRENT LIMITS
+Rectangular boards and horizontal / vertical splits only. Board joins are
+also the transport panel boundaries. Arbitrary polygon cuts, independently
+defined transport seams, mixed stock sizes/materials, manual sheet placement,
+mounting holes and alignment marks remain future work. Suggested seams are
+size-based; they do not assess slot crossing angles or structural strength.
+
+Panel CAD supports flat routed layouts, including FreeForm. A design with
+non-zero heights is rejected rather than projecting an upper bridge onto the
+lower board. Explicit board / deck assignment is needed for that workflow.
+Whole-layout CAD still offers its existing, labelled XY projection.
+
+PDF diagrams are assembly references, not full-size paper cutting templates.
+No kerf, cutter compensation, machining depths or toolpaths are applied.
+Check seam placement, conductor connections and mechanical construction before
+manufacture. A slot running along a panel edge produces an export note.
+
+DATA AND COMPATIBILITY
+Up to 128 boards; total extent up to 50,000 x 50,000 mm. The arrangement is
+stored with optional sheet planning settings in workspace.spaceGuide.shape
+and travels with track JSON, Track Library
+snapshots and workspace backups. Guide / board locking and board names do not
+change the physical design revision. Board geometry does; lane paths are intact.
+Board tables use integration contract 1.0.0-draft.11. Layout envelope stays v1.
+Older layouts keep their existing contracts. SlotForge Timing must explicitly
+support draft.11 to import a design containing this new table shape.

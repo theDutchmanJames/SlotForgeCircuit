@@ -73,6 +73,8 @@ Circuit includes ten manufacturer packs, alongside its routed wood tools and cus
 
 The **Track Packs** page brings built-in catalogues and your own packs together. Search by name or scale, filter by **Built-in** or **My packs**, browse pieces, and choose **Use in builder** without replacing your current layout.
 
+To tidy your own packs, choose **Edit pack**. Use **Delete from pack** on a piece, or select several and choose **Delete selected**. Deletion is saved automatically after confirmation. Existing layouts and saved Track Library designs keep their copies; an empty pack stays available for new pieces.
+
 Coverage varies by piece. Where exact geometry is unavailable, reference artwork and adjustable approximate shapes still let you plan a layout and export its picture and parts list. Unknown slot lengths are not presented as measured values. Carrera Hybrid is slotless, so its visual plans do not provide slot lengths or slot-following animation. The AFX pack covers modern Tomy/AFX, not vintage Aurora A/FX.
 
 Pack catalogues identify their dimension sources and assumptions. Calculated lengths are nominal planning values; check actual pieces and physical fit before building.
@@ -98,7 +100,7 @@ Save useful sections into a named pack, add them to a layout, and reuse them on 
 
 **Need to close a loop?** Use **Fill closing gap**, **Bridge selected ends** or **Reshape to close**. Preview the proposed connection and adjust it while keeping the other sections in place. Undo lets you try another approach.
 
-**Need a tighter hairpin or straight?** Apply a lane squeeze—for example, **100 → 80 → 100 mm**. **Smooth apex** narrows the spacing gradually toward the middle and restores normal spacing at both ends. Choose a lane or the bundle centre to keep fixed. The preview, calculated lengths and exports follow the adjusted paths.
+**Adjust lane spacing on a straight or bend.** Choose **Squeeze** to bring lanes closer—for example, **100 → 80 → 100 mm**—or **Spread** to move them apart, such as **100 → 140 → 100 mm**. **Smooth midpoint / apex** blends gradually toward the target and restores normal spacing at both ends. Choose a lane or the bundle centre to keep fixed. The preview, calculated lengths and exports follow the adjusted paths.
 
 Circuit checks for slot and conductor folds or overlaps, highlights tight radii, and estimates slot and conductor lengths. These are design aids; cutter setup, car clearance and construction decisions remain part of the physical build.
 
@@ -110,7 +112,7 @@ Place points, drag curve handles and close the loop. Add points without changing
 
 Your drawn slot can become **any lane**. If it is Lane 3 of a four-lane circuit, choose Lane 3, set the spacing and generation side, and Circuit places the other lanes around it. New drawings start with one lane; saved designs retain their settings.
 
-Apply a squeeze to a straight or curved stretch to narrow the other lanes smoothly toward its midpoint while leaving the drawn slot in place. For a figure eight, give the upper passage enough height and headroom using the point height controls.
+Use **Points → Lane spacing — next stretch** to squeeze or spread the other lanes smoothly toward a straight or curved stretch’s midpoint while leaving the drawn slot in place. For a figure eight, give the upper passage enough height and headroom using the point height controls.
 
 Save unfinished drawings and continue later. Send a finished design to the builder, keep it in the **Track Library**, and use **Edit FreeForm** to return to its editable points. Supported closed loops can use Live Preview and the normal exports.
 
@@ -119,6 +121,14 @@ Save unfinished drawings and continue later. Send a finished design to the build
 ### Plan your table, space and bridges
 
 Create a **rectangle or L-shaped table / space guide** with your actual dimensions. For an L shape, choose the removed corner and its cut-out size. Move and resize the guide, then lock it so it stays out of the way while arranging track. Routed and FreeForm plans include the table in fit checks and relevant exports.
+
+**Build a table from boards:** choose **Table Designer** in the table settings. Add boards with your own dimensions, drag and snap their edges together, duplicate them, rotate them 90°, and lock finished boards. The track stays in place while you arrange its support. Fit checks follow the combined surface, including gaps and openings.
+
+**Split it for transport or construction:** select a board and preview a horizontal or vertical cut. The two resulting panels share an exact edge. Open **Splits & stock sheets** to preview suggested cuts that fit your sheet and transport limits. Review the seams over your track before applying; locked boards stay intact.
+
+For flat routed layouts, open **SVG / DXF** and choose a panel to export, or download **all panels as a ZIP**. Each numbered SVG/DXF includes the board outline and the selected slot and braid/tape paths, neatly trimmed at its boundary. The ZIP also includes an assembly PDF and panel positions. Full-size geometry is preserved; no kerf or cutter compensation is applied. Save a stock plan to include sheet layouts with the track geometry arranged in place. Set sheet dimensions, margins, panel gaps and optional 90° rotation; compare the estimated sheet count and material usage. The arrangement is not guaranteed to be optimal. Bridge panel assignment and arbitrary cuts are not yet included.
+
+[Table Designer and panel export guide](app/TABLE-PANELS.txt)
 
 Use **Heights & bridges** on track pieces to set start and end surface heights, deck thickness and required headroom. FreeForm provides the same planning through its point controls. Joined ends need matching heights, and crossings need enough clearance for the lower passage.
 

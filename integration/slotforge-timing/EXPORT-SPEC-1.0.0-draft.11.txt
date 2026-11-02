@@ -1,0 +1,70 @@
+SlotForge integration draft.11 - board assemblies / table panels
+Local development, 2 November 2026. Layout envelope remains version 1.
+
+Negotiate draft.11 when workspace.spaceGuide.shape.type is "boards", even
+for a space guide rather than a physical table. Earlier designs keep their
+existing contracts. Reject unknown contracts before normalization as before.
+
+The existing guide fields x, y, lengthMm, widthMm, kind and locked remain.
+New shape:
+{
+  "type": "boards",
+  "version": 1,
+  "boards": [
+    {"id":"panel-a", "name":"Left panel", "x":0, "y":0,
+     "lengthMm":1220, "widthMm":2440, "locked":false},
+    {"id":"panel-b", "name":"Right panel", "x":1220, "y":0,
+     "lengthMm":1220, "widthMm":2440, "locked":false}
+  ]
+}
+
+Boards are axis-aligned rectangles; rotating 90 degrees exchanges dimensions.
+Board x/y are relative to guide x/y, non-negative, and the entire rectangle must
+fit within the guide's bounding dimensions. Board widths/lengths >= 10 mm;
+guide extents <= 50,000 mm. Count 1-128; unique IDs matching [\w-]{1,100}; names
+1-80 characters, nonblank, no control characters; locks strictly boolean.
+Unknown shape and board fields, non-finite values and invalid sizes reject.
+Overlaps can be represented for recovery, but the designer and panel exporter
+require them to be resolved before completion. Disconnected boards are allowed.
+
+The physical table is the UNION of board rectangles. Shared internal seams
+are not external edges for table clearance. Missing areas and holes stay empty.
+Use TableShape.contours(), path(), contains(), clearance() and fits(); the old
+single-polygon helper is for rectangular / L-shaped guides only.
+Copy table-boards.js alongside table-shape.js and the existing runtime modules.
+
+Physical design revisions include board position/dimensions when kind=table.
+Names, IDs and locks are editor metadata; changing those alone does not alter
+the physical design revision. Track placements, route IDs, lane geometry,
+heights, measured/calc length distinctions and sensor authority are unchanged.
+
+Panel SVG/DXF exports are separate construction artifacts, not timing inputs.
+They translate trimmed geometry to each panel's local origin. Current exports
+are flat only; non-zero piece/anchor heights reject until deck assignment exists.
+The ZIP manifest slotforge.table-panels v1 supplies original world origins,
+dimensions, names and filenames. No cutter/kerf compensation is applied.
+
+Coverage: app/table-panels.test.cjs, including validation, union geometry,
+holes/disconnections, shared seams, revision stability, contract round trips,
+analytic arc trimming, flat-only guard, PDF and ZIP structure.
+No SlotForge Timing repository changes are included.
+
+Optional stock planning (same unreleased draft.11)
+shape.planning may contain:
+{"version":1,"sheetLengthMm":2440,"sheetWidthMm":1220,"marginMm":10,
+ "gapMm":6,"allowRotation":true,"transportLengthMm":2440,
+ "transportWidthMm":1220}
+All keys are required when planning is present; unknown keys reject. Sheet and
+transport sizes are finite 10..50000 mm, margin/gap finite 0..1000 mm; the usable
+sheet after two margins must have at least 10 mm on both axes. Rotation is a
+strict boolean. These are editor/manufacturing settings, omitted from physical
+revision hashing and never used to resize lane geometry. Existing board shapes
+without planning retain their behavior. Add table-stock.js beside table-boards.js
+in shared runtime distributions, including for legacy layout support.
+
+Stock drawing exports use full-size sheet-local coordinates, X right/Y down in
+SVG and Y negated in DXF. A clockwise 90-degree panel rotation transforms its
+local (x,y) to (panelWidth-y,x), then applies the sheet translation. Bulges stay
+unchanged before the usual DXF Y-axis reflection. No slot stretching, mirroring,
+kerf compensation or manufacturing cut sequence is introduced. Stock placements
+are export artifacts; they do not relocate the track on its assembled table.

@@ -146,7 +146,7 @@ function validateSpaceGuide(raw){
 }
 function resizeSpaceGuide(raw,dx,dy,proportional=false){
  const g=validateSpaceGuide(raw);if(!g)throw Error('Add a space guide first.');if(g.locked)return g;
- if(proportional){const minimum=g.shape?Math.max(10/g.shape.cutoutLengthMm,10/g.shape.cutoutWidthMm,10/(g.lengthMm-g.shape.cutoutLengthMm),10/(g.widthMm-g.shape.cutoutWidthMm)):10/Math.min(g.lengthMm,g.widthMm);const factor=Math.max(minimum,Math.min(50000/Math.max(g.lengthMm,g.widthMm),1+(Math.abs(dx/g.lengthMm)>=Math.abs(dy/g.widthMm)?dx/g.lengthMm:dy/g.widthMm)));return validateSpaceGuide(R.Table.resized(g,g.lengthMm*factor,g.widthMm*factor));}
+ if(proportional){const minimum=g.shape?.type==='boards'?Math.max(...g.shape.boards.flatMap(b=>[10/b.lengthMm,10/b.widthMm])):g.shape?Math.max(10/g.shape.cutoutLengthMm,10/g.shape.cutoutWidthMm,10/(g.lengthMm-g.shape.cutoutLengthMm),10/(g.widthMm-g.shape.cutoutWidthMm)):10/Math.min(g.lengthMm,g.widthMm);const factor=Math.max(minimum,Math.min(50000/Math.max(g.lengthMm,g.widthMm),1+(Math.abs(dx/g.lengthMm)>=Math.abs(dy/g.widthMm)?dx/g.lengthMm:dy/g.widthMm)));return validateSpaceGuide(R.Table.resized(g,g.lengthMm*factor,g.widthMm*factor));}
  return validateSpaceGuide(R.Table.resized(g,Math.max(10,Math.min(50000,g.lengthMm+dx)),Math.max(10,Math.min(50000,g.widthMm+dy))));
 }
 function moveSpaceGuide(raw,dx,dy){const g=validateSpaceGuide(raw);if(!g)throw Error('Add a space guide first.');return g.locked?g:validateSpaceGuide({...g,x:Math.max(-1000000,Math.min(1000000,g.x+dx)),y:Math.max(-1000000,Math.min(1000000,g.y+dy))});}

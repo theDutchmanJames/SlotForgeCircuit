@@ -1,0 +1,16 @@
+/* Track pack catalogue and management share one in-app page. */
+.pack-hub-toolbar{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.pack-hub-filters{display:flex;gap:6px;flex-wrap:wrap}.pack-hub-filters .btn{background:transparent;border-color:transparent;box-shadow:none}
+.pack-hub-filters .btn[aria-pressed=true]{border-color:var(--accent);color:var(--ink);box-shadow:inset 0 -2px 0 var(--accent)}
+.pack-hub-search{width:min(360px,45%)}.pack-hub-search input{width:100%}
+.pack-hub-summary{display:flex;justify-content:space-between;gap:12px;margin:16px 0 26px;color:var(--muted);font-size:12px}
+.pack-hub-group{margin:28px 0 36px}.pack-hub-group>h2{font-size:22px;margin-bottom:8px}.pack-hub-group>.fine{margin-bottom:18px}
+.pack-hub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px}
+.pack-hub-card{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.pack-hub-art{height:160px;background:var(--bg);border-bottom:1px solid var(--line);padding:20px;display:flex;align-items:center;justify-content:center;gap:18px}
+.pack-hub-art img,.pack-hub-art svg{width:44%;height:100%;object-fit:contain}.pack-hub-art>:only-child{width:70%}.pack-hub-placeholder{font-size:60px;font-weight:300;color:var(--muted);text-align:center}
+.pack-hub-body{padding:20px;display:flex;flex-direction:column;flex:1}.pack-hub-badge{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.3px}
+.pack-hub-body h3{font-size:19px;margin:9px 0 10px;line-height:1.4;overflow-wrap:anywhere}.pack-hub-info{font-size:12px;line-height:1.7;color:var(--muted);margin:0 0 20px}
+.pack-hub-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto}.pack-hub-actions .btn{font-size:12px;padding:8px 10px}
+.pack-hub-help{padding:22px 24px;border:1px solid var(--line);border-radius:10px;margin:30px 0;background:var(--panel)}.pack-hub-help h2{font-size:18px;margin-bottom:12px}.pack-hub-help p{color:var(--muted);line-height:1.7;margin:10px 0}.pack-hub-help a{color:var(--ui-link,var(--accent))}
+@media(max-width:640px){.pack-hub-toolbar{align-items:stretch;flex-direction:column;gap:12px}.pack-hub-search{width:100%}.pack-hub-grid{grid-template-columns:minmax(0,1fr)}.pack-hub-summary{font-size:11px}}

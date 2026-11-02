@@ -1,0 +1,55 @@
+SlotForge Circuit — v0.3.19 Track Packs / Import & Export review
+Date: 2 November 2026
+Status: reviewed for release v0.3.19
+
+Scope
+- Changes since commit 66b0437: JSON labels and import entry points, the merged
+  Track Packs page, legacy navigation, the Tracks/Track Packs transfer modes,
+  shared catalogue headers, styling and documentation.
+- Adjacent file-reading, pack persistence and asynchronous export paths used
+  by these screens were also inspected and exercised.
+
+Findings fixed
+1. Pack import and pack creation could announce success after persistence had
+   failed. Both now await the save result before announcing success. Failed
+   imports stay available in memory for recovery export; storage errors and
+   the existing unsaved-work protection remain active.
+2. A pack export could exceed the 5 MiB JSON import limit. The exporter now
+   checks encoded UTF-8 size before downloading and explains how to split a
+   pack or obtain a workspace backup.
+3. The track-export completion handler could re-enable buttons after resolving
+   an empty or unavailable track. Availability is now retained separately
+   from the temporary busy state.
+4. An old asynchronous export could affect a newer selection, including an
+   A -> B -> A selection sequence. Generation checks now reject stale results
+   and errors. Rebuilding the export selector also invalidates older work.
+5. Track JSON and track-pack JSON sent to the wrong importer now explain which
+   import control to use, before changing the workspace.
+6. Pack counts use singular/plural wording consistently in the affected
+   controls. Disabled exports for reference-only packs explain the absence
+   of exportable piece definitions.
+
+Verification
+- All 378 application/installer tests passed, including 8 new regressions in
+  transfer-review.test.cjs.
+- All 15 Timing compatibility fixtures passed.
+- Isolated Edge browser checks: current and saved-track JSON exports; import
+  round trip; cancellation preserving the current layout; separate transfer
+  modes and selectors; library Export returning to Tracks; pack creation,
+  import, export, editing and reload; manufacturer catalogue return links;
+  Routed Wood configuration; #plugins and track-packs/index.html redirects.
+- Temporary disk workspace: injected failed pack PUT, visible error without
+  false success, recovery download, successful retry and reload. The existing
+  track geometry was unchanged. No personal workspace was used.
+- Wrong file types were rejected without replacement confirmation or changes.
+- Light/dark pages visually inspected; horizontal overflow checked at widths
+  1440, 900, 600 and 360 px. No browser page errors in the exercised workflows.
+- HTML IDs, local styles/scripts, generated header links, new stylesheet/test
+  inclusion in source packaging, syntax and diff whitespace checks passed.
+
+Limits
+- Browser verification used isolated Edge sessions on Windows, with file URLs
+  and a temporary loopback server. No fresh native macOS/Linux or other-browser
+  audit, and no separate SlotForge Timing application audit.
+- The review did not modify installed user copies. Release v0.3.19 retains
+  existing saved-data folders, storage keys and integration contracts.

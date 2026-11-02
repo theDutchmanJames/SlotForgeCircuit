@@ -12,9 +12,9 @@ Plan your next slot-car circuit before building it for real. Choose track pieces
 
 Create your own pieces with custom dimensions and **automatically generated matching icons and artwork**. Keep them together in reusable track packs, and export your layout and car-animation profile for integration with [SlotForge Timing](https://github.com/theDutchmanJames/SlotForgeTiming).
 
-**Version 0.3.18 · Runs in your browser · Saves files on your computer · No account needed**
+**Version 0.3.19 · Runs in your browser · Saves files on your computer · No account needed**
 
-**[Download SlotForge Circuit](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/download/v0.3.18/SlotForge-Circuit-v0.3.18-complete.zip)** · [Release notes](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/tag/v0.3.18)
+**[Download SlotForge Circuit](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/download/v0.3.19/SlotForge-Circuit-v0.3.19-complete.zip)** · [Release notes](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/tag/v0.3.19)
 
 ## Install and start
 
@@ -135,9 +135,30 @@ then **Save to pack** or **Save & add to layout**. Find your saved sets on the
 Routed Wood page and in the Track Pack Library. Circular-to-flowing conversion
 keeps the chosen angle, lane order and clearances on their original sides.
 
-**SVG / DXF construction exports:** choose **SVG / DXF** in the builder, or use the Export page to choose a saved library track. Export routed slot centrelines, slot edges, braid/tape edges, track surface contours and the table as separate layers. SVG defaults to full size; choose **Compact page** or a fixed scale for a smaller Illustrator document. The dialog shows how much to enlarge it again (for example, 1:10 → 1000%). DXF always uses full-size millimetres and retains native circular arcs. A 100 mm scale-check bar is optional. Configure cutters and depths in your CAD/CAM software. [Export details](app/CAD-EXPORTS.txt).
+**SVG / DXF construction exports:** choose **SVG / DXF** in the builder, or use the Import & Export page to choose a saved library track. Export routed slot centrelines, slot edges, braid/tape edges, track surface contours and the table as separate layers. SVG defaults to full size; choose **Compact page** or a fixed scale for a smaller Illustrator document. The dialog shows how much to enlarge it again (for example, 1:10 → 1000%). DXF always uses full-size millimetres and retains native circular arcs. A 100 mm scale-check bar is optional. Configure cutters and depths in your CAD/CAM software. [Export details](app/CAD-EXPORTS.txt).
 
 </details>
+
+## Export or import a track
+
+- **Export:** open **Import & Export → Tracks**, choose your current track or a saved Track Library entry, then click **Export track JSON**. The downloaded `.slotforge.json` file keeps the editable layout and its piece definitions. The builder also has an **Export track JSON** shortcut.
+- **Import:** click **Import track JSON** in the builder, Import & Export page or Track Library and choose a track file. If a track is already open, you can export it before replacing it. The imported track opens in the builder; choose **Save to Library** to keep a named copy.
+
+The same JSON file supports SlotForge Timing integration. Track-pack files contain reusable pieces rather than a complete layout; import those using **Import custom pack**.
+
+## Manage track packs
+
+Open **Track Packs** to browse built-in systems and manage your own collections in one place. Use **All packs**, **Built-in** or **My packs**, and search by name or scale.
+
+- **Import pack** adds a shared pack of pieces to My packs.
+- **Create pack** starts a named collection; add pieces in the custom editor.
+- **Use in builder** selects that pack without replacing your current layout.
+- **Browse pieces / Edit pack** opens its catalogue or your editable collection.
+- **Export pack** downloads the supported piece definitions for sharing.
+
+You can also use **Import & Export → Track Packs** to import a pack JSON file or select a pack to export. Track designs and piece packs have separate controls.
+
+This replaces the former Plugins page. Track packs contain dimensions and piece definitions, not executable plugins. To import or export a complete track design, use **Import & Export** instead.
 
 ## Included track packs
 
@@ -164,7 +185,7 @@ Support varies by piece. Some special pieces have reference artwork only; **SCX 
 
 ## SlotForge Timing
 
-Choose **Export to SlotForge** to download a `.slotforge.json` file. It contains the layout, lane routes, timing-line settings and your tuned car-animation profile for the Timing integration.
+Choose **Export track JSON** to download a `.slotforge.json` file. It contains the layout, lane routes, timing-line settings and your tuned car-animation profile for the Timing integration.
 
 Height designs require integration contract **1.0.0-draft.9**; shaped tables and FreeForm squeezes require **1.0.0-draft.10**.
 
@@ -241,11 +262,11 @@ The app uses plain HTML, CSS and JavaScript. PDF generation uses bundled jsPDF a
 Run the source tests with a current Node.js runtime:
 
 ```sh
-node --test app/freeform-review.test.cjs app/freeform-editor.test.cjs app/freeform-shapes.test.cjs app/elevation.test.cjs app/freeform.test.cjs app/routed-squeeze.test.cjs app/tabletop-routing.test.cjs app/routed-review.test.cjs app/cad-export.test.cjs app/routed-spline.test.cjs app/routed.test.cjs app/theme-model.test.cjs app/core.test.cjs app/integration.test.cjs app/custom-packs.test.cjs app/editor-features.test.cjs app/library.test.cjs app/track-exports.test.cjs app/space-guide.test.cjs app/pdf-report.test.cjs app/server.test.cjs app/disk-store.test.cjs app/disk-api.test.cjs app/additional-packs.test.cjs app/side-snap.test.cjs app/local-workspace.test.cjs app/review-regressions.test.cjs app/reference-planning.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs installer/launcher.test.cjs
+node --test app/transfer-review.test.cjs app/freeform-review.test.cjs app/freeform-editor.test.cjs app/freeform-shapes.test.cjs app/elevation.test.cjs app/freeform.test.cjs app/routed-squeeze.test.cjs app/tabletop-routing.test.cjs app/routed-review.test.cjs app/cad-export.test.cjs app/routed-spline.test.cjs app/routed.test.cjs app/theme-model.test.cjs app/core.test.cjs app/integration.test.cjs app/custom-packs.test.cjs app/editor-features.test.cjs app/library.test.cjs app/track-exports.test.cjs app/space-guide.test.cjs app/pdf-report.test.cjs app/server.test.cjs app/disk-store.test.cjs app/disk-api.test.cjs app/additional-packs.test.cjs app/side-snap.test.cjs app/local-workspace.test.cjs app/review-regressions.test.cjs app/reference-planning.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs installer/launcher.test.cjs
 node integration/slotforge-timing/check-fixtures.cjs
 ```
 
-The current source was checked with **370 passing automated tests and 15 passing integration fixtures**. See [validation details](app/validation.json) for the scope and limitations. Rebuild the complete ZIP with Python 3 using `python app/package-share.py`.
+The current source was checked with **378 passing automated tests and 15 passing integration fixtures**. See [validation details](app/validation.json) for the scope and limitations. Rebuild the complete ZIP with Python 3 using `python app/package-share.py`.
 
 Found a rough edge or have an idea for a new piece? [Open an issue](https://github.com/theDutchmanJames/SlotForgeCircuit/issues) with the track system, piece details and a small example layout where possible.
 

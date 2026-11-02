@@ -1,9 +1,9 @@
 {
-  "version": "0.3.18",
+  "version": "0.3.19",
   "date": "2026-11-02",
   "automated": {
-    "command": "node --test app/freeform-review.test.cjs app/freeform-editor.test.cjs app/freeform-shapes.test.cjs app/elevation.test.cjs app/freeform.test.cjs app/routed-squeeze.test.cjs app/tabletop-routing.test.cjs app/routed-review.test.cjs app/cad-export.test.cjs app/routed-spline.test.cjs app/routed.test.cjs app/theme-model.test.cjs app/core.test.cjs app/integration.test.cjs app/custom-packs.test.cjs app/editor-features.test.cjs app/library.test.cjs app/track-exports.test.cjs app/space-guide.test.cjs app/pdf-report.test.cjs app/server.test.cjs app/disk-store.test.cjs app/disk-api.test.cjs app/additional-packs.test.cjs app/side-snap.test.cjs app/local-workspace.test.cjs app/review-regressions.test.cjs app/reference-planning.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs installer/launcher.test.cjs",
-    "passed": 370,
+    "command": "node --test app/transfer-review.test.cjs app/freeform-review.test.cjs app/freeform-editor.test.cjs app/freeform-shapes.test.cjs app/elevation.test.cjs app/freeform.test.cjs app/routed-squeeze.test.cjs app/tabletop-routing.test.cjs app/routed-review.test.cjs app/cad-export.test.cjs app/routed-spline.test.cjs app/routed.test.cjs app/theme-model.test.cjs app/core.test.cjs app/integration.test.cjs app/custom-packs.test.cjs app/editor-features.test.cjs app/library.test.cjs app/track-exports.test.cjs app/space-guide.test.cjs app/pdf-report.test.cjs app/server.test.cjs app/disk-store.test.cjs app/disk-api.test.cjs app/additional-packs.test.cjs app/side-snap.test.cjs app/local-workspace.test.cjs app/review-regressions.test.cjs app/reference-planning.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs installer/launcher.test.cjs",
+    "passed": 378,
     "failed": 0,
     "scope": [
       "Closed circuit and per-lane lengths",
@@ -974,5 +974,25 @@
       "PNG 256 x 256 with transparent corners",
       "Windows ICO sizes 16, 24, 32, 48, 64, 128 and 256 pixels"
     ]
+  },
+  "release0319": {
+    "date": "2026-11-02",
+    "report": "REVIEW-track-pack-transfers.txt",
+    "sourceTestsPassed": 378,
+    "newRegressionTests": 8,
+    "integrationFixturesPassed": 15,
+    "browser": [
+      "Track and pack JSON import/export round trips",
+      "Saved track selection and cancellation preserve current layout",
+      "Pack management, catalogue navigation and legacy redirects",
+      "Injected disk-save failure, recovery export, retry and reload",
+      "Light/dark visual checks and 360/600/900/1440 px overflow checks",
+      "No captured browser page errors"
+    ],
+    "limitations": [
+      "Isolated Edge on Windows only; no fresh native macOS/Linux audit",
+      "No separate SlotForge Timing application audit"
+    ],
+    "handoffTestsPassed": 144
   }
 }

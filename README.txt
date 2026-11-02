@@ -1,9 +1,14 @@
-SlotForge Circuit — editor iteration (v0.3.18)
+SlotForge Circuit — editor iteration (v0.3.19)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. No data migration is required.
+
+NEW IN v0.3.19
+Import & Export has separate Tracks and Track Packs options. Track Packs
+combines browsing, importing, creating and sharing packs; it replaces Plugins.
+JSON buttons are clearly labelled, with safer failed-save and export handling.
 
 NEW IN v0.3.18
 The new Curve Studio icon shows a flowing curve with editing handles, in

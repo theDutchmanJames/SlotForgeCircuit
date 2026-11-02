@@ -2,14 +2,14 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const source=name=>fs.readFileSync(path.join(__dirname,name),'utf8');
 const close=(a,b,eps=1e-5)=>assert.ok(Math.abs(a-b)<eps,`${a} != ${b}`);
 
-test('Plugins Browse pack opens Routed Tracks for regenerated routed packs',()=>{
- const app=source('app.js'),start=app.indexOf('function renderPlugins()'),end=app.indexOf('function renderCustomLibrary()',start);
- const element=()=>({children:[],append(...nodes){this.children.push(...nodes);},replaceChildren(){this.children=[];}});
+test('Track Packs Configure opens Routed Wood for regenerated packs',()=>{
+ const app=source('app.js'),start=app.indexOf('function renderTrackPacks()'),end=app.indexOf('function renderCustomLibrary()',start);
+ const element=()=>({children:[],dataset:{},value:'',append(...nodes){this.children.push(...nodes);},replaceChildren(){this.children=[];},setAttribute(){},querySelector(){return{dataset:{packFilter:'all'}};}});
  for(const settings of[R.defaults,{...R.defaults,laneCount:4,constructionMode:'table'}]){
-  const host=element(),location={href:'http://127.0.0.1:8173/app/#plugins'},pack=R.pack(settings);
-  vm.runInNewContext(app.slice(start,end)+';renderPlugins();',{$:()=>host,document:{createElement:element},allPacks:()=>[pack],customLibrary:{packs:[]},location});
-  const browse=host.children[0].children[2].children[0];
-  assert.equal(browse.textContent,'Browse pack');browse.onclick();
+  const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,element());return nodes.get(id);},location={href:'http://127.0.0.1:8173/app/#packs'},pack=R.pack(settings);
+  vm.runInNewContext(app.slice(start,end)+';renderTrackPacks();',{$:get,document:{createElement:element},F,packs:[pack],customLibrary:{packs:[]},location});
+  const descendants=node=>[node,...node.children.flatMap(descendants)],configure=descendants(get('pack-library')).find(n=>n.textContent==='Configure');
+  assert.ok(configure);configure.onclick();
   const target=new URL(location.href,'http://127.0.0.1:8173/app/');
   assert.equal(target.pathname,'/app/');assert.equal(target.hash,'#routed');
  }

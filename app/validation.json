@@ -1,9 +1,9 @@
 {
-  "version": "0.3.24",
+  "version": "0.3.25",
   "date": "2026-11-03",
   "automated": {
-    "command": "node --test app/additional-packs.test.cjs app/cad-export.test.cjs app/core.test.cjs app/custom-packs.test.cjs app/custom-piece-delete.test.cjs app/disk-api.test.cjs app/disk-store.test.cjs app/editor-features.test.cjs app/elevation.test.cjs app/fold-override.test.cjs app/freeform-editor.test.cjs app/freeform-review.test.cjs app/freeform-shapes.test.cjs app/freeform.test.cjs app/inspector-review.test.cjs app/integration.test.cjs app/lane-spread.test.cjs app/library.test.cjs app/local-workspace.test.cjs app/pdf-report.test.cjs app/preview-car.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs app/reference-planning.test.cjs app/review-regressions.test.cjs app/routed-edge-order.test.cjs app/routed-review.test.cjs app/routed-spline.test.cjs app/routed-squeeze.test.cjs app/routed.test.cjs app/server.test.cjs app/side-snap.test.cjs app/space-guide.test.cjs app/sqlite-review.test.cjs app/sqlite-storage.test.cjs app/table-panels.test.cjs app/table-review.test.cjs app/table-stock.test.cjs app/tabletop-routing.test.cjs app/theme-model.test.cjs app/track-exports.test.cjs app/transfer-review.test.cjs installer/launcher.test.cjs",
-    "passed": 468,
+    "command": "node --test app/additional-packs.test.cjs app/cad-export.test.cjs app/core.test.cjs app/custom-packs.test.cjs app/custom-piece-delete.test.cjs app/disk-api.test.cjs app/disk-store.test.cjs app/editor-features.test.cjs app/elevation.test.cjs app/fold-override.test.cjs app/freeform-editor.test.cjs app/freeform-review.test.cjs app/freeform-shapes.test.cjs app/freeform.test.cjs app/inspector-review.test.cjs app/integration.test.cjs app/lane-spread.test.cjs app/library.test.cjs app/local-workspace.test.cjs app/pdf-report.test.cjs app/preview-car.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs app/reference-planning.test.cjs app/review-regressions.test.cjs app/routed-edge-order.test.cjs app/routed-review.test.cjs app/routed-spline.test.cjs app/routed-squeeze.test.cjs app/routed.test.cjs app/server.test.cjs app/side-snap.test.cjs app/space-guide.test.cjs app/sqlite-review.test.cjs app/sqlite-storage.test.cjs app/storage-startup.test.cjs app/table-panels.test.cjs app/table-review.test.cjs app/table-stock.test.cjs app/tabletop-routing.test.cjs app/theme-model.test.cjs app/track-exports.test.cjs app/transfer-review.test.cjs installer/launcher.test.cjs",
+    "passed": 474,
     "failed": 0,
     "scope": [
       "Closed circuit and per-lane lengths",
@@ -1191,5 +1191,30 @@
       "Native macOS/Linux execution not tested"
     ],
     "handoffTestsPassed": 167
+  },
+  "visibleMigrationStartup": {
+    "date": "2026-11-03",
+    "sourceTestsPassed": 474,
+    "integrationFixturesPassed": 15,
+    "browser": [
+      "Upgrade screen rendered before database creation",
+      "53 tracks, 1 pack and 30 pieces migrated with source JSON unchanged",
+      "Continue opens editor; acknowledged completion stays dismissed on reload",
+      "Malformed JSON blocks editor, retains source and allows Stop local app"
+    ],
+    "limitations": [
+      "Applies to installed JSON workspaces; browser-only saves still need workspace transfer",
+      "Native macOS/Linux execution remains unverified"
+    ]
+  },
+  "release0325": {
+    "date": "2026-11-03",
+    "sourceTestsPassed": 474,
+    "handoffTestsPassed": 167,
+    "integrationFixturesPassed": 15,
+    "review": "REVIEW-SQLITE-2026-11-03.txt",
+    "limitations": [
+      "Native macOS/Linux execution not tested"
+    ]
   }
 }

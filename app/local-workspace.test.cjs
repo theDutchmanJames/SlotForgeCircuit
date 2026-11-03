@@ -1,9 +1,9 @@
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-function client(handler){
+function client(handler,extra={}){
  const calls=[],context={location:{protocol:'http:'},structuredClone,AbortSignal,fetch:async(url,options={})=>{
   const call={endpoint:url.slice(5),method:options.method||'GET',body:options.body?JSON.parse(options.body):undefined};calls.push(call);
   const result=await handler(call);return{ok:!result.status||result.status<400,status:result.status||200,text:async()=>JSON.stringify(result.data),json:async()=>result.data};
- }};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'local-workspace.js'),'utf8'),context);return{api:context.LocalWorkspace,calls};
+ },...extra};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'local-workspace.js'),'utf8'),context);return{api:context.LocalWorkspace,calls};
 }
 function service(override=()=>undefined){return async call=>{
  const result=await override(call);if(result)return result;
@@ -41,3 +41,11 @@ test('Shutdown also drains saves appended while an earlier save is still pending
 
 
 test('An older running helper is rejected with restart guidance before autosave can write',async()=>{const {api,calls}=client(async()=>({data:{storage:'disk',token:'old'}}));await api.init();assert.equal(api.mode,'unavailable');assert.match(api.error,/Restart/);await assert.rejects(api.putCurrent({title:'Do not write to old helper'}),/Restart/);assert.equal(calls.some(c=>c.method==='PUT'),false);});
+
+test('Client waits for visible migration completion before reading saved data',async()=>{
+ let finish,shown=false;const gate=new Promise(r=>finish=r),{api,calls}=client(service(call=>call.endpoint==='session'?{data:{storage:'disk',storageEngine:'sqlite',token:'test',startup:{phase:'waiting'}}}:undefined),{StorageUpgrade:{run:async()=>{shown=true;await gate;}}});
+ const opening=api.init();while(!shown)await new Promise(r=>setImmediate(r));assert.equal(calls.some(c=>c.endpoint==='current'||c.endpoint==='packs'),false);finish();await opening;assert.equal(api.mode,'disk');assert.equal(calls.some(c=>c.endpoint==='current'),true);
+});
+test('Client startup failure blocks editor access but still lets users stop the helper',async()=>{
+ const {api,calls}=client(service(call=>call.endpoint==='session'?{data:{storage:'disk',storageEngine:'sqlite',token:'test',startup:{phase:'error'}}}:undefined),{StorageUpgrade:{run:async()=>{throw Error('Migration failed; source retained');}}});await api.init();assert.equal(api.startupFailed,true);assert.equal(api.mode,'unavailable');assert.equal(calls.some(c=>c.endpoint==='current'||c.endpoint==='packs'),false);await api.quit();assert.equal(calls.at(-1).endpoint,'quit');
+});

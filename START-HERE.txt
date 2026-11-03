@@ -1,4 +1,4 @@
-SLOTFORGE CIRCUIT v0.3.24
+SLOTFORGE CIRCUIT v0.3.25
 
 Previously SlotForge Track Builder. Existing launchers, saved tracks and custom
 packs still work. For compatibility, the installed folder keeps the original
@@ -73,6 +73,8 @@ STORAGE UPGRADE
 Before updating, use Storage > Download workspace backup and keep that JSON
 file somewhere safe. Choose Storage > Stop local app, then run the new installer.
 The installed helper now uses SQLite.
+A startup message explains the automatic conversion. When it finishes, choose
+Continue to Circuit. No manual import/export is needed for installed data.
 Existing JSON workspaces are verified and migrated automatically; originals
 are retained. Track Library loads 24 summaries at a time with cached previews.
 See app/SQLITE-STORAGE.txt for backups, recovery and current limits.

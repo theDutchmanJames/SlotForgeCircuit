@@ -21,9 +21,9 @@ async function launch(home,{port=8173,open=true,browserOpener=openBrowser,notify
   const live=candidates.filter(Boolean);if(live.some(({health})=>health.version!==I.VERSION||health.buildId!==active.directory||health.storageEngine!=='sqlite'))throw Error('Another Circuit version is still using this data folder. Choose Storage > Stop local app in that copy before updating. No migration was started.');
   if(live.length){const url=`http://127.0.0.1:${live[0].port}/app/`;if(open)await handoff(home,url,browserOpener,notifyUser);else await log(home,'Existing app ready (browser disabled): '+url);return{url,reused:true};}
  }
- await store.init();
+ const startup=require(path.join(app,'app/storage-startup.cjs')).createStorageStartup(store);if(!startup)await store.init();
  for(let candidate=port;candidate<(port===0?1:port+20);candidate++){
-  const options={store,port:candidate,buildId:active.directory},server=http.createServer(createHandler(app,options));options.onQuit=async()=>{await store.close();server.close();server.closeIdleConnections();};
+  const options={store,port:candidate,buildId:active.directory,startup},server=http.createServer(createHandler(app,options));options.onQuit=async()=>{if(startup)await startup.close();else await store.close();server.close();server.closeIdleConnections();};
   try{await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(candidate,'127.0.0.1',resolve);});options.port=server.address().port;const url=`http://127.0.0.1:${options.port}/app/`;console.log(JSON.stringify({url,dataDirectory:store.directory,version:I.VERSION}));if(open)await handoff(home,url,browserOpener,notifyUser);else await log(home,'App ready (browser disabled): '+url);return{server,url,reused:false};}
   catch(e){if(e.code!=='EADDRINUSE'){await store.close();throw e;}try{const response=await fetch(`http://127.0.0.1:${candidate}/api/health`,{signal:AbortSignal.timeout(800)}),health=await response.json();if(health.app==='SlotForgeTrackBuilder'&&health.instanceId===instanceId&&health.version===I.VERSION&&health.buildId===active.directory){const url=`http://127.0.0.1:${candidate}/app/`;console.log(JSON.stringify({url,reused:true}));await store.close();if(open)await handoff(home,url,browserOpener,notifyUser);else await log(home,'Existing app ready (browser disabled): '+url);return{url,reused:true};}}catch{}}
  }

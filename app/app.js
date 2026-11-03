@@ -1,6 +1,6 @@
 (async()=>{'use strict';
 const F=window.Forge,I=window.SlotForgeIntegration,CP=window.CustomPacks,CF=window.CatalogueFolders,DL=window.DesignLibrary,XM=window.TrackExports,RA=window.ReferenceArtwork,G=F.G,$=id=>document.getElementById(id),E=G.attrs,NS='http://www.w3.org/2000/svg',STORAGE='slotforge.editor.v1',CUSTOM='slotforge.custom.v1';
-const DS=window.LocalWorkspace;await DS.init();DL.setBackend(DS.disk?DS:null);
+const DS=window.LocalWorkspace;await DS.init();if(DS.startupFailed)return;DL.setBackend(DS.disk?DS:null);
 const defs=Object.create(null),packs=window.TRACK_PACKS;for(const pack of packs)for(const d of pack.pieces)if(d.parameters)defs[d.id]={...d,geometry:G.derive(d.parameters)};
 let exportChoice='current',exportMenuGeneration=0,exportSourceGeneration=0;
 let previewCar=F.PreviewCar.settings(),routedState=F.Routed.workspace(),routedUI=null;const routedPack=F.Routed.pack(routedState.settings);packs.push(routedPack);

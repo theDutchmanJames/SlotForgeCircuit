@@ -1,10 +1,16 @@
-SlotForge Circuit — editor iteration (v0.3.24)
+SlotForge Circuit — editor iteration (v0.3.25)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. The rename does not move your data.
 This update automatically migrates installed JSON workspaces to SQLite.
+
+NEW IN v0.3.25 — VISIBLE AUTOMATIC UPGRADE
+Installed JSON workspaces show an upgrade message before automatic conversion.
+Circuit verifies the result, shows the retained track/pack/piece counts, then
+opens the editor when you choose Continue to Circuit. Originals are kept.
+Existing SQLite workspaces open normally. No manual import/export is needed.
 
 NEW IN v0.3.24 — SQLITE STORAGE AND LIBRARY BROWSING
 Installed workspaces migrate automatically to SQLite. Original JSON files are

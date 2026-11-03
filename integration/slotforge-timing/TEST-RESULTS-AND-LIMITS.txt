@@ -1,4 +1,8 @@
-SQLITE RELEASE � 3 November 2026 (v0.3.24)
+VISIBLE STARTUP RELEASE — 3 November 2026 (v0.3.25)
+474 app/installer tests, 167 extracted handoff tests and 15 integration fixtures
+passed. The startup migration screen does not change Timing integration.
+
+SQLITE RELEASE — 3 November 2026 (v0.3.24)
 468 complete app/installer tests, 167 extracted handoff tests and 15 integration
 fixtures passed. SQLite migration and library loading changes do not change
 the track JSON envelope or integration contracts. See app/REVIEW-SQLITE-2026-11-03.txt

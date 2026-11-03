@@ -21,11 +21,16 @@ function createHandler(directory,options={}){
     if(req.headers['sec-fetch-site']==='cross-site')return json(403,{error:'Same-origin requests only.'});
     // Stable compatibility identifier: existing launchers use this for reuse.
     if(decoded==='/api/health'&&req.method==='GET')return json(200,{app:'SlotForgeTrackBuilder',storageEngine:store.engine||'json',version:require('./integration.js').VERSION,instanceId,buildId:options.buildId||null});
-    if(decoded==='/api/session'&&req.method==='GET'){if(req.headers['x-slotforge-client']!=='1')return json(403,{error:'App client header required.'});return json(200,{storage:'disk',storageEngine:store.engine||'json',version:require('./integration.js').VERSION,instanceId,dataDirectory:store.directory,token});}
+    if(decoded==='/api/session'&&req.method==='GET'){if(req.headers['x-slotforge-client']!=='1')return json(403,{error:'App client header required.'});return json(200,{storage:'disk',storageEngine:store.engine||'json',version:require('./integration.js').VERSION,instanceId,dataDirectory:store.directory,token,...(options.startup&&!options.startup.acknowledged?{startup:options.startup.status()}: {})});}
     if(req.headers['x-slotforge-token']!==token)return json(403,{error:'Open the app through its local launcher.'});
     const write=!['GET','HEAD'].includes(req.method);if(write&&(req.headers.origin!==`http://${host}`||!/^application\/json(?:;|$)/i.test(req.headers['content-type']||'')))return json(403,{error:'Same-origin JSON requests only.'});
     try{
      let body;if(write){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>require('./disk-store.cjs').MAX)throw Object.assign(Error('Import exceeds 256 MiB.'),{status:413});chunks.push(chunk);}try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw Object.assign(Error('Invalid JSON.'),{status:400});}}
+     if(decoded==='/api/storage-startup'&&options.startup){
+      if(req.method==='GET')return json(200,options.startup.status());
+      if(req.method==='POST')return json(200,body?.acknowledge===true?options.startup.acknowledge():options.startup.start());
+     }
+     if(options.startup&&options.startup.status().phase!=='ready'&&decoded!=='/api/quit')return json(503,{error:'The saved workspace is not ready. Finish the startup upgrade before editing.'});
      if(decoded==='/api/current'&&req.method==='GET')return json(200,await store.current());
      if(decoded==='/api/current'&&req.method==='PUT')return json(200,await store.putCurrent(body.data,body.expectedRevision,body.librarySource));
      if(decoded==='/api/packs'&&req.method==='GET')return json(200,await store.packs());
@@ -61,6 +66,6 @@ function createHandler(directory,options={}){
 if(require.main===module){
  const port=Number(process.env.SLOTFORGE_PORT||8173);
  if(!Number.isInteger(port)||port<1||port>65535)throw Error('SLOTFORGE_PORT must be an integer from 1 to 65535');
- (async()=>{const {DiskStore,home}=require('./disk-store.cjs'),store=new DiskStore(process.env.SLOTFORGE_DATA_DIR||path.join(home(),'data'));let live;try{live=await(await fetch(`http://127.0.0.1:${port}/api/health`,{signal:AbortSignal.timeout(800)})).json();}catch{}if(live?.app==='SlotForgeTrackBuilder'&&live.instanceId===require('node:crypto').createHash('sha256').update(store.directory).digest('hex'))throw Error('Circuit is already running for this data folder. Stop that local app before restarting or updating; no migration was started.');await store.init();const options={store,port},server=http.createServer(createHandler(path.resolve(__dirname,'..'),options));options.onQuit=async()=>{await store.close();server.close();server.closeIdleConnections();};server.on('error',e=>{console.error(e.message);process.exitCode=1;});server.listen(port,'127.0.0.1',()=>console.log(`SlotForge Circuit: http://127.0.0.1:${port}/app/\nUser data: ${store.directory}`));})().catch(e=>{console.error(e.message);process.exitCode=1;});
+ (async()=>{const {DiskStore,home}=require('./disk-store.cjs'),store=new DiskStore(process.env.SLOTFORGE_DATA_DIR||path.join(home(),'data'));let live;try{live=await(await fetch(`http://127.0.0.1:${port}/api/health`,{signal:AbortSignal.timeout(800)})).json();}catch{}if(live?.app==='SlotForgeTrackBuilder'&&live.instanceId===require('node:crypto').createHash('sha256').update(store.directory).digest('hex'))throw Error('Circuit is already running for this data folder. Stop that local app before restarting or updating; no migration was started.');const startup=require('./storage-startup.cjs').createStorageStartup(store);if(!startup)await store.init();const options={store,port,startup},server=http.createServer(createHandler(path.resolve(__dirname,'..'),options));options.onQuit=async()=>{if(startup)await startup.close();else await store.close();server.close();server.closeIdleConnections();};server.on('error',e=>{console.error(e.message);process.exitCode=1;});server.listen(port,'127.0.0.1',()=>console.log(`SlotForge Circuit: http://127.0.0.1:${port}/app/\nUser data: ${store.directory}`));})().catch(e=>{console.error(e.message);process.exitCode=1;});
 }
 module.exports={createHandler};

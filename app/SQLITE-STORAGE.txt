@@ -12,6 +12,14 @@ pack contents also show 24 pieces per page. Selection can span those pages;
 "Select all pieces" still selects the whole pack.
 
 Automatic migration
+When an installed JSON workspace needs conversion, the browser first displays
+"Upgrading your saved library". The conversion then starts automatically;
+normal data APIs and the editor stay blocked until the workspace is ready.
+The completion screen lists retained tracks, packs and pieces. Choose Continue
+to Circuit to open the editor. Acknowledged completion is not repeated on reload.
+No manual export/import is required for this conversion. Browser-only saves
+still use the existing workspace-transfer process to move into installed mode.
+
 Stop the old local app before updating. On the first launch, Circuit takes the
 legacy write lock and validates workspace.json, including every saved design
 and custom pack. It builds a separate temporary SQLite database, verifies its

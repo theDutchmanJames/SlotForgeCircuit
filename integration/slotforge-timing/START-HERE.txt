@@ -1,4 +1,4 @@
-SlotForge Timing integration handoff — SQLite storage and library browsing (v0.3.24)
+SlotForge Timing integration handoff — Visible automatic storage migration (v0.3.25)
 3 November 2026
 
 CURRENT CONTRACT
@@ -116,3 +116,6 @@ see the specifications above. The layout envelope remains version 1.
 v0.3.24 changes local storage and library loading only. SQLite is an internal
 Circuit implementation detail: track JSON, workspace-transfer JSON and Timing
 integration contracts remain unchanged. No Timing database migration is needed.
+
+v0.3.25 adds a visible automatic startup upgrade for installed JSON workspaces.
+Track formats, shared geometry and integration contracts are unchanged.

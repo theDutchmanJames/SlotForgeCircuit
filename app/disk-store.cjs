@@ -3,7 +3,7 @@ const path=require('node:path'),{Worker}=require('node:worker_threads'),L=requir
 const MAX=256*1024*1024;
 class DiskStore{
  constructor(directory){this.directory=path.resolve(directory);this.engine='sqlite';this.file=path.join(this.directory,'workspace.sqlite');this.queue=Promise.resolve();this.worker=null;this.pending=new Map();this.sequence=0;this.closed=false;}
- async init(){await this.call('init');return this;}
+ async init(){this.migrationResult=await this.call('init');return this;}
  call(method,...args){
   if(this.closed)return Promise.reject(Error('Storage is closing. Start Circuit again before saving.'));
   if(!this.worker){const worker=new Worker(path.join(__dirname,'storage-worker.cjs'),{workerData:{directory:this.directory}});this.worker=worker;

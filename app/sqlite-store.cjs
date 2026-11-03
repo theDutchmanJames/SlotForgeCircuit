@@ -50,6 +50,7 @@ function guardLegacy(db,directory){
 }
 
 async function init(directory){
+ let migrationResult=null;
  fs.mkdirSync(directory,{recursive:true,mode:0o700});if(fs.lstatSync(directory).isSymbolicLink())fail('The data directory must not be a symbolic link.',500);
  const file=path.join(directory,'workspace.sqlite'),marker=path.join(directory,'sqlite-storage.json'),legacy=new L.DiskStore(directory),release=await legacy.lock();
  try{
@@ -63,12 +64,13 @@ async function init(directory){
     const verified=connect(temp);try{if(!same(read(verified),state))fail('Committed migration verification failed. Original JSON retained.',500);}finally{verified.close();}
     if(sourceDigest!==(legacyStamp(directory)?legacyDigest(directory):null))fail('The JSON workspace changed during migration. Original retained; retry after stopping other copies.',409);
     // Exclusive publication: never replace another process's database.
-    fs.linkSync(temp,file);fs.unlinkSync(temp);try{const fd=fs.openSync(directory,'r');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}}catch{}
+    fs.linkSync(temp,file);fs.unlinkSync(temp);migrationResult={migrated:sourceDigest!==null,tracks:state.designs.length,packs:state.packs?.data.packs.length||0,pieces:state.packs?.data.packs.reduce((n,p)=>n+p.pieces.length,0)||0,current:!!state.current};try{const fd=fs.openSync(directory,'r');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}}catch{}
    }finally{if(db)db.close();if(fs.existsSync(temp))fs.unlinkSync(temp);}
   }
   fs.writeFileSync(marker,json({format:'slotforge.sqlite-storage',version:FORMAT})+'\n',{mode:0o600});
   fs.writeFileSync(path.join(directory,'ABOUT-YOUR-DATA.txt'),'SlotForge Circuit data\nworkspace.sqlite is the active database. Stop Circuit before copying the data folder.\nUse Storage > Download workspace backup for a portable JSON backup while running.\nThe database keeps the last 20 changed-record transactions for recovery.\nworkspace.json and backups/ are unchanged migration-time recovery copies, NOT current backups.\nDo not delete SQLite or run an older app against this folder to roll back.\n',{mode:0o600});
  }finally{await release();}
+ return migrationResult;
 }
 function check(r,expected){if((r?.revision||null)!==(expected??null))fail('This file changed in another window. Reload before saving, or export your current work as JSON.',409);}
 function trimTrash(db,changes){
@@ -80,7 +82,7 @@ function trimTrash(db,changes){
 function transaction(db,fn){db.exec('BEGIN IMMEDIATE');try{const changes=[],before=meta(db,'workspace'),value=fn(changes);if(changes.length){trimTrash(db,changes);if(Number(meta(db,'bytes'))>MAX_DATA)fail('The workspace exceeds 200 MiB. Export or remove unused library entries.');setMeta(db,'workspace',{...before,revision:uid()});db.prepare('INSERT INTO history(created,changes) VALUES(?,?)').run(new Date().toISOString(),json({workspace:before,rows:changes}));db.exec('DELETE FROM history WHERE seq NOT IN (SELECT seq FROM history ORDER BY seq DESC LIMIT 20)');while(db.prepare('SELECT coalesce(sum(length(CAST(changes AS BLOB))),0) AS size FROM history').get().size>50*1024*1024)db.exec('DELETE FROM history WHERE seq=(SELECT min(seq) FROM history)');}db.exec('COMMIT');return value;}catch(e){try{db.exec('ROLLBACK');}catch{}throw e;}}
 function transfer(s){if(s.current)L.cleanLayout(s.current.data);if(s.packs)CP.read(s.packs.data);for(const r of s.designs)L.cleanLayout(r.layout);return{format:'slotforge.workspace-transfer',version:1,createdAt:new Date().toISOString(),current:s.current?.data||null,customLibrary:s.packs?.data||CP.serialize(CP.empty()),designs:s.designs.map(r=>r.layout)};}
 function options(o={}){const offset=Number(o.offset??0),limit=Number(o.limit??24),query=String(o.query??'');if(!Number.isInteger(offset)||offset<0||!Number.isInteger(limit)||limit<1||limit>100||query.length>100)fail('Invalid library page.');return{offset,limit,query};}
-async function run(directory,method,args){if(method==='init'){await init(directory);return true;}const db=connect(path.join(directory,'workspace.sqlite')),reading=['read','current','packs','list','summaries','page','get','exportBundle','previousBundle','history'].includes(method);try{
+async function run(directory,method,args){if(method==='init')return init(directory);const db=connect(path.join(directory,'workspace.sqlite')),reading=['read','current','packs','list','summaries','page','get','exportBundle','previousBundle','history'].includes(method);try{
  if(reading)db.exec('BEGIN');
  guardLegacy(db,directory);
  if(method==='read')return read(db);

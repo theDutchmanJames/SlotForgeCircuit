@@ -239,7 +239,9 @@ If the footer reads **Storage: browser**, there is no local helper to stop. If s
 
 The installed app now keeps its workspace in **`data/workspace.sqlite`**. SQLite is included with Circuit's local helper: there is nothing extra to install, and your data stays on your computer.
 
-On the first launch after updating, Circuit checks your existing JSON workspace, copies its tracks, custom packs and current drawing into a separate database, and verifies the result before using it. Your original **`workspace.json` and `backups` folder stay untouched**. Saved track identities, custom piece definitions and empty packs are retained.
+On the first launch after updating, an **Upgrading your saved library** message appears. Circuit automatically checks your existing JSON workspace, copies its tracks, custom packs and current drawing into a separate database, and verifies the result before using it. No manual conversion, export or import is needed for an installed workspace. When the check finishes, a summary shows what was carried over; choose **Continue to Circuit**.
+
+Your original **`workspace.json` and `backups` folder stay untouched**. Saved track identities, custom piece definitions and empty packs are retained. If conversion fails, the error stays visible and the editor remains closed, so it cannot overwrite your work with a new drawing.
 
 After that, new saves go into SQLite. The old JSON files are **migration-time recovery copies**, not up-to-date backups. Do not delete the database or start an older app against the same data folder to roll back. If migration reports a problem, keep the complete data folder and report the message; Circuit does not silently replace an invalid database with an empty library.
 

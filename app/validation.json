@@ -1,9 +1,9 @@
 {
-  "version": "0.3.23",
+  "version": "0.3.24",
   "date": "2026-11-03",
   "automated": {
-    "command": "node --test app/additional-packs.test.cjs app/cad-export.test.cjs app/core.test.cjs app/custom-packs.test.cjs app/custom-piece-delete.test.cjs app/disk-api.test.cjs app/disk-store.test.cjs app/editor-features.test.cjs app/elevation.test.cjs app/fold-override.test.cjs app/freeform-editor.test.cjs app/freeform-review.test.cjs app/freeform-shapes.test.cjs app/freeform.test.cjs app/integration.test.cjs app/inspector-review.test.cjs app/lane-spread.test.cjs app/library.test.cjs app/local-workspace.test.cjs app/pdf-report.test.cjs app/preview-car.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs app/reference-planning.test.cjs app/review-regressions.test.cjs app/routed-edge-order.test.cjs app/routed-review.test.cjs app/routed-spline.test.cjs app/routed-squeeze.test.cjs app/routed.test.cjs app/server.test.cjs app/side-snap.test.cjs app/space-guide.test.cjs app/table-panels.test.cjs app/table-review.test.cjs app/table-stock.test.cjs app/tabletop-routing.test.cjs app/theme-model.test.cjs app/track-exports.test.cjs app/transfer-review.test.cjs installer/launcher.test.cjs",
-    "passed": 445,
+    "command": "node --test app/additional-packs.test.cjs app/cad-export.test.cjs app/core.test.cjs app/custom-packs.test.cjs app/custom-piece-delete.test.cjs app/disk-api.test.cjs app/disk-store.test.cjs app/editor-features.test.cjs app/elevation.test.cjs app/fold-override.test.cjs app/freeform-editor.test.cjs app/freeform-review.test.cjs app/freeform-shapes.test.cjs app/freeform.test.cjs app/inspector-review.test.cjs app/integration.test.cjs app/lane-spread.test.cjs app/library.test.cjs app/local-workspace.test.cjs app/pdf-report.test.cjs app/preview-car.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs app/reference-planning.test.cjs app/review-regressions.test.cjs app/routed-edge-order.test.cjs app/routed-review.test.cjs app/routed-spline.test.cjs app/routed-squeeze.test.cjs app/routed.test.cjs app/server.test.cjs app/side-snap.test.cjs app/space-guide.test.cjs app/sqlite-review.test.cjs app/sqlite-storage.test.cjs app/table-panels.test.cjs app/table-review.test.cjs app/table-stock.test.cjs app/tabletop-routing.test.cjs app/theme-model.test.cjs app/track-exports.test.cjs app/transfer-review.test.cjs installer/launcher.test.cjs",
+    "passed": 468,
     "failed": 0,
     "scope": [
       "Closed circuit and per-lane lengths",
@@ -40,7 +40,7 @@
       "Strict original units and integration-contract metadata validation; both public entry points and explicit-state bypass regression",
       "Circuit inside/outside border placement on straights, mirrored and reversed pieces, open chains and separate loops",
       "Named custom pack migration, ownership, selected export, atomic import and library limits",
-      "R1â€“R8 adjacent curve edge radii and persistent family settings",
+      "R1\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u0153R8 adjacent curve edge radii and persistent family settings",
       "All four buildable starting-grid variants retain artwork in regenerated pictures",
       "Reference picture serialization, transforms, image validation, inventory isolation, missing connectors and stable road route IDs",
       "Alphabetical catalogue folders, natural radius ordering and descending straight lengths, without modifying catalogue definitions",
@@ -53,7 +53,8 @@
       "Routed slot-centred anchors, asymmetric verges, profile validation, reflow and immutable edits, exact closed lane lengths, overlap/table checks, material estimates, procedural artwork, PDF and conditional draft.3 round trips",
       "Flowing cubic normal offsets, adaptive sampled lengths, folds/self-crossings, asymmetric verges, reflected/reversed interpolation, common timing cross-sections, fixed-end bridges, material totals, conditional draft.4 and supplied example round trips; short PDF report pagination",
       "Routed CAD construction contours, matching surface seam removal, slot/conductor offset widths, arc extrema and shallow bulge precision, SVG physical scale, DXF millimetres and Y-up coordinates, layer isolation, exact gaps, duplicates, mixed-layout exclusion and escaping",
-      "Plugins Browse pack opens Routed Tracks for default and regenerated tabletop profiles"
+      "Plugins Browse pack opens Routed Tracks for default and regenerated tabletop profiles",
+      "Verified SQLite migration, per-record transactions, recovery history, metadata pages, cache invalidation, browser-only summary migration and old-helper protection"
     ]
   },
   "browser": {
@@ -1109,5 +1110,86 @@
     "limitations": [
       "No fresh native macOS/Linux installation or Illustrator/Fusion import audit"
     ]
+  },
+  "sqliteMigration": {
+    "date": "2026-11-03",
+    "sourceTestsPassed": 458,
+    "integrationFixturesPassed": 15,
+    "browser": [
+      "Disk migration/pagination/search/previews/selected JSON",
+      "Custom pack pagination",
+      "Current and previous workspace downloads",
+      "IndexedDB v1-to-v2 summary migration, save/delete/reload"
+    ],
+    "benchmark": [
+      {
+        "tracks": 100,
+        "importMs": 217,
+        "reopenMs": 53,
+        "pageMs": 3,
+        "pageBytes": 6645,
+        "firstSaveMs": 15,
+        "saveMedianMs": 8,
+        "databaseMiB": 0.6
+      },
+      {
+        "tracks": 1000,
+        "importMs": 1292,
+        "reopenMs": 73,
+        "pageMs": 8,
+        "pageBytes": 6646,
+        "firstSaveMs": 22,
+        "saveMedianMs": 10,
+        "databaseMiB": 5.5
+      },
+      {
+        "tracks": 5000,
+        "importMs": 6136,
+        "reopenMs": 81,
+        "pageMs": 27,
+        "pageBytes": 6646,
+        "firstSaveMs": 17,
+        "saveMedianMs": 10,
+        "databaseMiB": 27.5
+      }
+    ],
+    "limitations": [
+      "Native macOS/Linux execution not tested",
+      "Custom packs remain bounded and loaded together",
+      "Bulk workspace transfers are not streamed"
+    ]
+  },
+  "sqliteReview": {
+    "date": "2026-11-03",
+    "report": "REVIEW-SQLITE-2026-11-03.txt",
+    "sourceTestsPassed": 468,
+    "integrationFixturesPassed": 15,
+    "newRegressionTests": 10,
+    "fixes": [
+      "Summary-only Save dialog baseline",
+      "Legacy browser revision and preview consistency",
+      "Content fingerprints and source-change detection during migration",
+      "Quota-safe deletion and missing size metadata rejection",
+      "Read-only previous-save reconstruction",
+      "Shutdown request rejection and worker cleanup"
+    ],
+    "browser": [
+      "Fresh isolated Edge disk migration, paging, search, previews, track and workspace downloads",
+      "IndexedDB v1 migration including missing top-level revision, thumbnails, save/delete/reload and Update saved design dialog"
+    ],
+    "limitations": [
+      "Personal workspace was not migrated during testing",
+      "Native macOS/Linux execution remains unverified"
+    ]
+  },
+  "release0324": {
+    "date": "2026-11-03",
+    "sourceTestsPassed": 468,
+    "integrationFixturesPassed": 15,
+    "review": "REVIEW-SQLITE-2026-11-03.txt",
+    "limitations": [
+      "Native macOS/Linux execution not tested"
+    ],
+    "handoffTestsPassed": 167
   }
 }

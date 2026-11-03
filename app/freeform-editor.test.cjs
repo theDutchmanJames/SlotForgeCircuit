@@ -20,7 +20,7 @@ test('Returning to FreeForm follows changed builder tracks only when the draft i
 test('Late library lookup cannot overwrite a newer Save dialog or a closed one',async()=>{
  const source=fs.readFileSync(require.resolve('./app.js'),'utf8'),fn=source.slice(source.indexOf('async function openDesignSave('),source.indexOf('async function saveDesign('));
  const elements=new Map(),get=id=>{if(!elements.has(id))elements.set(id,{value:'',textContent:'',open:false,reset(){},showModal(){this.open=true;}});return elements.get(id);},pending=[];
- const context={designSaveGeneration:0,stop:()=>{},$:get,title:'Track',DL:{list:()=>new Promise((resolve,reject)=>pending.push({resolve,reject}))},integrationState:{designId:'track'},librarySource:null,layout:()=>({design:{revision:'rev'}})};
+ const context={designSaveGeneration:0,stop:()=>{},$:get,title:'Track',DL:{summaries:()=>new Promise((resolve,reject)=>pending.push({resolve,reject}))},integrationState:{designId:'track'},librarySource:null,layout:()=>({design:{revision:'rev'}})};
  vm.createContext(context);vm.runInContext(fn,context);
  const old=context.openDesignSave();get('save-design-dialog').open=false;const latest=context.openDesignSave();
  pending[1].resolve([]);await latest;const label=get('design-save-submit').textContent;assert.equal(label,'Save design');

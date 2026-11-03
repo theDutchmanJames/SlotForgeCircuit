@@ -7,7 +7,7 @@ function client(handler){
 }
 function service(override=()=>undefined){return async call=>{
  const result=await override(call);if(result)return result;
- return{data:call.endpoint==='session'?{storage:'disk',token:'test',dataDirectory:'isolated'}:call.endpoint==='designs'&&call.method==='GET'?[{id:'design',revision:'newer',layout:{}}]:call.endpoint.startsWith('designs/')?{id:'design',revision:'newer',layout:{}}:null};
+ return{data:call.endpoint==='session'?{storage:'disk',storageEngine:'sqlite',token:'test',dataDirectory:'isolated'}:call.endpoint==='designs'&&call.method==='GET'?[{id:'design',revision:'newer',layout:{}}]:call.endpoint.startsWith('designs/')?{id:'design',revision:'newer',layout:{}}:null};
 };}
 test('Listing and previewing library records cannot replace an editor revision baseline',async()=>{
  const {api,calls}=client(service(call=>call.method==='PUT'&&call.endpoint==='designs'?{status:409,data:{error:'Stale design'}}:undefined));await api.init();await api.list();await api.get('design');
@@ -38,3 +38,6 @@ test('Shutdown also drains saves appended while an earlier save is still pending
   if(call.endpoint==='current'&&call.method==='PUT'){await(call.body.data.title==='First'?firstGate:secondGate);return{data:{revision:call.body.data.title,data:call.body.data}};}
  }));await api.init();const first=api.putCurrent({title:'First'}),quit=api.quit(),second=api.putCurrent({title:'Second'});releaseFirst();await first;await new Promise(resolve=>setImmediate(resolve));assert.equal(calls.some(c=>c.endpoint==='quit'),false);releaseSecond();await second;await quit;assert.equal(calls.at(-1).endpoint,'quit');assert.equal(api.current.title,'Second');
 });
+
+
+test('An older running helper is rejected with restart guidance before autosave can write',async()=>{const {api,calls}=client(async()=>({data:{storage:'disk',token:'old'}}));await api.init();assert.equal(api.mode,'unavailable');assert.match(api.error,/Restart/);await assert.rejects(api.putCurrent({title:'Do not write to old helper'}),/Restart/);assert.equal(calls.some(c=>c.method==='PUT'),false);});

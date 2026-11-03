@@ -1,9 +1,16 @@
-SlotForge Circuit — editor iteration (v0.3.23)
+SlotForge Circuit — editor iteration (v0.3.24)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
-storage keys and layout formats. No data migration is required.
+storage keys and layout formats. The rename does not move your data.
+This update automatically migrates installed JSON workspaces to SQLite.
+
+NEW IN v0.3.24 — SQLITE STORAGE AND LIBRARY BROWSING
+Installed workspaces migrate automatically to SQLite. Original JSON files are
+kept. Track Library and pack contents show 24 entries per page; saved track
+previews are cached. Storage offers Download previous save as well as complete
+workspace backups. See app/SQLITE-STORAGE.txt for limits and recovery.
 
 NEW IN v0.3.23
 SVG exports default to clear black lines; choose fine layer colours in the
@@ -418,10 +425,12 @@ The launcher opens the browser and starts a loopback-only storage helper. It
 recognizes the installation's data directory; HTML alone does not get arbitrary
 filesystem access. No cloud, account, global Node installation or npm is needed.
 
-Disk mode stores autosave, the Track Library and custom packs in workspace.json.
+Disk mode stores autosave, the Track Library and custom packs in workspace.sqlite.
+Existing workspace.json files migrate after verification and remain as recovery copies.
 Writes are checked, flushed and atomically replaced, guarded by a process lock
 and per-record revisions. Conflicting windows cannot silently overwrite work.
-20 previous workspace versions are kept. Failed/unreadable files are retained.
+Up to 20 previous change sets are kept inside SQLite (50 MiB history budget).
+Failed/unreadable files are retained. See app/SQLITE-STORAGE.txt.
 Updates switch a versioned app pointer and do not replace data/. Old app versions
 remain available. Browser-data clearing and port/browser changes do not erase
 the disk workspace. Normal disk loss still requires an independent backup.

@@ -15,6 +15,8 @@ for folder in ('app', 'designs', 'track-packs', 'integration', 'installer'):
         if not file.is_file() or any(p.startswith('.') or p == '__pycache__' for p in file.relative_to(root).parts):
             continue
         rel = file.relative_to(root).as_posix()
+        if 'backups' in file.relative_to(root).parts or file.name in ('workspace.json', 'sqlite-storage.json') or '.sqlite' in file.name:
+            continue  # A locally configured data folder is never distributable.
         if file.suffix.lower() in ('.pyc', '.lnk', '.tmp', '.pdf'):
             continue
         if file.suffix.lower() == '.zip':

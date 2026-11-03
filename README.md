@@ -154,9 +154,13 @@ The profile shapes an illustrative animation. It does not predict real lap times
 
 Use **Save to Library** to keep named designs you can reopen, compare, share or export. Your current drawing and custom packs are saved locally as you work; saving to the library keeps a named snapshot.
 
-With the installed launcher, the workspace is stored as **files on your computer**, with previous workspace versions kept as backups. Closing the browser, restarting or clearing browser data does not remove those disk files. Updates preserve your saved workspace.
+With the installed launcher, the workspace is stored in a **local SQLite database on your computer**. Closing the browser, restarting or clearing browser data does not remove it. Existing JSON workspaces migrate automatically after verification; their original files are kept. No database setup is needed.
 
-The **Storage** button in the **bottom-right footer** shows **Storage: disk** or **Storage: browser**. Open it to check the storage location, download a workspace backup or import a workspace transfer. Keep a backup on another device as well.
+Browse **24 tracks per page**, search by name, and open only the design you need. Cached previews keep browsing lightweight. The installed library supports up to **5,000 tracks**, within a 200 MiB saved-data limit. Custom pack contents are paged too; their existing limits remain 100 packs and 500 custom pieces overall.
+
+The **Storage** button in the **bottom-right footer** shows **Storage: disk** or **Storage: browser**. Open it to check the storage location, download a workspace backup or import a workspace transfer. **Download previous save** lets you recover the preceding saved workspace without changing your current work. Keep a backup on another device as well: recovery history inside the database is not a separate backup.
+
+After migration, the older JSON files are recovery copies from that moment; new edits go into SQLite. Stop the app before copying its data folder, and use workspace exports when moving between installations. [Storage and recovery details](app/SQLITE-STORAGE.txt)
 
 Opening the HTML file directly uses browser storage instead of the installed disk workspace. That workspace can differ between browsers, folders and addresses. Use the installed launcher for consistent local file storage.
 
@@ -225,11 +229,25 @@ Windows installation has been tested. The macOS and Linux installers are availab
 
 ### Update an installed copy
 
-1. In Circuit, click **Storage: disk** in the **bottom-right corner**, choose **Stop local app**, then close the tab.
-2. Download and fully extract the latest complete ZIP.
-3. Run its installer again. **Your saved data is kept.**
+1. In Circuit, click **Storage: disk** in the **bottom-right corner** and choose **Download workspace backup**. Keep that JSON file somewhere safe.
+2. In the same Storage window, choose **Stop local app**, then close the tab.
+3. Download and fully extract the latest complete ZIP, then run its installer again. **Your saved data is kept.**
 
 If the footer reads **Storage: browser**, there is no local helper to stop. If saving has failed, use **Storage → Download workspace backup** before reloading or updating.
+
+### Moving to SQLite: automatic, with your originals kept
+
+The installed app now keeps its workspace in **`data/workspace.sqlite`**. SQLite is included with Circuit's local helper: there is nothing extra to install, and your data stays on your computer.
+
+On the first launch after updating, Circuit checks your existing JSON workspace, copies its tracks, custom packs and current drawing into a separate database, and verifies the result before using it. Your original **`workspace.json` and `backups` folder stay untouched**. Saved track identities, custom piece definitions and empty packs are retained.
+
+After that, new saves go into SQLite. The old JSON files are **migration-time recovery copies**, not up-to-date backups. Do not delete the database or start an older app against the same data folder to roll back. If migration reports a problem, keep the complete data folder and report the message; Circuit does not silently replace an invalid database with an empty library.
+
+Use **Storage → Download workspace backup** for a portable backup of your latest work. **Download previous save** retrieves the preceding saved workspace without changing the current one. To copy the data folder itself, stop the local app first, then copy the **whole folder**. The database's built-in recovery history is useful, but does not replace a backup on another drive.
+
+This upgrade also makes the **Track Library** lighter to browse: 24 tracks per page, name search and cached previews, with full designs loaded when needed. Custom pack pieces are paged as well. Opening the HTML directly still uses browser storage; use **Import workspace transfer** to bring that work into an installed copy.
+
+[SQLite storage, migration and recovery details](app/SQLITE-STORAGE.txt)
 
 ### Bring your existing work with you
 

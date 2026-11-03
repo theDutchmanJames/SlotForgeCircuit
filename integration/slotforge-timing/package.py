@@ -17,6 +17,8 @@ def collect_files():
     for folder in ('app', 'designs', 'track-packs', 'integration', 'installer', 'docs'):
         for file in (root / folder).rglob('*'):
             relative = file.relative_to(root)
+            if 'backups' in relative.parts or file.name in ('workspace.json', 'sqlite-storage.json') or '.sqlite' in file.name:
+                continue
             if not file.is_file() or any(p.startswith('.') or p == '__pycache__' for p in relative.parts):
                 continue
             if file.suffix.lower() in ('.zip', '.pdf', '.pyc', '.lnk', '.tmp'):

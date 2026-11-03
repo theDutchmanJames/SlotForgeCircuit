@@ -1,0 +1,79 @@
+SQLITE UPGRADE AND LIBRARY LOADING REVIEW — 3 NOVEMBER 2026
+
+Scope
+Installed storage now uses SQLite in a worker. Track records, current autosave,
+pack metadata and custom pieces are separate rows. Indexed summaries and cached
+previews drive 24-card library pages. Export selectors request metadata only.
+Custom pack cards are paged. Browser-only IndexedDB preserves its designs store
+and adds a transactional summary index.
+
+Migration/recovery checks
+- Exact legacy state comparison includes IDs, revisions, timestamps, baseline,
+  trash, custom definitions/orientation, empty packs and curve settings.
+- Original JSON and backup filenames/bytes remain unchanged after new saves.
+- Temporary database comparison before/after commit and integrity validation.
+- Concurrent migration, publication failure/retry, malformed source, foreign or
+  damaged SQLite, and missing migrated database fail without resetting data.
+- Changed legacy JSON from an old running app is detected; newer UI refuses an
+  older helper and asks for restart before sending any writes. The launcher
+  probes its candidate ports before migration and rejects an older active helper
+  for the same data folder.
+- SQLite transaction interruption, quota rollback and stale saves/deletes retain
+  the last committed records. Worker replacement does not reset the workspace.
+- Previous-save export reconstructs rows in memory in a read-only transaction
+  and leaves live data intact.
+
+Review corrections
+Browser summary deletion initially left an orphaned card: fixed by deleting
+design and summary in one IndexedDB transaction. Multi-record reads now hold a
+SQLite read transaction, avoiding mixed pack revisions from another writer.
+Preview caching is bounded by count and bytes. Old page requests cannot replace
+new page content, and leaving the library stops further preview requests.
+
+Validation
+468 app/installer tests and 15 Timing integration fixtures passed after the
+follow-up review (initial implementation validation: 458 tests).
+Isolated Edge checks covered 53 migrated designs, 30 custom pieces, paging,
+search, cached previews, selected JSON downloads, metadata-only export choices,
+current-workspace and previous-save downloads. No page errors occurred.
+Browser-only checks upgraded 30 existing IndexedDB-v1 designs, then exercised
+save/rename/delete, summary synchronization, pagination and reload.
+Follow-up browser checks also covered old records without a top-level revision,
+their thumbnails and save baselines, and the actual Update saved design dialog.
+
+Follow-up review fixes
+- Save dialog accepts a summary record as its existing saved-version baseline.
+- Browser legacy records retain their original revision when normalized for
+  rendering, keeping previews and optimistic-concurrency checks consistent.
+- Migration fingerprints the source JSON contents and rechecks before database
+  publication. A source changed during migration cannot publish a stale snapshot.
+- Copied recovery JSON with different timestamps no longer blocks SQLite.
+  Unexpected JSON created by an older app in a new SQLite workspace is detected.
+- Deleting near the payload limit can prune old trash instead of failing because
+  the deleted record is also retained in trash. Previous-save recovery is tested.
+- Missing/invalid size metadata fails closed instead of bypassing quota checks.
+- Previous-save recovery no longer temporarily writes to live SQLite rows.
+  A query-only connection verifies that the operation needs no database writes.
+- Closing storage rejects new requests immediately, drains queued saves and
+  terminates the worker. The HTTP shutdown path rejects subsequent API requests;
+  installer launch failures/reuse also clean up unused workers.
+
+Nine new storage regressions and one HTTP-shutdown regression passed. The full
+suite and both isolated Edge workflows were rerun after these corrections.
+
+Synthetic local backend measurements (18-piece oval copies)
+ Tracks  Import   Reopen   First page  Page bytes  Autosave median (5 samples)
+    100   217 ms    53 ms      3 ms       6,645          8 ms
+  1,000 1,292 ms    73 ms      8 ms       6,646         10 ms
+  5,000 6,136 ms    81 ms     27 ms       6,646         10 ms
+The 5,000-track database occupied 27.5 MiB after the saves. These are synthetic
+backend diagnostics on this Windows machine, not full UI timings, cross-platform
+guarantees or benchmarks of complex routed/FreeForm geometry.
+
+Boundaries
+Custom packs still load as a bounded collection (100 packs / 500 pieces).
+Only changed pack/piece rows are written; pack validation still examines that
+collection. Full transfers and recovery materialize collection data rather than
+streaming it. History is inside SQLite; keep independent exported backups.
+Native macOS/Linux execution remains unverified. No personal workspace was
+migrated during testing. No version bump, release or Timing repository change.

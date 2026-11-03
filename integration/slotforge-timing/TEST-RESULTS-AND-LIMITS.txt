@@ -1,3 +1,9 @@
+SQLITE RELEASE — 3 November 2026 (v0.3.24)
+468 complete app/installer tests, 167 extracted handoff tests and 15 integration
+fixtures passed. SQLite migration and library loading changes do not change
+the track JSON envelope or integration contracts. See app/REVIEW-SQLITE-2026-11-03.txt
+in the source archive for migration/recovery coverage and platform limits.
+
 FreeForm, elevation, shaped tables and squeeze require the matching draft.8,
 draft.9 or draft.10 contract support. Layout envelope remains version 1.
 The standalone archive includes the shared runtime, regression tests and examples.

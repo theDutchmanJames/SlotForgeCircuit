@@ -17,24 +17,29 @@ function createHandler(directory,options={}){
    if(decoded.startsWith('/api/')){
     const json=(status,value)=>end(status,JSON.stringify(value),{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});
     if(!store)return json(404,{error:'Disk storage is not enabled.'});
+    if(options.closing)return json(503,{error:'Circuit is stopping. Start the local app again before saving.'});
     if(req.headers['sec-fetch-site']==='cross-site')return json(403,{error:'Same-origin requests only.'});
     // Stable compatibility identifier: existing launchers use this for reuse.
-    if(decoded==='/api/health'&&req.method==='GET')return json(200,{app:'SlotForgeTrackBuilder',version:require('./integration.js').VERSION,instanceId,buildId:options.buildId||null});
-    if(decoded==='/api/session'&&req.method==='GET'){if(req.headers['x-slotforge-client']!=='1')return json(403,{error:'App client header required.'});return json(200,{storage:'disk',version:require('./integration.js').VERSION,instanceId,dataDirectory:store.directory,token});}
+    if(decoded==='/api/health'&&req.method==='GET')return json(200,{app:'SlotForgeTrackBuilder',storageEngine:store.engine||'json',version:require('./integration.js').VERSION,instanceId,buildId:options.buildId||null});
+    if(decoded==='/api/session'&&req.method==='GET'){if(req.headers['x-slotforge-client']!=='1')return json(403,{error:'App client header required.'});return json(200,{storage:'disk',storageEngine:store.engine||'json',version:require('./integration.js').VERSION,instanceId,dataDirectory:store.directory,token});}
     if(req.headers['x-slotforge-token']!==token)return json(403,{error:'Open the app through its local launcher.'});
     const write=!['GET','HEAD'].includes(req.method);if(write&&(req.headers.origin!==`http://${host}`||!/^application\/json(?:;|$)/i.test(req.headers['content-type']||'')))return json(403,{error:'Same-origin JSON requests only.'});
     try{
-     let body;if(write){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>require('./disk-store.cjs').MAX)throw Object.assign(Error('Import exceeds 50 MiB.'),{status:413});chunks.push(chunk);}try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw Object.assign(Error('Invalid JSON.'),{status:400});}}
+     let body;if(write){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>require('./disk-store.cjs').MAX)throw Object.assign(Error('Import exceeds 256 MiB.'),{status:413});chunks.push(chunk);}try{body=JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw Object.assign(Error('Invalid JSON.'),{status:400});}}
      if(decoded==='/api/current'&&req.method==='GET')return json(200,await store.current());
      if(decoded==='/api/current'&&req.method==='PUT')return json(200,await store.putCurrent(body.data,body.expectedRevision,body.librarySource));
      if(decoded==='/api/packs'&&req.method==='GET')return json(200,await store.packs());
      if(decoded==='/api/packs'&&req.method==='PUT')return json(200,await store.putPacks(body.data,body.expectedRevision));
+     if(decoded==='/api/design-summaries'&&req.method==='GET')return json(200,await store.summaries());
+     if(decoded==='/api/design-page'&&req.method==='GET')return json(200,await store.page(Object.fromEntries(url.searchParams)));
+     if(decoded.startsWith('/api/design-preview/')&&req.method==='GET')return json(200,await store.preview(decoded.slice(20)));
      if(decoded==='/api/designs'&&req.method==='GET')return json(200,await store.list());
      if(decoded==='/api/designs'&&req.method==='PUT')return json(200,await store.putDesign(body.data,body.expectedRevision));
      if(decoded.startsWith('/api/designs/')&&req.method==='GET')return json(200,await store.get(decoded.slice(13)));
      if(decoded.startsWith('/api/designs/')&&req.method==='DELETE')return json(200,await store.remove(decoded.slice(13),body.expectedRevision));
-     if(decoded==='/api/quit'&&req.method==='POST'&&options.onQuit){const result=json(200,{stopped:true});setImmediate(()=>options.onQuit());return result;}
+     if(decoded==='/api/quit'&&req.method==='POST'&&options.onQuit){options.closing=true;const result=json(200,{stopped:true});setImmediate(()=>options.onQuit());return result;}
      if(decoded==='/api/export-workspace'&&req.method==='GET')return json(200,await store.exportBundle());
+     if(decoded==='/api/previous-workspace'&&req.method==='GET')return json(200,await store.previousBundle());
      if(decoded==='/api/import-workspace'&&req.method==='POST')return json(200,await store.importBundle(body));
      return json(404,{error:'Unknown app endpoint.'});
     }catch(e){return json(e.status||400,{error:e.message});}
@@ -56,6 +61,6 @@ function createHandler(directory,options={}){
 if(require.main===module){
  const port=Number(process.env.SLOTFORGE_PORT||8173);
  if(!Number.isInteger(port)||port<1||port>65535)throw Error('SLOTFORGE_PORT must be an integer from 1 to 65535');
- (async()=>{const {DiskStore,home}=require('./disk-store.cjs'),store=await new DiskStore(process.env.SLOTFORGE_DATA_DIR||path.join(home(),'data')).init();const options={store,port},server=http.createServer(createHandler(path.resolve(__dirname,'..'),options));options.onQuit=async()=>{await store.queue;server.close();server.closeIdleConnections();};server.on('error',e=>{console.error(e.message);process.exitCode=1;});server.listen(port,'127.0.0.1',()=>console.log(`SlotForge Circuit: http://127.0.0.1:${port}/app/\nUser data: ${store.directory}`));})().catch(e=>{console.error(e.message);process.exitCode=1;});
+ (async()=>{const {DiskStore,home}=require('./disk-store.cjs'),store=new DiskStore(process.env.SLOTFORGE_DATA_DIR||path.join(home(),'data'));let live;try{live=await(await fetch(`http://127.0.0.1:${port}/api/health`,{signal:AbortSignal.timeout(800)})).json();}catch{}if(live?.app==='SlotForgeTrackBuilder'&&live.instanceId===require('node:crypto').createHash('sha256').update(store.directory).digest('hex'))throw Error('Circuit is already running for this data folder. Stop that local app before restarting or updating; no migration was started.');await store.init();const options={store,port},server=http.createServer(createHandler(path.resolve(__dirname,'..'),options));options.onQuit=async()=>{await store.close();server.close();server.closeIdleConnections();};server.on('error',e=>{console.error(e.message);process.exitCode=1;});server.listen(port,'127.0.0.1',()=>console.log(`SlotForge Circuit: http://127.0.0.1:${port}/app/\nUser data: ${store.directory}`));})().catch(e=>{console.error(e.message);process.exitCode=1;});
 }
 module.exports={createHandler};

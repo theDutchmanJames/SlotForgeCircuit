@@ -25,3 +25,13 @@ desktop.ini
 /output/
 
 /installer/runtime-archives/
+
+# Local storage must never be committed or included in a distribution.
+/data/
+/backups/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+workspace.json
+sqlite-storage.json

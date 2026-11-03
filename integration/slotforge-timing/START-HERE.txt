@@ -1,10 +1,10 @@
-SlotForge Timing integration handoff — Planning overrides and preview car sizes (v0.3.23)
-2 November 2026
+SlotForge Timing integration handoff — SQLite storage and library browsing (v0.3.24)
+3 November 2026
 
 CURRENT CONTRACT
 slotforge.layout envelope: version 1 (unchanged)
-integration.contractVersion: draft.12 for Lane Spread; draft.11 for board assemblies; draft.10 for shaped tables/FreeForm squeezes; draft.9 for heights; draft.8 for FreeForm; otherwise draft.7 for smooth-apex squeezes; otherwise draft.6 for legacy squeezes, draft.5 for tabletop routing, draft.4 for flowing curves, draft.3 for circular/straight routed, draft.2 otherwise
-Supported imports: draft.12, draft.11, draft.10, draft.9, draft.8, draft.7, draft.6, draft.5, draft.4, draft.3, draft.2, draft.1, and documented legacy/unversioned v1.
+integration.contractVersion: draft.13 for planning-only fold overrides; draft.12 for Lane Spread; draft.11 for board assemblies; draft.10 for shaped tables/FreeForm squeezes; draft.9 for heights; draft.8 for FreeForm; otherwise draft.7 for smooth-apex squeezes; otherwise draft.6 for legacy squeezes, draft.5 for tabletop routing, draft.4 for flowing curves, draft.3 for circular/straight routed, draft.2 otherwise
+Supported imports: draft.13, draft.12, draft.11, draft.10, draft.9, draft.8, draft.7, draft.6, draft.5, draft.4, draft.3, draft.2, draft.1, and documented legacy/unversioned v1.
 Explicit unknown versions and unsupported units are rejected before normalization.
 The app is now named SlotForge Circuit. New exports use that producer.name;
 older SlotForge Track Builder exports retain full compatibility. The rename
@@ -112,3 +112,7 @@ are unchanged; the shared runtime only has its producer version updated.
 v0.3.23 adds explicit draft.13 planning-only fold overrides and optional
 preview-car appearance metadata. Include preview-car.js with the runtime;
 see the specifications above. The layout envelope remains version 1.
+
+v0.3.24 changes local storage and library loading only. SQLite is an internal
+Circuit implementation detail: track JSON, workspace-transfer JSON and Timing
+integration contracts remain unchanged. No Timing database migration is needed.

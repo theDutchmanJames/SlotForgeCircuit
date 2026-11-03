@@ -36,17 +36,22 @@ The launcher reuses an already-running instance only when its installation data
 path, app version and installed content build match. If another app or old preview uses the preferred
 port, the launcher chooses a different local port. The saved files stay the same.
 
-Storage limits: one workspace.json, at most 50 MiB; 200 saved tracks. Writes use
-same-directory temporary files, file flush, an interprocess write lock and atomic
-rename. Previous successful workspaces are kept under backups/ (20 versions).
-Deleted library entries remain in a bounded trash history inside workspace.json;
-older deleted entries may be pruned to make room. Disk failure and arbitrary
-network filesystems are not certified; keep an independent backup.
+Storage: data/workspace.sqlite, using SQLite bundled with the Node runtime.
+Existing JSON workspaces migrate automatically after exact content verification;
+workspace.json and backups/ remain unchanged migration-time recovery copies.
+Do not run an older app version against a migrated data folder.
 
-Recovery: stop all local SlotForge processes, copy data/ somewhere safe, then
-restore a known-good backups/*.json copy as workspace.json. An unreadable live
-file is never silently reset. If a crashed process left a stale .write-lock,
-stop all SlotForge processes before removing that lock file.
+Limits: 5,000 saved tracks and 200 MiB live record payload. Transactions keep
+up to 20 previous change sets (50 MiB history budget) and 20 deleted tracks.
+Track pack limits remain 100 custom packs and 500 pieces overall. Individual
+layout files retain the 5 MiB limit; workspace transfers allow up to 256 MiB.
+
+Use Storage > Download workspace backup for an independent portable JSON copy.
+Storage > Download previous save recovers the preceding committed workspace
+without changing live data. This history is inside SQLite, not a separate backup.
+Stop all local helpers before copying the complete data folder. A corrupt or
+missing migrated database is never silently replaced with an empty workspace
+or the stale JSON copy. See app/SQLITE-STORAGE.txt for migration and recovery.
 
 Native macOS/Linux installation testing remains outstanding. No signed installer,
 Gatekeeper bypass, Linux service or Windows registry installation is included.

@@ -1,8 +1,9 @@
-SLOTFORGE CIRCUIT v0.3.23
+SLOTFORGE CIRCUIT v0.3.24
 
 Previously SlotForge Track Builder. Existing launchers, saved tracks and custom
 packs still work. For compatibility, the installed folder keeps the original
-SlotForgeTrackBuilder name; no data migration is needed.
+SlotForgeTrackBuilder name. Installed JSON workspaces now migrate automatically
+to SQLite, with their original files kept.
 
 INSTALL
 1. Extract the entire ZIP into a folder.
@@ -67,3 +68,11 @@ The desktop shortcut should open your default browser without a terminal.
 If Windows cannot open the browser, the error dialog gives a local address
 you can open yourself. Startup details: data/launcher.log in the installed
 folder. Re-run the latest installer to repair a shortcut; data/ is kept.
+
+STORAGE UPGRADE
+Before updating, use Storage > Download workspace backup and keep that JSON
+file somewhere safe. Choose Storage > Stop local app, then run the new installer.
+The installed helper now uses SQLite.
+Existing JSON workspaces are verified and migrated automatically; originals
+are retained. Track Library loads 24 summaries at a time with cached previews.
+See app/SQLITE-STORAGE.txt for backups, recovery and current limits.

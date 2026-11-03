@@ -1,0 +1,85 @@
+SLOTFORGE CIRCUIT — SQLITE STORAGE
+
+What changes for users
+Installed Circuit still opens in your browser. Its existing local helper now
+saves to data/workspace.sqlite. No database installation or account is needed.
+The installation folder and storage identifiers stay unchanged.
+
+Track Library shows 24 designs per page, searches saved names, and loads only
+the selected design when opening or exporting it. Preview requests are bounded
+to two at a time; generated SVG previews are cached by saved revision. Custom
+pack contents also show 24 pieces per page. Selection can span those pages;
+"Select all pieces" still selects the whole pack.
+
+Automatic migration
+Stop the old local app before updating. On the first launch, Circuit takes the
+legacy write lock and validates workspace.json, including every saved design
+and custom pack. It builds a separate temporary SQLite database, verifies its
+contents before and after commit against the original workspace, checks SQLite
+integrity, and publishes it exclusively. IDs, revisions, timestamps, current
+editor/library baseline, empty packs, piece orientation and trash are retained.
+Publication requires a local filesystem supporting hard links (NTFS, APFS and
+normal Linux filesystems). Failure retains the source and reports an error.
+
+The original workspace.json and backups/ files are NOT deleted or rewritten.
+They represent the time of migration, not the latest work after migration.
+An existing invalid/unsupported SQLite file is never replaced with an empty
+workspace. A migration marker prevents silent fallback to stale JSON if the
+SQLite file later disappears. A change to preserved JSON from an older app is
+reported and blocks further operations so the two histories can be recovered.
+This check compares file contents: copying the stopped data folder to a new
+location does not trigger a conflict just because file timestamps changed.
+The source is checked again before migration publishes the SQLite database.
+Do not delete SQLite or launch an old Circuit version to roll back.
+
+Backups and recovery
+Storage > Download workspace backup exports the current workspace as portable
+JSON. It remains compatible with the existing transfer format. Keep independent
+copies outside the data folder. Exported tracks and packs retain their normal
+JSON formats; this storage change does not alter SlotForge Timing contracts.
+
+Storage > Download previous save reconstructs the preceding saved workspace
+in memory, using a read-only transaction on the live database. Importing it adds recovered tracks
+as library entries; it does not replace your current drawing. SQLite keeps up
+to 20 changed-record transactions, bounded to 50 MiB, and up to 20 deleted tracks.
+Old deleted-track entries can be pruned sooner to keep within the workspace
+limit, so deleting an unused track can still free space when storage is full.
+This history is in the SAME database, not an independent corruption/disk-loss
+backup. The old JSON backup folder is preserved but no longer updated.
+
+For a filesystem backup, stop the app and copy the complete data folder. Keep
+the original folder when recovering from damage. Never copy an active SQLite
+file alone or replace files while any Circuit helper is running.
+
+Implementation and boundaries
+Node's bundled SQLite runs in a worker, outside the HTTP request thread.
+Writes use BEGIN IMMEDIATE, full synchronous commits and expected revision
+checks. A failed transaction rolls back records, metadata, counters and history.
+Record bodies remain validated portable JSON. Designs, autosave, pack metadata
+and individual piece definitions are stored separately; unchanged records are
+not rewritten. Saved layouts keep their own piece definitions, independently
+of later pack edits/deletions. Reads spanning multiple records use a transaction.
+
+Normal library pages read summaries only. Cache limits: 128 previews / 32 MiB,
+at most 2 MiB per cached preview. Missing/invalidated previews regenerate on use.
+Bulk workspace import/export, one-time migration and full recovery still read
+the whole relevant collection. JSON transfers are not streamed. Custom packs
+remain a bounded collection loaded for the builder; saving a pack validates
+that collection but only changed piece rows are persisted.
+
+Limits: 5,000 disk library tracks, 200 MiB of live record payload, 5 MiB per
+layout and 256 MiB per workspace-transfer request. History and preview caches
+have separate bounds, so physical database size can be larger. SQLite can
+reuse freed pages without immediately shrinking its file. Custom packs retain
+the existing limits of 100 packs and 500 pieces overall; these have not been
+raised without a separate large-pack geometry/loading review.
+
+Browser-only mode
+Opening HTML without the local helper continues to use browser storage, not
+SQLite. IndexedDB upgrades in one transaction from version 1 to 2, retaining
+the designs store and adding a lightweight summaries store. Saves/deletes
+update the two stores together. Browser previews use a bounded in-memory cache.
+JSON backup/export remains the way to move browser saves into installed mode.
+
+Native macOS/Linux execution still needs platform testing. No release or
+version change is required by the storage format itself.

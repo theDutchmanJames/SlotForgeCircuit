@@ -12,6 +12,30 @@ mixed design are excluded explicitly. A layout without routed sections keeps
 its existing PDF/PNG/JSON/CSV exports; construction export is unavailable.
 
 LAYERS
+SVG appearance defaults to Black lines - easier to see. Its display stroke
+weight scales with the drawing extent so a large layout remains visible when
+fitted to a screen. This is visual styling only: path coordinates, dimensions,
+named layers and page scale are unchanged. Stroke thickness is not slot width,
+cutting allowance or a toolpath; use the actual centre/edge paths in CAD/CAM.
+Choose Layer colours - fine CAD lines to retain the previous coloured 0.25 mm
+strokes. The choice also applies to panel and stock-sheet SVGs in ZIP exports.
+DXF layer colours and geometry are unaffected.
+Large SVG pages include extra margin so their visible outlines are not clipped.
+This margin does not change the physical scale or the size of any track or table.
+
+PLANNING-ONLY FOLD OVERRIDES
+In the routed section editor, choose Flowing curve / S-bend and enable
+Override folds - planning only to keep a visual piece with folded slots,
+conductors or wood edges. Circular corners can first be converted to flowing
+curves. The override is remembered per piece and in saved packs, not globally.
+The piece stays editable and can snap to other pieces. A dashed warning outline
+and layout checks identify it. PDF/PNG pictures and parts counts include it;
+reported lengths and material estimates exclude it as unknown.
+SVG/DXF and panel/stock construction exports require repairing the geometry
+and turning off the override. Live Preview and Timing racing routes are also
+unavailable while the layout contains one. Invalid dimensions, stationary
+curves or sampling failures may still prevent creation even with the override.
+
 SLOT_CENTRES: the guide-slot centre paths.
 SLOT_EDGES: the two actual slot boundaries, using the entered slot width.
 BRAID_EDGES / TAPE_EDGES: boundaries on both sides of each slot, using the

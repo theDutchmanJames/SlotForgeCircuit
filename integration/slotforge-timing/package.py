@@ -26,9 +26,9 @@ def collect_files():
             source.append(file)
     handoff = [root / name for name in (
         'LICENSE', 'THIRD-PARTY-NOTICES.txt',
-        'app/table-stock.js', 'app/table-boards.js', 'app/table-shape.js', 'app/freeform-review.test.cjs', 'app/freeform-shapes.test.cjs', 'app/elevation.js', 'app/elevation.test.cjs', 'app/freeform.js', 'app/freeform.test.cjs', 'app/design-library.js', 'app/integration.js', 'app/core.js', 'app/geometry.js', 'app/routed.js',
+        'app/table-stock.js', 'app/table-boards.js', 'app/table-shape.js', 'app/freeform-review.test.cjs', 'app/freeform-shapes.test.cjs', 'app/elevation.js', 'app/elevation.test.cjs', 'app/freeform.js', 'app/freeform.test.cjs', 'app/design-library.js', 'app/integration.js', 'app/core.js', 'app/preview-car.js', 'app/preview-car.test.cjs', 'app/geometry.js', 'app/routed.js',
         'app/routed-checks.js', 'app/routed.test.cjs', 'app/track-exports.js',
-        'app/lane-spread.test.cjs', 'app/routed-spline.js', 'app/routed-spline.test.cjs', 'app/routed-squeeze.test.cjs', 'app/track-drawing.js', 'app/cad-export.js',
+        'app/routed-edge-order.test.cjs', 'app/fold-override.test.cjs', 'app/lane-spread.test.cjs', 'app/routed-spline.js', 'app/routed-spline.test.cjs', 'app/routed-squeeze.test.cjs', 'app/track-drawing.js', 'app/cad-export.js',
         'app/integration.test.cjs', 'app/integration-fixtures.cjs',
         'app/catalogue.js', 'app/custom-packs.js', 'app/editor-features.test.cjs',
         'track-packs/tools/geometry.cjs',

@@ -2,6 +2,32 @@ const test=require('node:test'),assert=require('node:assert/strict'),F=require('
 const circular=()=>structuredClone(require('../integration/slotforge-timing/routed-examples/closed-routed-oval.slotforge.json'));
 const flowing=()=>structuredClone(require('../integration/slotforge-timing/routed-examples/closed-flowing-track.slotforge.json'));
 const only={slots:true,slotEdges:false,conductors:false,surfaces:false,table:false,timing:false,scale:false};
+test('Black SVG display lines stay visible without changing paths, layers, dimensions or scale',()=>{
+ const model=C.build(flowing()),before=structuredClone(model),paths=s=>[...s.matchAll(/<path\b[^>]*>/g)].map(m=>m[0]),attr=(s,key)=>s.match(new RegExp(key+'="([^"]+)"'))[1];
+ const fine=C.serializeSVG(model,false,1,'layers'),black=C.serializeSVG(model);
+ assert.deepEqual(paths(black),paths(fine));assert.equal(attr(black,'viewBox'),attr(fine,'viewBox'));assert.equal(attr(black,'width'),attr(fine,'width'));assert.equal(attr(black,'height'),attr(fine,'height'));
+ assert.deepEqual([...black.matchAll(/\bstroke="([^"]+)"/g)].map(m=>m[1]),model.layers.map(()=>'#000000'));
+ const weight=Number(attr(black,'stroke-width'));assert.ok(weight>.25);assert.ok(weight/Math.max(model.bounds[2]+10,model.bounds[3]+10)*500>=.9999);
+ assert.equal(attr(fine,'stroke-width'),'0.25');for(const layer of model.layers)assert.ok(fine.includes('stroke="'+layer.color+'"'));
+ for(const scale of[5,50,'compact']){const scaled=C.serializeSVG(model,false,scale);assert.deepEqual(paths(scaled),paths(black));assert.equal(attr(scaled,'stroke-width'),attr(black,'stroke-width'));assert.equal(attr(scaled,'viewBox'),attr(black,'viewBox'));}
+ assert.deepEqual(model,before);assert.match(black,/visibility only, not slot width/);
+});
+test('SVG preview respects appearance and malformed appearance is rejected',()=>{
+ const model=C.build(circular());assert.match(C.preview(model),/stroke="#000000"/);assert.match(C.preview(model,'layers'),/stroke="#2563a5"/);assert.match(C.preview(model),/vector-effect="non-scaling-stroke"/);
+ for(const bad of['white','',null,{},'<script>'])assert.throws(()=>C.serializeSVG(model,false,1,bad),/SVG appearance/);
+ assert.equal(C.svg(circular(),undefined,1,'layers'),C.serializeSVG(model,false,1,'layers'));
+});
+test('Large SVG pages contain the full visible strokes at every edge and scale',()=>{
+ const model=C.build(circular());model.bounds=[-200,300,10000,5000];
+ const attr=(s,key)=>s.match(new RegExp(key+'="([^"]+)"'))[1];
+ for(const scale of[1,50,'compact']){
+  const black=C.serializeSVG(model,false,scale),fine=C.serializeSVG(model,false,scale,'layers'),box=attr(black,'viewBox').split(' ').map(Number),half=Number(attr(black,'stroke-width'))/2;
+  assert.ok(model.bounds[0]-box[0]>=half);assert.ok(model.bounds[1]-box[1]>=half);
+  assert.ok(box[0]+box[2]-model.bounds[0]-model.bounds[2]>=half);assert.ok(box[1]+box[3]-model.bounds[1]-model.bounds[3]>=half);
+  assert.equal(attr(fine,'viewBox'),attr(black,'viewBox'));assert.equal(attr(C.preview(model),'viewBox'),attr(black,'viewBox'));
+  const size=C.svgSize(model,scale);close(parseFloat(attr(black,'width'))*size.denominator,box[2],.001);close(parseFloat(attr(black,'height'))*size.denominator,box[3],.001);
+ }
+});
 test('A piece contour remains closed when its near-identical end meets tabletop routing',()=>{const s=R.settings({...R.defaults,slotWidthMm:2,conductorGapMm:1,conductorWidthMm:8,innerClearanceMm:10.000001,outerClearanceMm:10.000001}),a=R.definition(s,{type:'straight',lengthMm:500},'piece'),b=R.definition({...s,constructionMode:'table'},{type:'straight',lengthMm:500},'table'),defs={[a.id]:a,[b.id]:b},p=F.pose(a),q=F.join(F.pose(b),b,0,F.ports(p,defs)[1]),m=C.build(raw([a,b],[p,q]),{...only,slots:false,surfaces:true});assert.equal(m.removedCaps,0);const cuts=m.paths.filter(p=>p.layer==='SURFACE_EDGES');assert.equal(cuts.length,1);assert.equal(cuts[0].closed,true);});
 const close=(a,b,t=1e-5)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
 function raw(defs,pieces){return{format:'slotforge.layout',version:1,title:'CAD test',definitions:defs,pieces};}
@@ -59,7 +85,7 @@ test('Scaled SVG keeps every path intact and restores physical dimensions unifor
 });
 
 test('Compact SVG chooses a reversible standard scale within its page bounds in either orientation',()=>{
- for(const bounds of[[0,0,3600,1625],[0,0,1625,3600],[-50000,30000,90000,80000]]){const size=C.svgSize({bounds},'compact');assert.ok(size.widthMm<=400&&size.heightMm<=225);close(size.widthMm*size.denominator,bounds[2]+10);close(size.heightMm*size.denominator,bounds[3]+10);assert.equal(size.restorePercent,size.denominator*100);}
+ for(const bounds of[[0,0,3600,1625],[0,0,1625,3600],[-50000,30000,90000,80000]]){const size=C.svgSize({bounds},'compact');assert.ok(size.widthMm<=400&&size.heightMm<=225);close(size.widthMm*size.denominator,bounds[2]+2*size.paddingMm);close(size.heightMm*size.denominator,bounds[3]+2*size.paddingMm);assert.equal(size.restorePercent,size.denominator*100);}
  assert.equal(C.svgSize({bounds:[0,0,3600,1625]},'compact').denominator,10);
 });
 

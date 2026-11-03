@@ -1,9 +1,18 @@
-SlotForge Circuit — editor iteration (v0.3.22)
+SlotForge Circuit — editor iteration (v0.3.23)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. No data migration is required.
+
+NEW IN v0.3.23
+SVG exports default to clear black lines; choose fine layer colours in the
+SVG / DXF dialog. Tune profile now offers scale presets and custom preview
+car dimensions. Flowing routed sections have a planning-only fold override
+for editable visual layouts, with pictures and PDF piece counts but no racing
+routes or construction exports. New flowing presets and connected straights
+align asymmetric edge clearances consistently. Existing saved geometry stays
+unchanged. See app/PREVIEW-CAR-SIZE.txt, FOLD-OVERRIDE.txt and ROUTED-EDGE-ORDER.txt.
 
 NEW IN v0.3.22
 The right-hand Track tools panel now uses compact, expandable folders.

@@ -98,6 +98,8 @@ Use **Routed Wood** to plan straights, circular corners and flowing Bézier curv
 
 Set your lane count and spacing, slot width and depth, board thickness, edge clearances, and braid or tape dimensions. Circular corners use the **innermost slot radius**. Flowing curves have draggable handles, direction locks and exact coordinates for controlled adjustments.
 
+Edge clearances belong to the first and last slots. New flowing bend presets match the profile preview, and new routed straights align their margins when connected to a bend. Mirroring is reflected in the section preview; existing saved sections keep their geometry.
+
 Save useful sections into a named pack, add them to a layout, and reuse them on another design. Convert circular corners into editable flowing approximations when you need a less uniform bend.
 
 **Need to close a loop?** Use **Fill closing gap**, **Bridge selected ends** or **Reshape to close**. Preview the proposed connection and adjust it while keeping the other sections in place. Undo lets you try another approach.
@@ -105,6 +107,8 @@ Save useful sections into a named pack, add them to a layout, and reuse them on 
 **Adjust lane spacing on a straight or bend.** Choose **Squeeze** to bring lanes closer—for example, **100 → 80 → 100 mm**—or **Spread** to move them apart, such as **100 → 140 → 100 mm**. **Smooth midpoint / apex** blends gradually toward the target and restores normal spacing at both ends. New routed spreads keep the bundle centre fixed on straights and the innermost lane fixed on corners, so the other lanes expand outward. You can still choose another anchor. Existing spreads keep their saved settings; use **Lane spacing → Spread outward** to update a corner. The preview, calculated lengths and exports follow the adjusted paths.
 
 Circuit checks for slot and conductor folds or overlaps, highlights tight radii, and estimates slot and conductor lengths. These are design aids; cutter setup, car clearance and construction decisions remain part of the physical build.
+
+**Keep an unfinished idea:** the flowing-curve editor has an **Override folds · planning only** option. It lets you save, edit and snap a section even when its wood edge, slots or braid fold or cross. You can still export pictures and PDF plans with piece counts. Planning-only sections are excluded from calculated lengths and materials; a layout containing one cannot run Live Preview or export SVG/DXF construction geometry. Repair the shape and turn off the override to restore those functions.
 
 ### Draw a circuit freely with FreeForm
 
@@ -142,7 +146,9 @@ The editor remains a **2D planning tool**. Lengths and CAD geometry are plan-vie
 
 Run **Live Preview** on a supported closed circuit to watch two cars follow its slots. Adjust the profile's speed, acceleration, braking, cornering and outward visual drift to change how they move through the layout.
 
-The profile shapes an illustrative animation. It does not predict real lap times or replace physical testing.
+In **Tune profile → Car size**, choose **1:32, 1:24, 1:42 or 1:64**, or enter a custom car length and width in millimetres. Both preview cars use those physical dimensions and zoom with the track. The presets scale a generic 4.5 m × 1.8 m car; use Custom for the dimensions of your actual model. Car size is saved with the track and does not change the driving profile.
+
+The profile shapes an illustrative animation. It does not predict real lap times, check collisions or replace physical testing.
 
 ### Keep a Track Library
 
@@ -178,6 +184,8 @@ PDFs are generated **inside Circuit** and downloaded directly—there is no brow
 Export slot centrelines, slot edges, braid or tape edges, surface contours and the table on separate SVG/DXF layers.
 
 **SVG** defaults to full size. Choose **Compact page** or a fixed scale for a smaller drawing document; the export dialog tells you how much to enlarge it again. **DXF** uses full-size millimetres and retains native circular arcs. An optional 100 mm scale-check bar helps verify the import.
+
+SVG exports use **clear black lines** by default so the drawing is easy to see on a white page. In **SVG / DXF → SVG appearance**, choose **Layer colours · fine CAD lines** if you prefer coloured construction layers. This also applies to panel and stock-sheet SVGs. The choice changes line appearance only; dimensions, paths and DXF geometry stay the same.
 
 Use your CAD/CAM software to configure cutters, machining depths and toolpaths. Circuit supplies planning geometry, not machine-ready cutting instructions.
 

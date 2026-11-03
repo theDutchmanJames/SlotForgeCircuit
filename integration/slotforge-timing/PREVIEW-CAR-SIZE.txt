@@ -1,0 +1,28 @@
+Optional preview appearance metadata - 3 November 2026
+
+workspace.previewCar is an optional per-layout visual preference:
+  {"version":1,"scale":"1:32"}
+  {"version":1,"scale":"custom","lengthMm":146,"widthMm":67}
+
+Supported scales: 1:32, 1:24, 1:42, 1:64, custom. Presets divide a generic
+4,500 x 1,800 mm reference car by the denominator. Custom values are finite
+millimetres from 5 through 1,000. Presets must not supply dimensional fields.
+Unknown versions/scales/fields and malformed custom dimensions reject in the
+updated runtime. An absent preference defaults to 1:32 in the Circuit UI;
+validation does not add a field to older files.
+
+Copy app/preview-car.js alongside core.js. In browsers, load preview-car.js
+before core.js; it supplies PreviewCar. In Node it is required by core.js.
+Forge.PreviewCar exposes settings(), dimensions() and draw(). draw() returns
+a silhouette anchored at a guide point 10% of its length behind the nose;
+render in world millimetres, then apply travel heading and visual drift about
+that guide. Actual model dimensions and guide positions vary.
+
+This field changes appearance only. It does not change route IDs, geometry,
+lengths, speed/braking/drift parameters, laps or results. It is excluded from
+the race-route revision just like other non-geometric workspace preferences.
+No new integration contract or layout-envelope version is required. Receivers
+may ignore it and use their own car artwork/size. Preserve it when returning
+a design to Circuit if you want its chosen appearance retained.
+
+No SlotForge Timing repository changes are included.

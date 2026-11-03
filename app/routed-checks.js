@@ -1,5 +1,16 @@
 (function(root,factory){if(typeof module==='object'&&module.exports)module.exports=factory(require('./core.js'));else root.RoutedChecks=factory(root.Forge);})(typeof globalThis!=='undefined'?globalThis:this,function(F){
 'use strict';
+function sectionEdges(d,index){const q=d.parameters;return q.type==='routed-spline'?F.Routed.Spline.crossSection(q,d.geometry,index):q.type==='straight'?[[index?q.lengthMm:0,0],[index?q.lengthMm:0,q.widthMm]]:[F.G.pt(q.innerRadiusMm,F.rad(index?q.angleDeg:0)),F.G.pt(q.innerRadiusMm+q.widthMm,F.rad(index?q.angleDeg:0))];}
+// Straight sections can swap sides without changing the route's direction.
+// Only use this when adding a new piece, never when loading or reflowing one.
+function joinStraight(p,def,index,target,defs){
+ const original=F.join(p,def,index,target),other=defs[target.definitionId];
+ const q=def.parameters,c=q.controlPointsMm,straight=q.type==='straight'||q.type==='routed-spline'&&!q.squeeze&&c.every(v=>Math.abs(cross(c[0],c[3],v))<1e-7);
+ if(!q.routed||!straight||def.mirror===false||!other?.parameters.routed||!['straight','curve','routed-spline'].includes(other.parameters.type)||!target.placement)return original;
+ const edges=sectionEdges(other,target.index).map(q=>F.point(q,target.placement)),score=pose=>{const a=sectionEdges(def,index).map(q=>F.point(q,pose));return Math.min(F.dist(a[0],edges[0])+F.dist(a[1],edges[1]),F.dist(a[0],edges[1])+F.dist(a[1],edges[0]));};
+ const reflected=F.join({...p,flip:!p.flip},def,index,target),localDefs={[def.id]:def};
+ return F.slotsMatch(F.ports(reflected,localDefs)[index],target,.1)&&score(reflected)+.01<score(original)?reflected:original;
+}
 function reflow(items,defs,replacements,anchorId,flips=new Map()){
  const nextDefs={...defs},next=items.map(p=>({...p})),old=F.connections(items,defs),byId=new Map(next.map(p=>[p.id,p])),visited=new Set();
  for(const [id,d]of replacements){nextDefs[d.id]=d;byId.get(id).definitionId=d.id;if(flips.has(id))byId.get(id).flip=flips.get(id);}
@@ -29,6 +40,7 @@ function overlap(a,b,ba=polygonBounds(a),bb=polygonBounds(b)){
 function checks(items,defs,table){
  const free=items.find(p=>defs[p.definitionId].parameters.type==='freeform');if(free){const d=defs[free.definitionId];return F.FreeForm.check(d,table,free).map(i=>({...i,pieceIds:[free.id]}));}const roads=items.filter(p=>defs[p.definitionId].parameters.routed),issues=[];
  const warn=(code,message,ids=[])=>issues.push({code,message,pieceIds:ids});
+ const overridden=roads.filter(p=>defs[p.definitionId].parameters.foldOverride);if(overridden.length)warn('fold-override',overridden.length+' planning-only fold override(s): slots, conductors or wood edges may fold or cross. Repair and turn off the override before construction or racing use.',overridden.map(p=>p.id));
  const tooTight=roads.filter(p=>F.Routed.minimumRadii(defs[p.definitionId]).some(r=>r!==null&&r<defs[p.definitionId].parameters.routed.minRadiusMm));
  if(tooTight.length)warn('radius',tooTight.length+' corner(s) are tighter than the chosen minimum slot radius.',tooTight.map(p=>p.id));
  const outlines=roads.map(p=>{const d=defs[p.definitionId],q=d.parameters,poly=F.outline(d).map(q=>F.point(q,p)),extrema=q.type==='curve'?[q.innerRadiusMm,q.innerRadiusMm+q.widthMm].flatMap(radiusMm=>arcExtrema({...d.geometry.lanePaths[0].segments[0],radiusMm},p)):poly;return{p,poly,extrema,b:F.bounds([p],defs)};});
@@ -118,5 +130,5 @@ function applyClosure(items,defs,connection,definition){
  if(net.open.length||net.ambiguous.size)throw Error('This curve does not form an unambiguous closed loop. Adjust its handles or the layout.');
  return{items:next,definitions:nextDefs,selectId:p.id};
 }
-return{connectionPlacement,reflow,checks,overlap,bridgeDraft,closeLoopDraft,applyClosure};
+return{joinStraight,connectionPlacement,reflow,checks,overlap,bridgeDraft,closeLoopDraft,applyClosure};
 });

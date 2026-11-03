@@ -1,0 +1,32 @@
+Live Preview car size - 3 November 2026
+
+Track Builder > Tune profile > Car size
+Choose 1:32, 1:24, 1:42, 1:64 or Custom dimensions. Both preview cars use
+this size. Custom accepts overall length (front to back) and width, including
+tyres, in millimetres. Choose Apply car size or press Enter to apply.
+
+Presets use a generic 4,500 x 1,800 mm reference car:
+  1:32   140.625 x 56.25 mm
+  1:24   187.5   x 75 mm
+  1:42   107.143 x 42.857 mm (rounded here; exact ratio in rendering)
+  1:64    70.313 x 28.125 mm (rounded here; exact ratio in rendering)
+Scale alone cannot determine a particular model's size. Use measured Custom
+dimensions for your actual car. Length and width may each be 5-1,000 mm.
+
+The previous preview used one fixed silhouette, approximately 77 x 38 mm.
+Cars now use track-space millimetres, so zoom scales cars and track together.
+The guide remains on the slot, 10% of the body length behind the nose. Drift
+rotates around the guide. This does not model actual guide position, wheelbase,
+car-to-car collisions, body clearance, bridge clearance or performance.
+
+Size is saved per layout, including Track Library, JSON and workspace backups.
+Undo/redo restores it. Changing the driving preset leaves size unchanged.
+Older files without a size use 1:32. New blank layouts retain the current size.
+The four scales are exactly those requested; 1:42 is not substituted with 1:43.
+
+Validation: 442 app/installer tests passed. Browser checks covered all presets,
+custom dimensions, live resizing, zoom, invalid input, independence from the
+driving preset, undo/redo and saved reload. Layout/library/JSON tests confirm
+route geometry and tune parameters are unchanged.
+All 15 integration fixtures and 164 freshly extracted standalone handoff
+tests passed. Browser checks also confirmed file:// loading without errors.

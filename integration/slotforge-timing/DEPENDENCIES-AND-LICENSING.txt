@@ -1,6 +1,7 @@
 Runtime module dependencies (included in the handoff with relative paths intact):
  app/integration.js
  app/core.js
+ app/preview-car.js (required by core.js; load first in browsers)
  app/routed.js (required by core.js)
  app/routed-spline.js (required by routed.js; see draft.4 and draft.5 specifications)
  track-packs/tools/geometry.cjs

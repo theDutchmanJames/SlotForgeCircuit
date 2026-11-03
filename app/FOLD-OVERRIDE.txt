@@ -1,0 +1,31 @@
+Planning-only fold override - 3 November 2026
+
+Create or edit a routed section, choose Flowing curve / S-bend, then check
+Override folds - planning only near the bottom of the editor. For a circular
+corner, use Convert to flowing curve first.
+
+You can keep the shape in a layout or named pack, edit it later, align it
+with end magnets and include it in PDF/PNG pictures and parts lists. Its
+dashed outline and Routed checks warning identify the planning-only piece.
+
+The checkbox does not repair folded slots, overlapping braid or folded wood
+edges. It keeps a finite visual drawing. Measurements and material quantities
+for that piece are unknown and excluded from totals. Racing previews, Timing
+routes and SVG/DXF construction export require repairing it and unchecking
+the override. Dimensions and numerical sampling limits still apply.
+
+The override is stored with the piece and survives pack/layout export and
+library persistence. New sections start without it. Older saved pieces keep
+their existing geometry. Ordinary fold validation is unchanged.
+
+Validation: 439 app/installer tests pass. Added four regression tests covering
+wood/conductor/slot folds, variable spacing, strict validation, finite geometry,
+snapping, JSON and pack round trips, draft.13, CAD rejection and unknown report
+quantities. Isolated Edge checks cover enable/disable, update, saved reload,
+save to pack, disabled playback/CAD and an actual PDF download.
+All 15 existing integration fixtures and 161 freshly extracted standalone
+handoff tests pass. Source and handoff archives passed CRC checks.
+
+Main layout envelope remains v1; definitions with foldOverride=true require
+integration contract 1.0.0-draft.13. SlotForge Timing must explicitly adopt
+that contract. No receiving repository changes, version bump or release here.

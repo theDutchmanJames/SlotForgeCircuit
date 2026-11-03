@@ -1,4 +1,4 @@
-SlotForge Timing integration handoff — Table panels and Lane Spread (v0.3.22)
+SlotForge Timing integration handoff — Planning overrides and preview car sizes (v0.3.23)
 2 November 2026
 
 CURRENT CONTRACT
@@ -94,6 +94,12 @@ Board assemblies: see EXPORT-SPEC-1.0.0-draft.11.txt. The shared runtime now
 requires table-stock.js and table-boards.js beside table-shape.js, including for legacy layouts.
 
 Lane Spread (v0.3.20): see EXPORT-SPEC-1.0.0-draft.12.txt.
+Planning-only fold overrides: see EXPORT-SPEC-1.0.0-draft.13.txt. Adopt this
+contract explicitly before importing these files. A placed override disables
+racing routes; its visible slots and magnetic ends are for planning only.
+Preview-car scale/custom dimensions: see PREVIEW-CAR-SIZE.txt. Include the new
+preview-car.js dependency before core.js in browsers. This optional workspace
+appearance preference does not change the integration contract or racing data.
 Widened routed and FreeForm lanes require the updated shared runtime; old
 squeeze metadata and contracts retain their original interpretation.
 
@@ -102,3 +108,7 @@ Saved geometry, metadata and integration-contract versions are unchanged.
 
 v0.3.22 reorganizes the Builder inspector. Geometry and integration contracts
 are unchanged; the shared runtime only has its producer version updated.
+
+v0.3.23 adds explicit draft.13 planning-only fold overrides and optional
+preview-car appearance metadata. Include preview-car.js with the runtime;
+see the specifications above. The layout envelope remains version 1.

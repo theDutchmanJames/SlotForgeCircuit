@@ -6,6 +6,10 @@ body[data-routed-catalogue="true"] #pack-info,body[data-routed-catalogue="true"]
 .routed-preset-row{display:flex;gap:8px;align-items:center}.routed-preset-row .field{flex:1;margin-bottom:8px}.routed-coordinates{margin:12px 0;font-size:12px;color:var(--muted)}.routed-coordinates summary{cursor:pointer}.routed-handle-preview{height:300px!important;touch-action:none}.routed-handle-preview [data-handle]{cursor:grab;outline:none}.routed-handle-preview [data-handle]:focus{stroke:var(--ink);stroke-width:5px}#routed-section-dialog .custom-preview{justify-content:flex-start}#routed-slot-radii{line-height:1.8;font-size:12px}
 
 #routed-section-dialog .dialog-actions{position:sticky;bottom:-25px;background:var(--panel);padding:12px 0 8px;border-top:1px solid var(--line);z-index:2}.routed-saved-packs{margin-bottom:24px}.routed-saved-pack{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:10px 0}.routed-saved-pack p{margin:0!important}#routed-save-fields{margin-top:16px}
+#routed-fold-override-field{display:block;width:100%;margin:18px 0 10px;padding:12px;border:1px solid var(--ui-warning,#df8f26);border-radius:6px;color:var(--ink)}
+#routed-fold-override-field>span{display:flex;align-items:center;gap:8px;font-weight:600}
+#routed-fold-override-field input{width:auto;flex:none;margin:0}
+#routed-fold-override-field small{display:block;margin-top:8px;line-height:1.6;color:var(--muted)}
 .routed-controls .routed-close-help{width:100%;margin:2px 0 6px}
 
 /* Routed actions overlay the catalogue rather than consuming its height. */

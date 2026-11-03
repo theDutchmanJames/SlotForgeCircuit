@@ -1,0 +1,35 @@
+Routed edge-clearance orientation - 3 November 2026
+
+Fixed two authoring inconsistencies:
+- A new flowing sweeping-bend preset put Lane 1 outside, while the circular
+  profile preview puts Lane 1 inside. Authoring presets now use the circular
+  lane/clearance convention. With 50/200 mm clearances, a new sweeping bend
+  has 50 mm inside and 200 mm outside. S-bends keep their lane-side clearances
+  as the geometric inside changes sides.
+- Straight previews ignored the saved reflection. They now show the same
+  edge-clearance orientation as the placed/saved straight.
+
+New straights and unsqueezed straight flowing transitions align their verges
+when automatically joined during addition. Reflection is changed only when
+it improves the match to the target surface edges and slots still match.
+Equal-clearance ties retain the requested orientation. Corners are never
+automatically reflected by this rule. Manual mirror and drag remain available.
+Different profiles can still produce real edge steps; Routed checks report them.
+
+Built-in routed catalogue thumbnails, editor presets and added placements
+share the same orientation. Switching between straight and circular shapes
+preserves which side receives the first/last clearance. Saved pack orientation
+is retained when placing a catalogue section.
+
+Existing definitions, control points, placement reflections and saved packs
+are not rewritten. The low-level spline preset generator is unchanged.
+To deliberately replace an old flowing shape, choose its starting shape and
+Use shape; this resets its handles. Check the preview before updating a layout.
+
+Validation: 445 app/installer tests passed. Three new regressions cover
+asymmetric preset order, legacy geometry preservation, pack reflection,
+straight/transition joins at both ports with mirrored and rotated targets,
+equal-margin ties and preservation of corner handedness. Isolated Edge checks
+reproduced the user's four-lane 90 mm spacing, 50/200 mm clearance profile,
+including preview, shape switching, Use shape, saving, adding and reopening.
+No layout-format, contract, app-version or public-release change.

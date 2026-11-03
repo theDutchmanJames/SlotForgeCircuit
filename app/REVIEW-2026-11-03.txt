@@ -1,0 +1,58 @@
+SlotForge Circuit - changes review
+3 November 2026
+
+SCOPE
+Reviewed changes after the custom-pack deletion review shipped in v0.3.20
+(c793117), through v0.3.21/v0.3.22 and the pending SVG visibility update.
+This includes shared branding, single-row navigation, outward corner Spread,
+centred straight Spread, inspector folders/tabs/badges and CAD appearance.
+Checked the associated packaging, documentation and integration changes.
+
+FIXED
+1. A removed timing piece left the collapsed Timing line & direction folder
+   labelled Set. The badge now says Choose piece and shows a warning accent.
+   Undo restores Set. The timing reference is retained for undo/recovery;
+   there is no silent reassignment of the timing line.
+
+2. Large SVGs could clip the new heavier black strokes at the page boundary:
+   a 10 m drawing has an approximately 20 mm display stroke but previously
+   only 5 mm page margins. Page margins now contain the complete stroke.
+   Both appearance choices, previews and scale calculations share that frame.
+   Track/table paths and physical scale remain unchanged; DXF is unaffected.
+
+REGRESSION COVERAGE
+- Timing badge: valid reference, removed piece, restored piece, unset reference.
+- Large SVG stroke containment on all four edges, full size, 1:50 and compact;
+  consistent frame between preview and appearance choices.
+- Pending SVG appearance tests also cover identical geometry/layers/scale,
+  unchanged models and rejection of unsupported appearance options.
+
+VALIDATION
+- Full app and installer suite: 435 passed, 0 failed, 0 skipped.
+- Integration fixtures: 15 passed, including round trips and rejection cases.
+- Fresh standalone Timing handoff: 157 passed, 0 failed, 0 skipped.
+- Fresh source/handoff ZIPs: CRC verified; shared runtime files byte-identical.
+  Verified source package includes inspector CSS/tests and both brand images.
+- Isolated headless Edge checks: selected-piece actions, border dialog,
+  position edits/undo, timing position/direction/delete/undo, height warning
+  badges when folded, keyboard tabs, folder state, multi-selection and CSV.
+- Spread browser checks: centred straight, circular/flowing outward corners,
+  mirrored corners and correction of an existing spread; saved reloads.
+- Branding checks: five themes, seven widths from 360 to 1920 px, single-row
+  navigation, 120 x 22 footer, accessible Storage control, catalogue and file://.
+- SVG browser checks: black and fine-colour choices, full size and 1:50,
+  panel/stock ZIPs. Compared downloaded files: identical path data/scale and
+  byte-identical DXFs between appearance choices. Visually inspected black
+  versus fine-colour SVGs and light/dark inspector screenshots.
+- No captured browser page errors. git diff --check passed.
+
+LIMITS
+Browser checks used isolated test workspaces, not the user's saved library.
+No fresh Illustrator/Fusion import or native macOS/Linux installation was
+performed in this review. Large or short Spread transitions can still bend
+the moving lanes back; fixing the inner lane preserves that lane's path,
+not a guarantee of constant curvature for every other lane.
+
+DELIVERY
+Fixes and review evidence are local. No app version, saved-data format or
+integration contract change. No GitHub push or public release in this review.

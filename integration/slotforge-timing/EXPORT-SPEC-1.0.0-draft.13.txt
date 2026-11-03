@@ -1,0 +1,35 @@
+SlotForge integration draft.13 - Planning-only fold override
+3 November 2026. Main slotforge.layout envelope remains version 1.
+
+Select draft.13 when any definition, including an unused definition, has
+parameters.foldOverride=true. This takes precedence over draft.12. Older
+designs keep their existing contracts. Unsupported incoming contracts reject
+before normalization. Receiving applications must adopt this deliberately.
+
+The only supported value is true, on a routed-spline with a routed profile.
+Omit the field for ordinary validation. False, null, strings, numbers and
+other piece types reject. The flag is per definition, not a shared default.
+It survives layout/pack export, library persistence, copying and editing.
+
+The override permits finite visual geometry with folded or self-crossing
+offsets, including slots/conductors and variable-spacing sections. Input
+dimensions, conductor separation in the profile, stationary-point failures
+and bounded sampling limits still apply. It does not repair the geometry.
+geometry.planningOnly=true is derived; supplied geometry is never trusted.
+
+Lane-shaped paths and connectors exist for rendering and magnetic alignment
+only. A layout containing a placed override has network.closed=false,
+no racing routes, no per-lane circuit lengths and Live Tracker unavailable.
+Compatibility includes a fold-override error. Do not infer a drivable route
+from the visual lane paths, connectors, raw sampled lengths or closed ends.
+Unused definitions require the contract but do not disable placed valid routes.
+
+Pictures, PDF reports and inventory include the piece with a warning. Its
+centreline length is unknown in reports/CSV. Materials omit it and report
+planningSections separately. SVG/DXF construction export rejects a layout
+containing a placed override; panel/stock exports use that same validation.
+
+Repair the piece and remove the flag to regain ordinary checks, lengths,
+materials, racing routes and construction export. Disabling the override
+while geometry remains invalid must fail without changing the saved piece.
+No SlotForge Timing repository changes are included in this implementation.

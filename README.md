@@ -54,7 +54,17 @@ The right-hand **Track tools** panel keeps a compact track summary above expanda
 - **Include the finishing touches:** add matching borders to selected roads and change the foreground/background order where sections overlap.
 - **Check the plan:** see open ends, piece quantities, the footprint including borders, and calculated track and lane lengths where the geometry supports them.
 
+**Quickly identify your pieces:** switch **Colour by piece** on above the left-hand catalogue. Curve radii and straight lengths get distinct colours in the catalogue and layout. Expand **Piece colour key** for the legend. Switch it off to restore normal artwork; saved colours and exports are unchanged.
+
 Dimensions are physical **millimetres**. A pack's model scale describes the cars and track system; it does not shrink or enlarge the pieces in your plan.
+
+### Measure, organise and check a design
+
+Open **Track Builder → right panel → Planning tools** to measure distances and angles, trace a calibrated reference image, locate warnings, or compare used pieces against the quantities you own. The shopping CSV lists what is missing. Measurements, reference images and owned quantities are saved with that design; selected dimensions can appear in its PDF report.
+
+Under **Selection → Group, lock, replace & ramp**, group pieces for editing together, lock finished sections, preview a compatible replacement anchored at either end, or distribute heights across a connected stretch. Click a **Parts list** entry to find those pieces on the canvas. The **Gap assistant** searches combinations of up to four catalogue pieces using their fixed dimensions, then lets you preview and add a connection.
+
+**Curvature colours** reveal tight slot radii. **Car clearance envelope** uses the car dimensions from Tune profile, plus an optional drift allowance, to show approximate overhang and sampled conflicts. These are planning checks, not guarantees of physical clearance.
 
 ### Built-in track packs
 
@@ -88,6 +98,12 @@ Pack catalogues identify their dimension sources and assumptions. Calculated len
 For corners, use **matching radius families** to create R1, R2, R3 and larger curves that nest together. The editor shows the inner and outer road radii and previews how the family fits. Slot spacing and road width are separate settings, so you can describe your own system accurately.
 
 Save the set to the **Track Pack Library**, add more pieces later, or export it for another user. Imported packs appear in **My packs**. These packs contain piece definitions and dimensions, not executable plugins; users can add new systems without waiting for an app update.
+
+### Squeeze or spread lanes inside a plastic piece
+
+Select a straight or circular corner, then open **Track tools → Selected piece → Squeeze / Spread lanes**. Set the spacing you want at the middle of the piece and check the live preview. Slots and rails change smoothly, returning to normal at both ends; the road outline, borders and connections stay fixed. Straights adjust around their centre. Corners can keep the innermost lane fixed or adjust around the centre.
+
+Apply the change to just that selected piece, and optionally **save the variant to a custom pack** for reuse. The custom piece editor has the same **Lane spacing** controls. **Reset spacing** restores uniform slots. The tool checks for rails leaving the road, folding or getting too close. It supports roads with two or more lanes, excluding lane changers, reference pictures and borders. Modified catalogue pieces become custom designs.
 
 ### Design routed wood tracks
 
@@ -123,6 +139,14 @@ Use **Points → Lane spacing — next stretch** to squeeze or spread the other 
 Save unfinished drawings and continue later. Send a finished design to the builder, keep it in the **Track Library**, and use **Edit FreeForm** to return to its editable points. Supported closed loops can use Live Preview and the normal exports.
 
 [FreeForm controls and limits](app/FREEFORM-TOOLS.txt)
+
+### Refine a continuous routed layout
+
+In **FreeForm Drawing**, **Stretch spacing / ramp** works across several curves at once. Choose the start and finish anchors, set a squeeze or spread, then choose where it reaches its peak and how far the transition runs. The drawn slot stays fixed. Spacing eases through the joins and returns to normal at the limits. The same tool can distribute ramp heights and add anchors without changing the reference path.
+
+**Smooth selected joins** previews aligned handles while keeping the selected anchors in place. **View & measure** contains curvature colours, car envelopes, reference images and measurements.
+
+For an existing layout made from routed sections, choose **Planning tools → Convert routed layout to FreeForm**. Review the approximation before replacing the sections with one editable tabletop drawing. Undo restores the previous layout. Conversion needs consistent section settings; it asks you to reconfirm the timing line and lane mapping. [Design tools guide](app/DESIGN-TOOLS.txt) explains the controls and limits.
 
 ### Plan your table, space and bridges
 

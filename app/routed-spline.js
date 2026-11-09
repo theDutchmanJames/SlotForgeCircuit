@@ -57,7 +57,7 @@ function polyline(qs,d,planning=false){
 }
 const cache=new Map();
 function derive(p){
- const key=JSON.stringify([p.controlPointsMm,p.routed,p.squeeze,p.referenceOffsetMm,p.deferIntersections,p.squeezeDomain,p.foldOverride]);if(cache.has(key))return cache.get(key);
+ const key=JSON.stringify([p.controlPointsMm,p.routed,p.squeeze,p.referenceOffsetMm,p.deferIntersections,p.squeezeDomain,p.squeezeEnvelope,p.foldOverride]);if(cache.has(key))return cache.get(key);
  if(p.squeeze!==undefined){const g=squeezed(p);if(cache.size>=32)cache.delete(cache.keys().next().value);cache.set(key,g);return g;}
  const c=curve(p.controlPointsMm),s=p.routed,edges=clearances(s),span=(s.laneCount-1)*s.laneSpacingMm,shift=p.referenceOffsetMm||0,lo=-span/2-edges.first+shift,hi=span/2+edges.last+shift,qs=samples(c,lo,hi,s,p.foldOverride),reference=polyline(qs,0),fractions=reference.distancesMm.map(d=>d/reference.lengthMm);
  const first=qs.map(q=>offset(q,lo)),last=qs.map(q=>offset(q,hi)),outline=first.concat(last.slice().reverse());
@@ -90,11 +90,14 @@ function arcMeasure(c){
  for(let i=1;i<=n;i++)values.push(values[i-1]+integrate((i-1)/n,i/n));
  return{length:values[n],at(t){const i=Math.min(n-1,Math.floor(t*n));return values[i]+integrate(i/n,t);},parameter(s){let a=0,b=1;for(let i=0;i<40;i++){const m=(a+b)/2;if(this.at(m)<s)a=m;else b=m;}return(a+b)/2;}};
 }
+function envelope(raw){if(!raw||typeof raw!=='object'||Array.isArray(raw)||Object.keys(raw).some(k=>!['peak','transition','stops'].includes(k))||!Number.isFinite(raw.peak)||raw.peak<.05||raw.peak>.95||!Number.isFinite(raw.transition)||raw.transition<=0||raw.transition>Math.min(raw.peak,1-raw.peak))throw Error('Invalid stretch spacing envelope.');const stops=raw.stops;if(stops!==undefined&&(!Array.isArray(stops)||stops.length>96||stops.some((v,i)=>!Number.isFinite(v)||v<=0||v>=1||i>0&&v<=stops[i-1])))throw Error('Invalid stretch transition joins.');return{peak:raw.peak,transition:raw.transition,...(stops?{stops:stops.slice()}:{})};}
 function squeezed(p){
  const c=curve(p.controlPointsMm),s=p.routed,z=squeezeSettings(p.squeeze,s),arc=arcMeasure(c),domain=p.squeezeDomain||[0,1],L=arc.length/(domain[1]-domain[0]),shift=p.referenceOffsetMm||0,apex=z.shape==='apex',T=apex?L/2:z.transitionMm,edges=clearances(s),span=(s.laneCount-1)*s.laneSpacingMm;
  if(2*T>L+1e-6)throw Error('Each lane spacing transition must be no longer than half this section ('+(L/2).toFixed(1)+' mm). Use a shorter transition or a longer section.');
  const anchor=z.anchorLane==='centre'?(s.laneCount-1)/2:z.anchorLane-1,metal=s.slotWidthMm/2+s.conductorGapMm+s.conductorWidthMm;
+ const shaped=p.squeezeEnvelope?envelope(p.squeezeEnvelope):null;
  function ramp(at){
+  if(shaped){const u=at/L,lo=shaped.peak-shaped.transition,hi=shaped.peak+shaped.transition;if(u<=lo||u>=hi)return{w:0,d:0,dd:0};const knots=[...new Set([lo,shaped.peak,hi,...(shaped.stops||[]).filter(v=>v>lo&&v<hi)])].sort((a,b)=>a-b),i=knots.findIndex(v=>v>=u),a=knots[Math.max(0,i-1)],b=knots[Math.max(1,i)],ease=x=>x*x*x*(10+x*(-15+6*x)),weight=v=>ease(Math.max(0,Math.min(1,(v<=shaped.peak?v-lo:hi-v)/shaped.transition))),wa=weight(a),delta=weight(b)-wa,x=Math.max(0,Math.min(1,(u-a)/(b-a))),scale=L*(b-a);return{w:wa+delta*ease(x),d:delta*30*x*x*(1-x)*(1-x)/scale,dd:delta*60*x*(1-x)*(1-2*x)/(scale*scale)};}
   if(apex){
    // One continuous bell, not two short ramps joined to a plateau.
    // w = 64*u^3*(1-u)^3; w(0)=w(1)=0 and w(1/2)=1.
@@ -124,7 +127,7 @@ function squeezed(p){
   for(let j=0;j<s.laneCount;j++)for(const q of checks)turn=Math.max(turn,Math.abs(Math.atan2(Math.sin(rad(q.lanes[j].heading-a.lanes[j].heading)),Math.cos(rad(q.lanes[j].heading-a.lanes[j].heading)))));
   if(b.t-a.t>1/32||error>EPS||!p.foldOverride&&turn>rad(1)){if(!depth)throw Error('This spacing change is too abrupt to sample. Use a longer or gentler section.');split(a,checks[1],depth-1);split(checks[1],b,depth-1);}else qs.push(b);
  }
- const breaks=[0,...[T,L-T].map(v=>v-domain[0]*L).filter(v=>v>0&&v<arc.length).map(v=>arc.parameter(v)),1].sort((a,b)=>a-b).filter((t,i,a)=>!i||t-a[i-1]>1e-10);for(let i=1;i<breaks.length;i++)split(at(breaks[i-1]),at(breaks[i]),14);
+ const breaks=[0,...(shaped?[(shaped.peak-shaped.transition)*L,shaped.peak*L,(shaped.peak+shaped.transition)*L,...(shaped.stops||[]).map(v=>v*L)]:[T,L-T]).map(v=>v-domain[0]*L).filter(v=>v>0&&v<arc.length).map(v=>arc.parameter(v)),1].sort((a,b)=>a-b).filter((t,i,a)=>!i||t-a[i-1]>1e-10);for(let i=1;i<breaks.length;i++)split(at(breaks[i-1]),at(breaks[i]),14);
  if(qs.length>4097)throw Error('Use a longer, gentler spacing change or shorter routed sections.');
  function line(points,headings,curvatures){const distancesMm=[0];for(let i=1;i<points.length;i++)distancesMm.push(distancesMm.at(-1)+distance(points[i-1],points[i]));return{type:'polyline',samplingTargetMm:EPS,points,distancesMm,headingsDeg:headings,curvaturesPerMm:curvatures,lengthMm:distancesMm.at(-1)};}
  qs.forEach(q=>q.lanes.forEach((l,i)=>minCurvatures[i]=Math.max(minCurvatures[i],Math.abs(l.curvature))));
@@ -157,5 +160,5 @@ function at(segment,d){const {lo,hi,f}=interval(segment.distancesMm,Math.max(0,M
 function distanceAtFraction(segment,fraction){const {lo,hi,f}=interval(segment.referenceFractions,Math.max(0,Math.min(1,fraction)));return segment.distancesMm[lo]+(segment.distancesMm[hi]-segment.distancesMm[lo])*f;}
 function crossSection(p,g,fraction){const {lo,hi,f}=interval(g.reference.distancesMm,fraction*g.reference.lengthMm);if(p.squeeze!==undefined)return[0,p.widthMm].map(d=>{const pts=edgePoints(p,g,d);return pts[lo].map((v,i)=>v+(pts[hi][i]-v)*f);});const t=g.parametersT[lo]+(g.parametersT[hi]-g.parametersT[lo])*f,q=evaluate(p.controlPointsMm,t),s=p.routed,edges=clearances(s),span=(s.laneCount-1)*s.laneSpacingMm;return[offset(q,-span/2-edges.first),offset(q,span/2+edges.last)];}
 function preset(name,s){const r=Math.max(600,((s.laneCount-1)*s.laneSpacingMm+s.innerClearanceMm+s.outerClearanceMm)*1.1),k=.5522847498307936;if(name==='s-bend')return[[0,0],[r*.65,r*.3],[r*1.35,-r*.3],[r*2,0]];if(name==='transition')return[[0,0],[r*.6,0],[r*1.4,0],[r*2,0]];return[[0,0],[r*k,0],[r,r*(1-k)],[r,r]];}
-return{arcMeasure,TYPE,EPS,clearances,curve,evaluate,offset,innerLane,path,geometry,validate,at,distanceAtFraction,crossSection,preset,squeezeSettings,edgePoints};
+return{envelope,arcMeasure,TYPE,EPS,clearances,curve,evaluate,offset,innerLane,path,geometry,validate,at,distanceAtFraction,crossSection,preset,squeezeSettings,edgePoints};
 });

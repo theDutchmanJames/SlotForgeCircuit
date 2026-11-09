@@ -1,0 +1,78 @@
+Circuit design tools
+====================
+
+Track Builder → right panel → Planning tools
+- Measure distance / angle: click two canvas points. Saved measurements lets
+  you name, locate or delete a dimension and include it in a PDF report.
+  Angles are relative to the drawing X axis. Dimensions stay at their saved
+  coordinates when pieces move; they are not constraints attached to pieces.
+- Reference image: choose PNG/JPEG, click two points on a known feature and
+  enter its real distance, or set the full image width. Set position, rotation
+  and opacity. The image stays locked behind the track and is saved inside
+  the design. It is downsampled for storage and excluded from PDF/CAD.
+- Find problems: click a check to locate its point or affected pieces.
+  Existing FreeForm, routed and height checks can also be clicked.
+- Owned pieces / shopping list: compare used, owned and missing quantities;
+  download a missing-only CSV. Counts are saved with this design, not shared
+  as a global collection across unrelated designs.
+- Curvature colours: toggle colour along slots by radius. The visible key is
+  in millimetres; it is a geometry view, not a car's recommended speed.
+- Car clearance envelope: uses Tune profile car dimensions plus an optional
+  lateral drift allowance. Sampled rectangles give approximate overhang,
+  table-edge and neighbouring-lane conflicts. It is not vehicle dynamics or
+  a construction guarantee. Check smaller selections if a budget is reached.
+- Gap assistant: select two open ends and search up to four fixed catalogue
+  pieces. Select a result to preview, then Add this connection. Search is
+  bounded; no result does not prove that no combination exists. End heights
+  must match. Existing geometry is never stretched to close a plastic gap.
+
+Selection → Group, lock, replace & ramp
+- Group a selection to move/rotate it together; Ungroup separates it.
+  Group membership and locks survive JSON, library and workspace saves.
+- Lock / Unlock protects a selected piece or group from edits and dragging.
+  Locked pieces can still be selected for unlocking. Duplicates are unlocked
+  and receive their own group identities. Undo still restores prior states.
+- Replace piece previews another compatible two-ended road while preserving
+  end A or B. The opposite-end displacement is reported. Neighbours remain
+  in place. Review the resulting open ends after applying.
+- Ramp across selection distributes start/end heights over a connected
+  stretch. The dialog locates the start so the direction is clear. Each
+  placed piece remains a linear ramp; a fixed plastic piece is not physically
+  reshaped. Check slopes and clearances before building.
+- Click any Parts list row to select and find its placed instances.
+
+FreeForm Drawing
+- Stretch spacing / ramp: choose start and finish anchors along drawing
+  direction. Squeeze or Spread can span multiple curves, with a peak position
+  and transition distance. Spacing eases through joins and returns to normal
+  at the limits. Insert anchors first for finer control of those limits.
+  Generate at least two lanes to change spacing. Your drawn slot stays fixed.
+- Ramp uses smooth height progression sampled at added anchors (up to the
+  drawing's 96-anchor limit). Its reference shape and timing mark are kept.
+  Heights between anchors are still linear in curve parameter, not a 3D ramp
+  surface. Maximum gradient is sampled; inspect adjacent stretches as well.
+- Smooth selected joins: Shift-select anchors or use Ctrl+A on the canvas;
+  preview aligned handles before applying. Anchors and unselected handles
+  stay fixed. This aligns tangents; it does not guarantee equal curvature.
+- View & measure: curvature colours, car envelopes, calibrated reference
+  image and two-point measurements. Save & use in builder retains annotations;
+  manage dimension labels/PDF inclusion in the builder's Saved measurements.
+- New stretch edits can be undone. Preview errors keep the existing drawing.
+
+Converting existing routed sections
+Planning tools → Convert routed layout to FreeForm previews one connected
+routed layout as an editable tabletop circuit. It reports sampled fitting
+error; lines are exact, circles and sampled slots use cubic approximations.
+Conversion replaces the layout with one drawing after you accept it, and
+Undo restores the sections. This is also the path to continuous stretch and
+multi-join tools for an existing routed-section layout. Pack definitions and
+saved library entries remain unchanged until explicitly saved.
+
+The sections need consistent lane spacing and construction/height settings.
+Remove separate borders/reference pieces and reset section-local spacing or
+fold overrides first. Reconfirm the timing line and Timing lane mapping
+following conversion. CAD remains plan-view geometry.
+
+New continuous envelopes use SlotForge Timing integration draft.15; the main
+layout file envelope remains version 1. Existing files and old spacing
+profiles remain supported. No Construction Templates were added.

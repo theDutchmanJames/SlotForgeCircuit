@@ -1,10 +1,10 @@
-SlotForge Timing integration handoff — Visible automatic storage migration (v0.3.25)
+SlotForge Timing integration handoff — Design tools and continuous spacing (v0.3.26)
 3 November 2026
 
 CURRENT CONTRACT
 slotforge.layout envelope: version 1 (unchanged)
-integration.contractVersion: draft.13 for planning-only fold overrides; draft.12 for Lane Spread; draft.11 for board assemblies; draft.10 for shaped tables/FreeForm squeezes; draft.9 for heights; draft.8 for FreeForm; otherwise draft.7 for smooth-apex squeezes; otherwise draft.6 for legacy squeezes, draft.5 for tabletop routing, draft.4 for flowing curves, draft.3 for circular/straight routed, draft.2 otherwise
-Supported imports: draft.13, draft.12, draft.11, draft.10, draft.9, draft.8, draft.7, draft.6, draft.5, draft.4, draft.3, draft.2, draft.1, and documented legacy/unversioned v1.
+integration.contractVersion: draft.15 for continuous FreeForm spacing envelopes; draft.14 for fixed-surface plastic lane adjustments; draft.13 for planning-only fold overrides; draft.12 for Lane Spread; draft.11 for board assemblies; draft.10 for shaped tables/FreeForm squeezes; draft.9 for heights; draft.8 for FreeForm; otherwise draft.7 for smooth-apex squeezes; otherwise draft.6 for legacy squeezes, draft.5 for tabletop routing, draft.4 for flowing curves, draft.3 for circular/straight routed, draft.2 otherwise
+Supported imports: draft.15, draft.14, draft.13, draft.12, draft.11, draft.10, draft.9, draft.8, draft.7, draft.6, draft.5, draft.4, draft.3, draft.2, draft.1, and documented legacy/unversioned v1.
 Explicit unknown versions and unsupported units are rejected before normalization.
 The app is now named SlotForge Circuit. New exports use that producer.name;
 older SlotForge Track Builder exports retain full compatibility. The rename
@@ -119,3 +119,12 @@ integration contracts remain unchanged. No Timing database migration is needed.
 
 v0.3.25 adds a visible automatic startup upgrade for installed JSON workspaces.
 Track formats, shared geometry and integration contracts are unchanged.
+
+Fixed-surface plastic lane adjustments: see EXPORT-SPEC-1.0.0-draft.14.txt.
+Load plastic-lanes.js before core.js in browsers, or include it alongside
+core.js for Node. The main layout envelope remains version 1.
+
+Continuous stretch tools: see EXPORT-SPEC-1.0.0-draft.15.txt. Use the updated
+freeform.js and routed-spline.js together. core.js also needs planning-data.js
+(load it before core.js in browsers). Editor groups, locks, dimensions,
+reference images and owned quantities are preserved metadata, not sensor data.

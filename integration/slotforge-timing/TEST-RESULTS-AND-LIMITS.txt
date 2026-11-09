@@ -1,3 +1,12 @@
+DESIGN TOOLS RELEASE — 9 November 2026 (v0.3.26)
+510 app/installer tests, 199 extracted handoff tests and 15 integration fixtures
+passed. New plastic slot adjustments require draft.14; continuous FreeForm
+spacing envelopes require draft.15. Main layout envelope remains version 1.
+Metadata for measurements, reference images, inventory, groups and locks is
+preserved. See EXPORT-SPEC-1.0.0-draft.14.txt and draft.15.txt for details.
+Native macOS/Linux execution is unverified. Desktop CAD import checks were
+not repeated; SVG/DXF generation and geometry round trips are tested.
+
 VISIBLE STARTUP RELEASE — 3 November 2026 (v0.3.25)
 474 app/installer tests, 167 extracted handoff tests and 15 integration fixtures
 passed. The startup migration screen does not change Timing integration.

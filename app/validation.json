@@ -1,9 +1,9 @@
 {
-  "version": "0.3.25",
-  "date": "2026-11-03",
+  "version": "0.3.26",
+  "date": "2026-11-09",
   "automated": {
-    "command": "node --test app/additional-packs.test.cjs app/cad-export.test.cjs app/core.test.cjs app/custom-packs.test.cjs app/custom-piece-delete.test.cjs app/disk-api.test.cjs app/disk-store.test.cjs app/editor-features.test.cjs app/elevation.test.cjs app/fold-override.test.cjs app/freeform-editor.test.cjs app/freeform-review.test.cjs app/freeform-shapes.test.cjs app/freeform.test.cjs app/inspector-review.test.cjs app/integration.test.cjs app/lane-spread.test.cjs app/library.test.cjs app/local-workspace.test.cjs app/pdf-report.test.cjs app/preview-car.test.cjs app/reference-artwork.test.cjs app/reference-editor.test.cjs app/reference-planning.test.cjs app/review-regressions.test.cjs app/routed-edge-order.test.cjs app/routed-review.test.cjs app/routed-spline.test.cjs app/routed-squeeze.test.cjs app/routed.test.cjs app/server.test.cjs app/side-snap.test.cjs app/space-guide.test.cjs app/sqlite-review.test.cjs app/sqlite-storage.test.cjs app/storage-startup.test.cjs app/table-panels.test.cjs app/table-review.test.cjs app/table-stock.test.cjs app/tabletop-routing.test.cjs app/theme-model.test.cjs app/track-exports.test.cjs app/transfer-review.test.cjs installer/launcher.test.cjs",
-    "passed": 474,
+    "command": "node --test app/*.test.cjs installer/*.test.cjs",
+    "passed": 510,
     "failed": 0,
     "scope": [
       "Closed circuit and per-lane lengths",
@@ -40,7 +40,7 @@
       "Strict original units and integration-contract metadata validation; both public entry points and explicit-state bypass regression",
       "Circuit inside/outside border placement on straights, mirrored and reversed pieces, open chains and separate loops",
       "Named custom pack migration, ownership, selected export, atomic import and library limits",
-      "R1\u00c3\u00a2\u00e2\u201a\u00ac\u00e2\u20ac\u0153R8 adjacent curve edge radii and persistent family settings",
+      "R1Ã¢â‚¬â€œR8 adjacent curve edge radii and persistent family settings",
       "All four buildable starting-grid variants retain artwork in regenerated pictures",
       "Reference picture serialization, transforms, image validation, inventory isolation, missing connectors and stable road route IDs",
       "Alphabetical catalogue folders, natural radius ordering and descending straight lengths, without modifying catalogue definitions",
@@ -1216,5 +1216,88 @@
     "limitations": [
       "Native macOS/Linux execution not tested"
     ]
+  },
+  "installedUpgrade0323To0325": {
+    "date": "2026-11-03",
+    "result": "passed",
+    "report": "UPGRADE-TEST-2026-11-03.txt",
+    "platform": "Windows with automated Edge browser",
+    "source": "Published complete v0.3.23 and v0.3.25 ZIPs, actual Install Windows.cmd",
+    "tracks": 3,
+    "customPacksIncludingDefault": 4,
+    "customPieces": 5,
+    "unchangedBackupFiles": 20,
+    "checks": [
+      "Message visible before SQLite creation",
+      "Entire migrated workspace exactly equals original parsed JSON",
+      "Preserved JSON and backups unchanged after migration and later saves",
+      "All tracks export with original identities, pieces and definitions",
+      "All packs, empty packs and current draft retained",
+      "Editing, saving and full helper relaunch preserve new work without repeated migration"
+    ],
+    "limitations": [
+      "Desktop shortcuts disabled; no fresh runtime download",
+      "Native macOS/Linux not exercised",
+      "Personal workspace untouched"
+    ]
+  },
+  "plasticLaneToolsAndPieceColours": {
+    "date": "2026-11-09",
+    "status": "passed",
+    "automatedTests": 487,
+    "integrationFixtures": 15,
+    "extractedHandoffTests": 177,
+    "browserChecks": [
+      "Colour toggle changes catalogue and canvas without changing serialized definitions or original colours",
+      "Squeeze applies to selected piece only and retains a closed circuit",
+      "Optional save to custom pack, undo/redo and reload",
+      "Custom copy retains lane adjustment settings",
+      "Corner Spread retains road width and inner lane; invalid outside-road spacing is rejected",
+      "Reset spacing, custom editor creation, dark and light theme visual checks"
+    ],
+    "storageChecks": "SQLite save, reopen, library entry and backup preserve adjusted slot geometry; isolated temporary data only",
+    "integrationContract": "1.0.0-draft.14 for adjusted plastic pieces; slotforge.layout envelope remains version 1"
+  },
+  "designToolsReview": {
+    "date": "2026-11-09",
+    "status": "passed",
+    "scope": "Accepted design tools, excluding Construction Templates; existing plastic lane tools and colour toggle retained",
+    "automatedTests": 510,
+    "newToolTests": 23,
+    "integrationFixtures": 15,
+    "extractedHandoffTests": 199,
+    "browserChecks": [
+      "Measurements with optional PDF dimensions, annotation persistence and PDF download",
+      "Reference image import, two-point calibration including revised known distance, reload and FreeForm saving",
+      "Per-design owned inventory and missing-only shopping CSV",
+      "Group, lock/unlock, protected controls and parts-list highlighting",
+      "Gap preview/insertion and anchored replacement preview with Undo",
+      "Routed section conversion with explicit approximation preview",
+      "Continuous stretch squeeze across converted straight/arc joins",
+      "FreeForm ramp subdivision, saved heights and curvature view",
+      "Selected multi-join smoothing preview/apply",
+      "Dark and light theme visual checks; no page errors"
+    ],
+    "reviewFixes": [
+      "Exact timing-mark remapping across ramp subdivisions",
+      "Zero spacing derivatives through existing span joins to avoid offset tangent kinks",
+      "Catalogue candidates filtered for compatibility before search budget; raised ends preserved",
+      "Conflicting catalogue IDs isolated so existing definitions are not overwritten",
+      "Locks enforced across transforms, reflow, reference edits and FreeForm edits",
+      "Printed dimensions included in diagram bounds and readable PDF text",
+      "Asynchronous image decoding and two-point calibration refresh",
+      "Car envelope spatial comparison budget and existing height/headroom rules"
+    ],
+    "storageChecks": "Isolated SQLite save, library reopen and workspace backup preserve measurements, images, owned quantities, groups, locks and continuous spacing; personal data untouched",
+    "exportChecks": "JSON round trips, PDF generation, SVG/DXF regenerated paths and exclusion of tracing images",
+    "integrationContract": "1.0.0-draft.15 for continuous FreeForm envelopes; slotforge.layout stays version 1",
+    "limitations": [
+      "Vehicle envelope and gradient checks are sampled planning aids, not physical simulation",
+      "Existing routed sections use explicit conversion to FreeForm for continuous stretch and multi-join editing",
+      "Owned inventory is per design; reference images are excluded from PDF/CAD",
+      "Gap search is bounded and checks endpoint fit, not collision-free construction",
+      "No native macOS/Linux execution or fresh Fusion/Illustrator checks for this update"
+    ],
+    "release": "Included in v0.3.26; see docs/releases/v0.3.26.md"
   }
 }

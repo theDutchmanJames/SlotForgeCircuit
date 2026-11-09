@@ -1,0 +1,65 @@
+SlotForge integration draft.15 — Continuous FreeForm spacing envelopes
+9 November 2026. Main slotforge.layout envelope remains version 1.
+
+Select draft.15 when a FreeForm node has squeeze.version === 3. This is
+higher priority than draft.14. Earlier contracts remain explicitly supported.
+Consumers must support draft.15 deliberately; do not replace these offsets
+with legacy per-curve squeezes. The new metadata changes actual slot paths.
+
+parameters.freeform.nodes[i].squeeze = {
+  version: 3,
+  mode: "squeeze" | "spread",
+  spacingMm: number,
+  domain: [startFraction, endFraction],
+  envelope: {
+    peak: number,          // 0.05 through 0.95
+    transition: number,    // > 0, <= min(peak, 1 - peak)
+    stops: [number, ...]   // optional, <=96 strictly increasing values in (0,1)
+  }
+}
+
+The chosen stretch follows drawing direction from one anchor to another,
+possibly wrapping across a closed loop's seam. It excludes the outgoing
+span of the finish anchor. Fractions are based on the reference slot's
+arc lengths when applied. Each span stores its own domain within [0,1].
+The shared envelope and target spacing are copied to every affected span.
+The drawn reference slot remains fixed. Other lanes move along its normals.
+Splitting a span divides its domain while preserving the envelope/stops;
+this preserves the existing physical lane shape. Moving handles later does
+not silently retune domains: reapply the stretch tool to redistribute it.
+
+Let p=peak, t=transition, e(x)=6x^5-15x^4+10x^3. The basic envelope is zero
+outside [p-t,p+t], e((u-p+t)/t) before p and e((p+t-u)/t) after p.
+Create knots at p-t, p, p+t and each stop inside this interval. Keep the
+basic envelope's value at each knot. Between consecutive knots a,b use
+w(u)=w(a)+(w(b)-w(a))*e((u-a)/(b-a)). This gives zero first and second
+spacing derivatives at joins without resetting the spacing to normal.
+The editor inserts stops at existing span joins: a straight/arc curvature
+jump can otherwise turn a varying normal offset into a tangent kink.
+
+Slot offset = base offset + (lane index - reference lane index) *
+(target spacing - normal spacing) * w(u), respecting the stored side.
+The reference index passed to routed-spline.js is adjusted for model.side.
+Fold, intersection and conductor-separation validation still applies.
+Geometry is rebuilt by freeform.js and routed-spline.js; sampled lane
+polylines, timing fractions and route identity follow existing contracts.
+Ramps use existing anchor heights and deck/headroom schema (draft.9).
+Shape-preserving ramp subdivisions remap timing marks through exact splits.
+
+Additional editor metadata, independent of contract selection:
+- pieces[].groupId: optional string matching [-\w]{1,100}.
+- pieces[].locked: optional boolean; true protects editor manipulation.
+- workspace.planning: version 1, measurements, owned and optional reference.
+  measurements: <=100 records {id,a:[x,y],b:[x,y],label,print:boolean}.
+  Coordinates are world millimetres. Labels <=100 characters.
+  owned: per-design map of inventory keys to integers 0..100000.
+  reference: embedded PNG/JPEG data URL (<=2M characters), x,y,widthMm,
+  heightMm,angle,opacity,visible. Image size 1..50000 mm, angle +/-360,
+  opacity 0.05..1. No external image URLs or SVG image payloads.
+
+planning-data.js validates this metadata and is a required core dependency.
+It does not change racing routes, award laps or alter sensor authority.
+Groups and locks affect editing only. Measurements are fixed coordinates;
+reference images are tracing aids, excluded from CAD and PDF output.
+Printed dimensions are opt-in. Curvature/car-envelope overlays are view
+preferences and are not serialized into timing geometry.

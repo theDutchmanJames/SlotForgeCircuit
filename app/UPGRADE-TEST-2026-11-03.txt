@@ -1,0 +1,64 @@
+INSTALLED USER UPGRADE TEST — 3 NOVEMBER 2026
+
+Result: PASS — Windows v0.3.23 (JSON) to v0.3.25 (SQLite).
+
+Packages
+Used the actual complete release ZIPs, not a development checkout. Both archive
+SHA-256 checksums and CRCs were verified before extraction.
+v0.3.23: 90d565c591c638c53e28d7e8cb0ebf0fdf5e4e8f1347d9c9a97e2af756c54f6b
+v0.3.25: ca24b7c5f1593843c3ba8b847ffb3028d86c362901d025096251fe6b92738373
+
+Procedure
+1. Ran v0.3.23's actual Install Windows.cmd against an isolated installation.
+   Used the existing official runtime ZIP cache; bootstrap checksum validation
+   still ran. Disabled desktop shortcuts and automatic default-browser opening.
+2. Started the private installed runtime/helper and used Edge browser controls
+   to create saved data. No workspace records were seeded directly into JSON.
+3. Saved 3 tracks: a branded oval, a layout using custom pieces, and a routed oval.
+   Created 4 packs in total, including the default pack, an explicitly saved
+   empty pack, a pack of 4 measured pieces, and a reusable routed-section pack.
+   Custom pieces included a straight, two curves, a lane changer and a routed
+   straight. Kept a current draft separate from the named saved library version.
+4. Downloaded a workspace backup through Storage, stopped the old helper through
+   Storage, and captured the original JSON and all 20 existing backup hashes.
+5. Ran v0.3.25's actual Install Windows.cmd over the SAME test installation.
+   Verified that installation had left the original JSON and backups unchanged.
+6. Started the installed v0.3.25 helper and opened the browser UI. Observed and
+   captured the upgrade message before workspace.sqlite was created. The test
+   intercepted the first startup request briefly to capture that screen, then
+   let the normal request and automatic conversion proceed unchanged.
+7. At the completion screen, compared the ENTIRE reconstructed SQLite workspace
+   with the original parsed JSON: exact equality, including IDs, revisions,
+   timestamps, layout geometry, piece definitions, pack settings, empty packs,
+   library baseline, trash and current draft. Original files also matched.
+8. Continued into Circuit. All 3 library cards and previews appeared. Exported
+   every saved track through the UI and compared IDs, placements and definitions
+   with its original record. Opened every custom pack and checked names/counts.
+9. Opened, edited and updated the migrated custom track. Stopped the helper and
+   launched it again. The edited saved track and current drawing survived, the
+   library still contained 3 tracks, and the upgrade prompt did not reappear.
+10. Rechecked the preserved JSON and backup files after the new saves/relaunch.
+    They were unchanged. All isolated helpers were stopped at the end.
+
+Observed completion message
+3 saved tracks · 4 custom packs · 5 custom pieces · current drawing retained
+
+Test-harness correction
+The first automated run checked for the Replace track dialog before the async
+library read had displayed it. The app correctly waited for confirmation;
+the test timed out. Corrected the automation to wait for and click Replace
+track, then completed edit/save/relaunch against the same upgraded installation.
+This was a test timing issue; no application code changes were necessary.
+
+Evidence (local development files, excluded from distributions)
+tmp/user-upgrade-0323-to-0325/: installer logs, before-workspace.json, portable
+backup, exported tracks, screenshots of both versions and the migration screens,
+and results.json. Test scripts: tmp/user-upgrade-e2e.cjs and
+tmp/user-upgrade-resume.cjs. The test installation remains there, stopped.
+
+Limits
+This exercised the real Windows installers and installed helper, with an
+automated Edge browser and an isolated custom install location. It did not test
+a fresh runtime download, desktop shortcut creation or native macOS/Linux.
+All data was created for this test. The user's own installation and saved
+workspace were not changed. This does not replace independent user backups.

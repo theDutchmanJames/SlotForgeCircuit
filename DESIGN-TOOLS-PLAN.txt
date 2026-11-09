@@ -1,0 +1,15 @@
+Circuit design tools implementation — 9 November 2026
+Scope: all accepted suggestions except Construction Templates.
+1. Measurements, persistent groups/locks, calibrated reference image, located checks.
+2. Per-design owned inventory/shopping CSV, replacement preview, gap suggestions, highlight parts.
+3. FreeForm/routed stretch spacing, smooth joins, curvature/vehicle envelope overlays, ramp design.
+4. Connected routed-section conversion to editable FreeForm with explicit approximation preview.
+5. Regression/storage/export checks, browser workflows and code review.
+Existing uncommitted plastic lane tools and colour toggle are retained.
+Construction templates, tiled PDFs, alignment marks and mounting guides are excluded.
+
+Completed and reviewed, 9 November 2026. See app/DESIGN-TOOLS.txt for usage
+and app/validation.json (designToolsReview) for verification and limitations.
+All five implementation stages above are complete. Native routed-section
+layouts use the explicit conversion preview to access continuous FreeForm
+stretch/smoothing tools. Prepared for public release v0.3.26 at the user's request.

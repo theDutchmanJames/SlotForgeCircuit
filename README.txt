@@ -1,10 +1,20 @@
-SlotForge Circuit — editor iteration (v0.3.25)
+SlotForge Circuit — editor iteration (v0.3.26)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. The rename does not move your data.
 This update automatically migrates installed JSON workspaces to SQLite.
+
+NEW IN v0.3.26 — DESIGN AND PLANNING TOOLS
+Builder: Planning tools adds measurements/PDF dimensions, reference images,
+clickable checks, owned inventory, shopping CSV, gap suggestions, curvature
+colours and car envelopes. Selection adds groups, locks, replacement previews
+and ramps. Click Parts list rows to find their pieces. Colour by piece quickly
+shows radii and straight lengths; custom plastic slots support Squeeze/Spread.
+FreeForm: continuous stretch spacing/ramp, selected-join smoothing and View &
+measure. Existing routed layouts can convert to FreeForm after a preview.
+See app/DESIGN-TOOLS.txt. Saved designs/packs remain in the same data folder.
 
 NEW IN v0.3.25 — VISIBLE AUTOMATIC UPGRADE
 Installed JSON workspaces show an upgrade message before automatic conversion.

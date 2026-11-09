@@ -1,0 +1,58 @@
+SlotForge integration draft.14 - Fixed-surface plastic lane adjustments
+9 November 2026. Main slotforge.layout envelope remains version 1.
+
+Select draft.14 when any definition has parameters.laneAdjustment. This
+takes precedence over draft.13; all earlier contracts remain supported.
+Consumers must explicitly support this contract. Do not silently ignore the
+field or substitute the original uniform slots when importing a design.
+
+parameters.laneAdjustment = {
+  version: 1,
+  mode: "squeeze" | "spread",
+  spacingMm: number,
+  anchor: "centre" | "inner"
+}
+
+Supported on non-routed straight and circular curve roads with 2-8 lanes,
+without laneChange. Straights require "centre". Curves allow "inner"
+(keep the smallest-radius slot fixed) or "centre" (keep the slot bundle
+centre fixed). Reflection transforms the complete definition as usual.
+Normal slot offsets, dimensions and family remain in the base parameters.
+The target is the average adjacent spacing for uneven explicit offsets;
+their individual gaps change proportionally. It must be below normal for
+Squeeze, above normal for Spread, and pass geometry validation.
+
+For normalized centreline fraction t, use b(t)=64*t^3*(1-t)^3.
+With base offset o, anchor a, mean normal spacing s and target z:
+  adjustedOffset(t) = o + (o-a)*(z/s-1)*b(t)
+The anchor is the first offset for "inner" and the mean of the first and
+last offsets for "centre". Both ends retain their offsets, tangents and
+curvature. Slots and rendered rails change; the road outline, bounds,
+centreline length, connector positions, road markings and borders do not.
+
+Use app/plastic-lanes.js (required by core.js; load before core.js in a
+browser) to rebuild routes. Lane segments use the existing polyline schema
+with points, distancesMm, headingsDeg, curvaturesPerMm, referenceFractions
+and lengthMm. Adaptive chord sampling targets 0.02 mm. Endpoints match the
+original connectors exactly. Slot lengths are calculated from the samples;
+the road centreline remains the original length. Timing offsets interpolate
+referenceFractions rather than treating varying slot length as uniform.
+
+Reject malformed settings, unsupported shapes, rails outside the fixed
+road, folded conductors and insufficient separation. No override exists
+for this plastic adjustment. Rail envelopes follow Circuit's existing
+family drawing widths: 4 mm AFX, 7 mm Carrera GO, 11 mm Fleischmann,
+otherwise 8 mm. These are planning geometry, not fabrication certification.
+
+The editor creates a new custom definition for a selected placement; other
+instances keep their definitions. Route identity is unchanged when end
+topology is unchanged, while design revision and lane lengths can change.
+User-created variants are not manufacturer product specifications.
+
+Pack export uses slotforge.custom-pack version 3 when any piece has this
+field; custom-library uses version 4. Older non-adjusted packs retain their
+previous versions. Layouts, packs and workspace backups preserve settings.
+
+"Colour by piece" is a local view preference. It is not serialized in
+layout definitions, pack definitions, exports or the integration contract.
+Original piece colours and physical dimensions remain unchanged.

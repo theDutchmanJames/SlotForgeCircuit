@@ -101,15 +101,19 @@ html[data-theme] .sf-header .sf-nav-link:hover{color:var(--ink);background:var(-
 @media(max-width:640px){.sf-header .sf-brand{min-width:0}.sf-header .sf-header-tools{height:42px;gap:6px}.sf-header .sf-settings-link{padding:6px 8px}.sf-header .settings-label{display:none}.sf-header .theme-switch{padding:2px}.sf-header .theme-switch button{padding:6px;min-height:30px;font-size:0;gap:0}.sf-header .theme-switch button span{font-size:14px}.theme-colors{grid-template-columns:1fr}.theme-presets-card,.theme-custom-card{padding:18px}}
 @media(max-width:400px){.theme-presets{grid-template-columns:1fr}}
 
-/* Keep the original brand text footprint, as in SlotForge Telemetry. */
-.sf-header .sf-brand .sf-wordmark{display:inline-block;position:relative;vertical-align:baseline}
-.sf-wordmark-size{visibility:hidden}
-.sf-header .sf-wordmark img{position:absolute;left:0;top:50%;transform:translateY(-50%);width:100%;height:auto}
+/* Match Telemetry: app icon beside the wordmark and its width-setting slogan. */
+.sf-header .sf-brand{min-width:0;width:auto;gap:10px}
+.sf-header .sf-brand .sf-app-icon{width:42px;height:42px}
+.sf-brand-copy{display:grid;grid-template-columns:max-content;align-content:center;gap:4px;height:42px}
+.sf-header .sf-brand .sf-brand-copy small{margin:0;font-size:8px;line-height:10px;letter-spacing:.8px;font-weight:500;white-space:nowrap}
+.sf-header .sf-brand .sf-wordmark{display:block;position:relative;width:100%;aspect-ratio:510.8/90.34}
+.sf-header .sf-wordmark img{position:absolute;inset:0;width:100%;height:auto}
 .sf-header .sf-wordmark .sf-logo-light,.sf-footer-brand .sf-logo-light{display:none}
 html[data-tone="light"] .sf-header .sf-wordmark .sf-logo-light,html[data-tone="light"] .sf-footer-brand .sf-logo-light{display:block}
 html[data-tone="light"] .sf-header .sf-wordmark .sf-logo-dark,html[data-tone="light"] .sf-footer-brand .sf-logo-dark{display:none}
 .statusbar{gap:12px}
 .statusbar #status{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .statusbar #storage-open{margin-left:auto;flex-shrink:0;white-space:nowrap}
-.sf-footer-brand{display:block;width:120px;height:22px;flex:0 0 120px}
-.sf-footer-brand img{display:block;width:120px;height:22px;object-fit:contain}
+.sf-footer-brand{display:flex;align-items:center;width:120px;height:auto;flex:0 0 120px}
+.sf-footer-brand img{display:block;width:120px;height:auto}
+@media(max-width:640px){.sf-header .sf-brand{gap:6px}.sf-header .sf-brand .sf-app-icon{width:32px;height:32px}.sf-header .sf-brand .sf-brand-copy small{font-size:6px;letter-spacing:.4px;line-height:8px}.sf-brand-copy{gap:3px}}

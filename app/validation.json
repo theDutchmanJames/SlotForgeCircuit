@@ -1,6 +1,6 @@
 {
-  "version": "0.3.26",
-  "date": "2026-11-09",
+  "version": "0.3.27",
+  "date": "2026-11-15",
   "automated": {
     "command": "node --test app/*.test.cjs installer/*.test.cjs",
     "passed": 510,
@@ -1299,5 +1299,25 @@
       "No native macOS/Linux execution or fresh Fusion/Illustrator checks for this update"
     ],
     "release": "Included in v0.3.26; see docs/releases/v0.3.26.md"
+  },
+  "brandingReview": {
+    "release": "v0.3.27",
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "catalogues": 10,
+    "viewportWidths": [
+      1600,
+      1440,
+      1180,
+      900,
+      640,
+      480,
+      360
+    ],
+    "fileMode": true,
+    "originalSvgBytesPreserved": true,
+    "planningFolderAlignment": "Expanded and collapsed in both themes; measure control checked."
   }
 }

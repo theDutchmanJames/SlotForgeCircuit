@@ -1,3 +1,10 @@
+BRANDING AND PANEL ALIGNMENT — 15 November 2026 (v0.3.27)
+510 app/installer tests, 199 extracted handoff tests and 15 integration fixtures
+passed. No storage or integration-contract changes in this visual update.
+Browser checks covered light/dark branding, all 10 catalogues, seven widths,
+file mode and the Planning tools folder open/closed. Native macOS/Linux
+execution was not repeated.
+
 DESIGN TOOLS RELEASE — 9 November 2026 (v0.3.26)
 510 app/installer tests, 199 extracted handoff tests and 15 integration fixtures
 passed. New plastic slot adjustments require draft.14; continuous FreeForm

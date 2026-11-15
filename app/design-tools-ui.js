@@ -1,7 +1,7 @@
 (function(root){'use strict';
 const F=root.Forge,T=root.DesignTools,$=id=>document.getElementById(id),node=(tag,text,cls)=>{const e=document.createElement(tag);if(text)e.textContent=text;if(cls)e.className=cls;return e;};
 function init(h){
- const folder=node('details',null,'inspector-folder');folder.id='planning-tools';folder.append(node('summary','Planning tools'));const content=node('div',null,'planning-tools-content');folder.append(content);$('inspector-selection').after(folder);
+ const section=node('section',null,'inspector-section');const folder=node('details',null,'inspector-folder');folder.id='planning-tools';folder.append(node('summary','Planning tools'));const content=node('div',null,'planning-tools-content');folder.append(content);section.append(folder);$('inspector-selection').after(section);
  const action=(name,fn,host=content)=>{const b=node('button',name,'btn small');if(/^(Apply|Save|Add this|Download)/.test(name))b.classList.add('primary');b.type='button';b.onclick=()=>{try{fn();}catch(e){if(dialog?.open){let note=dialog.querySelector('[role=alert]');if(!note){note=node('p');note.setAttribute('role','alert');dialog.append(note);}note.textContent=e.message;}h.message(e.message,true);}};host.append(b);return b;};
  let measuring=false,first=null,focusPoint=null,curvature=false,envelope=false,driftMm=0;
  const measureButton=action('Measure distance / angle',()=>{measuring=!measuring;first=null;measureButton.setAttribute('aria-pressed',String(measuring));h.message(measuring?'Click two points on the canvas. Escape cancels.':'Measurement cancelled.');});measureButton.id='measure-tool';

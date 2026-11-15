@@ -1,10 +1,16 @@
-SlotForge Circuit — editor iteration (v0.3.26)
+SlotForge Circuit — editor iteration (v0.3.27)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. The rename does not move your data.
 This update automatically migrates installed JSON workspaces to SQLite.
+
+NEW IN v0.3.27 — BRANDING AND PANEL ALIGNMENT
+New Circuit SVG header beside the app icon and slogan, plus a small SlotForge
+footer logo. Artwork follows light and dark themes throughout the app and
+track-pack catalogues. Planning tools now aligns with the other tool folders.
+Saved tracks, custom packs and storage locations are unchanged.
 
 NEW IN v0.3.26 — DESIGN AND PLANNING TOOLS
 Builder: Planning tools adds measurements/PDF dimensions, reference images,

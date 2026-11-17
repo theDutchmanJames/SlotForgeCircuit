@@ -1,0 +1,166 @@
+name: macOS and Linux downloads
+run-name: macOS and Linux downloads for ${{ inputs.tag || github.event.release.tag_name }}
+
+# The Windows downloads are built locally and attached by hand. This adds the
+# macOS (.dmg + .zip) and Linux (.AppImage + .deb) downloads to the same release,
+# built and tested on each operating system. It never replaces an existing file.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag (for example v0.4.0)
+        required: true
+        type: string
+      publish_assets:
+        description: Attach the downloads to the existing GitHub release
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-release-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+      sha: ${{ steps.version.outputs.sha }}
+    steps:
+      - name: Check the tag
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Expected vMAJOR.MINOR.PATCH'; exit 1; }
+      - uses: actions/checkout@v6
+        with:
+          ref: refs/tags/${{ inputs.tag || github.event.release.tag_name }}
+          persist-credentials: false
+      - name: Check the version and remember the exact source
+        id: version
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          node -e 'const fs=require("fs"); const v=require("./package.json").version; if("v"+v!==process.env.RELEASE_TAG)throw Error("Tag/package version mismatch"); fs.appendFileSync(process.env.GITHUB_OUTPUT,`tag=v${v}\nversion=${v}\n`);'
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: source
+    name: Build ${{ matrix.platform }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+          - runner: macos-15
+            platform: mac
+            arch: universal
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.source.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install, test and package on the native system
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          SLOTFORGE_NO_UPDATE_CHECK: '1'
+          ARCH: ${{ matrix.arch }}
+        # Same builder as "Build macOS.command" / "Build Linux.sh": unit tests on
+        # every system; on macOS also the interface tests and a start-up check.
+        run: node desktop/build-desktop.cjs --arch "$ARCH" --no-pause
+      - name: Check the downloads against their checksums
+        working-directory: dist/desktop/v${{ needs.source.outputs.version }}
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+        run: shasum -a 256 -c "SHA256SUMS-$PLATFORM-$ARCH.txt"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: native-${{ matrix.platform }}-${{ matrix.arch }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+          path: |
+            dist/desktop/v${{ needs.source.outputs.version }}/SlotForgeCircuit-${{ needs.source.outputs.version }}-${{ matrix.platform }}-*.dmg
+            dist/desktop/v${{ needs.source.outputs.version }}/SlotForgeCircuit-${{ needs.source.outputs.version }}-${{ matrix.platform }}-*.zip
+            dist/desktop/v${{ needs.source.outputs.version }}/SlotForgeCircuit-${{ needs.source.outputs.version }}-${{ matrix.platform }}-*.AppImage
+            dist/desktop/v${{ needs.source.outputs.version }}/SlotForgeCircuit-${{ needs.source.outputs.version }}-${{ matrix.platform }}-*.deb
+            dist/desktop/v${{ needs.source.outputs.version }}/SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt
+
+  publish:
+    needs: [source, build]
+    if: always() && !cancelled() && needs.source.result == 'success' && (github.event_name == 'release' || inputs.publish_assets)
+    name: Attach ${{ matrix.platform }} ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            arch: x64
+          - platform: linux
+            arch: arm64
+          - platform: mac
+            arch: universal
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: native-${{ matrix.platform }}-${{ matrix.arch }}
+          path: downloads
+      - name: Check and attach the downloads without replacing existing files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.source.outputs.tag }}
+          SOURCE_SHA: ${{ needs.source.outputs.sha }}
+          PLATFORM: ${{ matrix.platform }}
+          ARCH: ${{ matrix.arch }}
+        working-directory: downloads
+        run: |
+          node <<'NODE'
+          const fs=require('fs'),crypto=require('crypto'),assert=require('assert/strict');
+          const {execFileSync}=require('child_process');
+          const gh=args=>execFileSync('gh',args,{encoding:'utf8'});
+          const {GH_REPO:repo,RELEASE_TAG:tag,SOURCE_SHA:sha,PLATFORM:platform,ARCH:arch}=process.env;
+          assert.equal(gh(['api',`repos/${repo}/commits/${tag}`,'--jq','.sha']).trim(),sha,'The tag moved during the build');
+          const release=JSON.parse(gh(['api',`repos/${repo}/releases/tags/${tag}`]));
+          assert.equal(release.draft,false,'Publish the release first');
+          const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          const sums=`SHA256SUMS-${platform}-${arch}.txt`;
+          const names=fs.readFileSync(sums,'utf8').trim().split('\n').map(line=>{
+            const [digest,name]=line.split(/\s+/);
+            assert.equal(hash(name),digest,`Checksum differs: ${name}`);
+            return name;
+          });
+          assert.equal(names.length,2,'Expected an installer and a portable app');
+          const files=[...names,sums];
+          for(const name of files){
+            const old=release.assets.find(a=>a.name===name);
+            if(old)assert.ok(old.state==='uploaded'&&old.size===fs.statSync(name).size&&old.digest===`sha256:${hash(name)}`,`A different ${name} is already attached`);
+          }
+          for(const name of files)
+            if(!release.assets.some(a=>a.name===name))gh(['release','upload',tag,name,'--repo',repo]);
+          const uploaded=JSON.parse(gh(['api',`repos/${repo}/releases/tags/${tag}`])).assets;
+          for(const name of files)assert.equal(uploaded.find(a=>a.name===name)?.digest,`sha256:${hash(name)}`,`Uploaded file differs: ${name}`);
+          console.log(`Attached ${files.length} files to ${tag}.`);
+          NODE

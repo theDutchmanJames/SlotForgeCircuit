@@ -497,6 +497,12 @@ test('zooming and dragging keep the drawn pieces instead of redrawing them', asy
   const spot = await h.js(`
     const g = document.querySelector('#roads > g:last-child'), r = g.getBoundingClientRect();
     window.__id = g.dataset.id; window.__tf = g.getAttribute('transform');
+    // A curve's bounding-box centre can lie off the piece: find a point that really hits it.
+    for (const fy of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9])
+      for (const fx of [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9]) {
+        const x = r.left + r.width * fx, y = r.top + r.height * fy;
+        if (document.elementFromPoint(x, y)?.closest('[data-id]') === g) return [x, y];
+      }
     return [r.left + r.width / 2, r.top + r.height / 2];`);
   await h.mouse('mouseDown', spot[0], spot[1]);
   for (let i = 1; i <= 8; i++) await h.mouse('mouseMove', spot[0] + i * 12, spot[1] + i * 9, { button: 'left' });

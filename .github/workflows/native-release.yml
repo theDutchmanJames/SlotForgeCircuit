@@ -73,12 +73,13 @@ jobs:
         with:
           ref: ${{ needs.source.outputs.sha }}
           persist-credentials: false
-      - name: Use the newest interface tests (the app itself stays exactly as tagged)
+      - name: Use the newest interface tests and macOS file icon (the app code stays exactly as tagged)
         env:
           WORKFLOW_SHA: ${{ github.sha }}
         run: |
           git fetch --depth=1 origin "$WORKFLOW_SHA"
           git checkout FETCH_HEAD -- desktop/ui-tests.cjs
+          [ -f app/icon.icns ] || git checkout FETCH_HEAD -- app/icon.icns
       - uses: actions/setup-node@v6
         with:
           node-version: '24'

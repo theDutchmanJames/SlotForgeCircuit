@@ -1,75 +1,505 @@
-const test=require('node:test'),assert=require('node:assert/strict'),F=require('./core.js'),R=F.Routed,S=R.Spline,I=require('./integration.js'),C=require('./routed-checks.js'),X=require('./track-exports.js'),D=require('./track-drawing.js');
-const close=(a,b,tolerance=.05)=>assert.ok(Math.abs(a-b)<tolerance,`${a} != ${b}`);
-function flowing(profile={},preset='s-bend'){
- const s=R.settings({...R.defaults,...profile}),a=F.validateDefinition(R.definition(s,{type:S.TYPE,controlPointsMm:S.preset(preset,s)},'routed:flow')),b=F.validateDefinition(R.definition(s,{type:'curve',slotRadiusMm:300,angleDeg:90},'routed:corner')),defs={[a.id]:a,[b.id]:b},items=[];
- for(const d of[a,b,b,a,b,b]){let p={...F.pose(d),id:'flowing-'+(items.length+1)};if(items.length)p=F.join(p,d,0,F.ports(items.at(-1),defs)[1]);items.push(p);}
- return{s,defs,items};
+const test = require('node:test'),
+  assert = require('node:assert/strict'),
+  F = require('./core.js'),
+  R = F.Routed,
+  S = R.Spline,
+  I = require('./integration.js'),
+  C = require('./routed-checks.js'),
+  X = require('./track-exports.js'),
+  D = require('./track-drawing.js');
+const close = (a, b, tolerance = 0.05) => assert.ok(Math.abs(a - b) < tolerance, `${a} != ${b}`);
+function flowing(profile = {}, preset = 's-bend') {
+  const s = R.settings({ ...R.defaults, ...profile }),
+    a = F.validateDefinition(R.definition(s, { type: S.TYPE, controlPointsMm: S.preset(preset, s) }, 'routed:flow')),
+    b = F.validateDefinition(R.definition(s, { type: 'curve', slotRadiusMm: 300, angleDeg: 90 }, 'routed:corner')),
+    defs = { [a.id]: a, [b.id]: b },
+    items = [];
+  for (const d of [a, b, b, a, b, b]) {
+    let p = { ...F.pose(d), id: 'flowing-' + (items.length + 1) };
+    if (items.length) p = F.join(p, d, 0, F.ports(items.at(-1), defs)[1]);
+    items.push(p);
+  }
+  return { s, defs, items };
 }
-const raw=m=>({format:'slotforge.layout',version:1,title:'Flowing routed track',definitions:Object.values(m.defs),pieces:m.items,workspace:{routed:{settings:m.s,display:'surface'}}});
+const raw = m => ({
+  format: 'slotforge.layout',
+  version: 1,
+  title: 'Flowing routed track',
+  definitions: Object.values(m.defs),
+  pieces: m.items,
+  workspace: { routed: { settings: m.s, display: 'surface' } },
+});
 
-test('Flowing slots are true normal offsets with exact configured spacing, not scaled cubics',()=>{
- const m=flowing({laneCount:4,laneSpacingMm:75}),d=m.defs['routed:flow'],g=d.geometry,c=d.parameters.controlPointsMm;
- for(let j=0;j<g.parametersT.length;j+=7){const q=S.evaluate(c,g.parametersT[j]);for(let i=0;i<3;i++){const a=g.lanePaths[i].segments[0].points[j],b=g.lanePaths[i+1].segments[0].points[j];close(F.dist(a,b),75,1e-7);close((b[0]-a[0])*q.normal[0]+(b[1]-a[1])*q.normal[1],75,1e-7);}}
+test('Flowing slots are true normal offsets with exact configured spacing, not scaled cubics', () => {
+  const m = flowing({ laneCount: 4, laneSpacingMm: 75 }),
+    d = m.defs['routed:flow'],
+    g = d.geometry,
+    c = d.parameters.controlPointsMm;
+  for (let j = 0; j < g.parametersT.length; j += 7) {
+    const q = S.evaluate(c, g.parametersT[j]);
+    for (let i = 0; i < 3; i++) {
+      const a = g.lanePaths[i].segments[0].points[j],
+        b = g.lanePaths[i + 1].segments[0].points[j];
+      close(F.dist(a, b), 75, 1e-7);
+      close((b[0] - a[0]) * q.normal[0] + (b[1] - a[1]) * q.normal[1], 75, 1e-7);
+    }
+  }
 });
-test('All starting shapes and the widest supported profile remain usable',()=>{const s=R.settings({...R.defaults,laneCount:8,laneSpacingMm:300,innerClearanceMm:1000,outerClearanceMm:1000});for(const name of['bend','s-bend','transition']){const d=F.validateDefinition(R.definition(s,{type:S.TYPE,controlPointsMm:S.preset(name,s)}));assert.equal(d.geometry.lanePaths.length,8);assert.ok(d.geometry.lanePaths.every(l=>Number.isFinite(l.lengthMm)));}});
-test('Unequal edge clearances preserve slot-centred magnets and a separate surface centreline',()=>{const s=R.settings({...R.defaults,innerClearanceMm:75,outerClearanceMm:125}),d=R.definition(s,{type:S.TYPE,controlPointsMm:S.preset('bend',s)});assert.deepEqual(d.geometry.connectors[0].position,[0,0]);close(F.dist(d.geometry.lanePaths[0].start,d.geometry.lanePaths[1].start),100,1e-8);assert.ok(Math.abs(d.geometry.centrelineLengthMm-d.geometry.reference.lengthMm)>1);});
-test('Straight transition lengths and verges agree with the analytic rectangle',()=>{const s=R.settings(),d=F.validateDefinition(R.definition(s,{type:S.TYPE,controlPointsMm:[[0,0],[300,0],[700,0],[1000,0]]}));for(const l of d.geometry.lanePaths)close(l.lengthMm,1000,1e-8);close(d.geometry.surfaceAreaMm2,300000,1e-6);assert.deepEqual(d.geometry.minRadiiMm,[null,null]);});
-test('Tabletop routing accepts a folded imaginary verge while retaining valid slots and conductor edges',()=>{const s=R.settings({...R.defaults,laneCount:4,innerClearanceMm:150,outerClearanceMm:200,minRadiusMm:100}),r=340,a=Math.PI/4,k=4/3*Math.tan(a/4),end=[r*Math.sin(a),r*(1-Math.cos(a))],shape={type:S.TYPE,controlPointsMm:[[0,0],[r*k,0],[end[0]-r*k*Math.cos(a),end[1]-r*k*Math.sin(a)],end]};assert.throws(()=>R.definition(s,shape),e=>e.fold?.kind==='surface'&&e.fold.lane===4);const d=F.validateDefinition(R.definition({...s,constructionMode:'table'},shape));assert.equal(d.geometry.lanePaths.length,4);assert.ok(d.geometry.minRadiiMm.every(r=>r>100));const prepared=I.prepare({format:'slotforge.layout',version:1,definitions:[d],pieces:[F.pose(d)]});assert.equal(prepared.integration.contractVersion,'1.0.0-draft.5');assert.deepEqual(I.prepare(prepared),prepared);});
-test('Tabletop routing keeps real conductor and slot folding restrictions',()=>{const s=R.settings({...R.defaults,constructionMode:'table',laneCount:4});for(const [r,kind]of[[155,'conductor'],[140,'slot']]){const a=Math.PI/4,k=4/3*Math.tan(a/4),end=[r*Math.sin(a),r*(1-Math.cos(a))];assert.throws(()=>R.definition(s,{type:S.TYPE,controlPointsMm:[[0,0],[r*k,0],[end[0]-r*k*Math.cos(a),end[1]-r*k*Math.sin(a)],end]}),e=>e.fold?.kind===kind);}});
-test('Normal sampling agrees with a high resolution independent length calculation',()=>{const s=R.settings(),c=S.preset('bend',s),d=R.definition(s,{type:S.TYPE,controlPointsMm:c});for(const [i,l]of d.geometry.lanePaths.entries()){let length=0,previous=S.offset(S.evaluate(c,0),-50+i*100);for(let j=1;j<=20000;j++){const p=S.offset(S.evaluate(c,j/20000),-50+i*100);length+=F.dist(previous,p);previous=p;}close(l.lengthMm,length,.03);}});
-test('Folded, stationary, malformed and self-crossing inputs cannot become saved geometry',()=>{const s=R.settings();for(const c of[null,[[1,0],[300,0],[300,300],[600,600]],[[0,0],[0,0],[300,300],[600,600]],[[0,0],[500,0],[-500,0],[100,0]],[[0,0],[0,80],[80,80],[80,0]],[[0,0],[NaN,100],[300,300],[500,500]]])assert.throws(()=>R.definition(s,{type:S.TYPE,controlPointsMm:c}));assert.throws(()=>F.validateDefinition({id:'bad',name:'Bad',parameters:{type:S.TYPE,widthMm:300,laneOffsetsMm:[100,200],controlPointsMm:S.preset('bend',s)}}),/routed profile/);});
-test('A sampled loop is rejected even when its curvature is wide enough for every verge',()=>{const s=R.settings({...R.defaults,laneCount:1,innerClearanceMm:10,outerClearanceMm:10,slotWidthMm:1,conductorWidthMm:1,conductorGapMm:0});assert.throws(()=>R.definition(s,{type:S.TYPE,controlPointsMm:[[0,0],[1200,1200],[-800,1200],[300,0]]}),/crosses itself/);});
-test('A flowing circuit closes with smooth slot tangents and finite lengths for all lanes',()=>{const m=flowing({laneCount:3,laneSpacingMm:90}),net=I.network(m.items,m.defs);assert.equal(net.closed,true);assert.equal(net.routes.length,3);for(const r of net.routes)for(let d=0;d<r.lengthMm;d+=17){const p=F.at(r,d);assert.ok([p.x,p.y,p.heading,p.curvature].every(Number.isFinite));}assert.ok(!C.checks(m.items,m.defs,null).some(i=>['open','overlap','verge-step'].includes(i.code)));});
-test('Reflected and reversed sampled paths retain positions, headings and signed curvature',()=>{const m=flowing(),r=I.network(m.items,m.defs).routes[0],before=structuredClone(r);const reverse=I.travelPlan(r,F.presets.Balanced,125,-1);assert.ok(reverse(100)>0);assert.deepEqual(r,before);for(const d of[0,100,500]){const a=I.atTravel(r,d,400,-1),b=F.at(r,400-d);close(a.x,b.x,1e-8);close(a.y,b.y,1e-8);close(a.curvature,-b.curvature,1e-9);}const flipped=m.items.map(p=>({...p,y:-p.y,angle:-p.angle,flip:!p.flip})),n=I.network(flipped,m.defs);assert.equal(n.closed,true);for(let i=0;i<n.routes.length;i++)close(n.routes[i].lengthMm,r.lengthMm+(I.network(m.items,m.defs).routes[i].lengthMm-r.lengthMm),1e-7);});
-test('Timing lines use the same cross-section on every offset lane, including reverse entries',()=>{const m=flowing(),net=I.network(m.items,m.defs),piece=m.items[0],d=m.defs[piece.definitionId],fraction=.27,offsets=I.offsets(net,{pieceId:piece.id,fraction}),section=S.crossSection(d.parameters,d.geometry,fraction).map(p=>F.point(p,piece));for(const [i,route]of net.routes.entries()){const p=F.at(route,offsets[i].offsetMm),a=section[0],b=section[1];const cross=(p.x-a[0])*(b[1]-a[1])-(p.y-a[1])*(b[0]-a[0]);assert.ok(Math.abs(cross)/F.dist(a,b)<.05);}assert.notEqual(offsets[0].offsetMm,offsets[1].offsetMm);});
-test('A curve traversed through its second port exports correct timing offsets and interpolation',()=>{const m=flowing(),old=m.items[3],c=m.defs[old.definitionId].parameters.controlPointsMm,end=c[3],points=c.slice().reverse().map(p=>[p[0]-end[0],p[1]-end[1]]),d=F.validateDefinition(R.definition(m.s,{type:S.TYPE,controlPointsMm:points},'routed:reversed')),origin=F.point(end,old),piece={...old,definitionId:d.id,x:origin[0],y:origin[1]},items=m.items.map(p=>p.id===old.id?piece:p),defs={...m.defs,[d.id]:d},net=I.network(items,defs),fraction=.37;assert.equal(net.closed,true);assert.ok(net.routes.every(r=>r.sections.find(s=>s.pieceId===piece.id).reverse));const line=S.crossSection(d.parameters,d.geometry,fraction).map(p=>F.point(p,piece));for(const [i,offset]of I.offsets(net,{pieceId:piece.id,fraction}).entries()){const p=F.at(net.routes[i],offset.offsetMm),a=line[0],b=line[1];assert.ok(Math.abs((p.x-a[0])*(b[1]-a[1])-(p.y-a[1])*(b[0]-a[0]))/F.dist(a,b)<.05);}});
-test('Preferred radius warnings and material totals include flowing slots',()=>{const m=flowing({minRadiusMm:1000}),issues=C.checks(m.items,m.defs,null),totals=R.materials(m.items,m.defs),net=I.network(m.items,m.defs);assert.ok(issues.some(i=>i.code==='radius'));close(totals.slotMm,net.routes.reduce((n,r)=>n+r.lengthMm,0),1e-7);close(totals.orderBraidMm,totals.slotMm*2*1.1,1e-7);assert.ok(totals.sectionAreaMm2>0);});
-test('Gap bridge matches both fixed ends and restores a closed circuit without moving existing sections',()=>{const m=flowing(),missing=m.items[0],items=m.items.slice(1),before=structuredClone(items),connection=C.bridgeDraft(items,m.defs,[m.items[1].id,m.items.at(-1).id]),d=F.validateDefinition(R.definition(connection.settings,{type:S.TYPE,controlPointsMm:connection.controlPointsMm},'routed:bridge')),p={...F.pose(d),...connection.pose},defs={...m.defs,[d.id]:d};assert.deepEqual(items,before);assert.equal(I.network([...items,p],defs).closed,true);assert.ok(F.dist(F.ports(p,defs)[0].position,connection.targets[0].position)<1e-7);assert.throws(()=>C.bridgeDraft(items,m.defs,[]),/Select two/);assert.equal(missing.definitionId,'routed:flow');});
+test('All starting shapes and the widest supported profile remain usable', () => {
+  const s = R.settings({
+    ...R.defaults,
+    laneCount: 8,
+    laneSpacingMm: 300,
+    innerClearanceMm: 1000,
+    outerClearanceMm: 1000,
+  });
+  for (const name of ['bend', 's-bend', 'transition']) {
+    const d = F.validateDefinition(R.definition(s, { type: S.TYPE, controlPointsMm: S.preset(name, s) }));
+    assert.equal(d.geometry.lanePaths.length, 8);
+    assert.ok(d.geometry.lanePaths.every(l => Number.isFinite(l.lengthMm)));
+  }
+});
+test('Unequal edge clearances preserve slot-centred magnets and a separate surface centreline', () => {
+  const s = R.settings({ ...R.defaults, innerClearanceMm: 75, outerClearanceMm: 125 }),
+    d = R.definition(s, { type: S.TYPE, controlPointsMm: S.preset('bend', s) });
+  assert.deepEqual(d.geometry.connectors[0].position, [0, 0]);
+  close(F.dist(d.geometry.lanePaths[0].start, d.geometry.lanePaths[1].start), 100, 1e-8);
+  assert.ok(Math.abs(d.geometry.centrelineLengthMm - d.geometry.reference.lengthMm) > 1);
+});
+test('Straight transition lengths and verges agree with the analytic rectangle', () => {
+  const s = R.settings(),
+    d = F.validateDefinition(
+      R.definition(s, {
+        type: S.TYPE,
+        controlPointsMm: [
+          [0, 0],
+          [300, 0],
+          [700, 0],
+          [1000, 0],
+        ],
+      })
+    );
+  for (const l of d.geometry.lanePaths) close(l.lengthMm, 1000, 1e-8);
+  close(d.geometry.surfaceAreaMm2, 300000, 1e-6);
+  assert.deepEqual(d.geometry.minRadiiMm, [null, null]);
+});
+test('Tabletop routing accepts a folded imaginary verge while retaining valid slots and conductor edges', () => {
+  const s = R.settings({ ...R.defaults, laneCount: 4, innerClearanceMm: 150, outerClearanceMm: 200, minRadiusMm: 100 }),
+    r = 340,
+    a = Math.PI / 4,
+    k = (4 / 3) * Math.tan(a / 4),
+    end = [r * Math.sin(a), r * (1 - Math.cos(a))],
+    shape = {
+      type: S.TYPE,
+      controlPointsMm: [[0, 0], [r * k, 0], [end[0] - r * k * Math.cos(a), end[1] - r * k * Math.sin(a)], end],
+    };
+  assert.throws(
+    () => R.definition(s, shape),
+    e => e.fold?.kind === 'surface' && e.fold.lane === 4
+  );
+  const d = F.validateDefinition(R.definition({ ...s, constructionMode: 'table' }, shape));
+  assert.equal(d.geometry.lanePaths.length, 4);
+  assert.ok(d.geometry.minRadiiMm.every(r => r > 100));
+  const prepared = I.prepare({ format: 'slotforge.layout', version: 1, definitions: [d], pieces: [F.pose(d)] });
+  assert.equal(prepared.integration.contractVersion, '1.0.0-draft.5');
+  assert.deepEqual(I.prepare(prepared), prepared);
+});
+test('Tabletop routing keeps real conductor and slot folding restrictions', () => {
+  const s = R.settings({ ...R.defaults, constructionMode: 'table', laneCount: 4 });
+  for (const [r, kind] of [
+    [155, 'conductor'],
+    [140, 'slot'],
+  ]) {
+    const a = Math.PI / 4,
+      k = (4 / 3) * Math.tan(a / 4),
+      end = [r * Math.sin(a), r * (1 - Math.cos(a))];
+    assert.throws(
+      () =>
+        R.definition(s, {
+          type: S.TYPE,
+          controlPointsMm: [[0, 0], [r * k, 0], [end[0] - r * k * Math.cos(a), end[1] - r * k * Math.sin(a)], end],
+        }),
+      e => e.fold?.kind === kind
+    );
+  }
+});
+test('Normal sampling agrees with a high resolution independent length calculation', () => {
+  const s = R.settings(),
+    c = S.preset('bend', s),
+    d = R.definition(s, { type: S.TYPE, controlPointsMm: c });
+  for (const [i, l] of d.geometry.lanePaths.entries()) {
+    let length = 0,
+      previous = S.offset(S.evaluate(c, 0), -50 + i * 100);
+    for (let j = 1; j <= 20000; j++) {
+      const p = S.offset(S.evaluate(c, j / 20000), -50 + i * 100);
+      length += F.dist(previous, p);
+      previous = p;
+    }
+    close(l.lengthMm, length, 0.03);
+  }
+});
+test('Folded, stationary, malformed and self-crossing inputs cannot become saved geometry', () => {
+  const s = R.settings();
+  for (const c of [
+    null,
+    [
+      [1, 0],
+      [300, 0],
+      [300, 300],
+      [600, 600],
+    ],
+    [
+      [0, 0],
+      [0, 0],
+      [300, 300],
+      [600, 600],
+    ],
+    [
+      [0, 0],
+      [500, 0],
+      [-500, 0],
+      [100, 0],
+    ],
+    [
+      [0, 0],
+      [0, 80],
+      [80, 80],
+      [80, 0],
+    ],
+    [
+      [0, 0],
+      [NaN, 100],
+      [300, 300],
+      [500, 500],
+    ],
+  ])
+    assert.throws(() => R.definition(s, { type: S.TYPE, controlPointsMm: c }));
+  assert.throws(
+    () =>
+      F.validateDefinition({
+        id: 'bad',
+        name: 'Bad',
+        parameters: { type: S.TYPE, widthMm: 300, laneOffsetsMm: [100, 200], controlPointsMm: S.preset('bend', s) },
+      }),
+    /routed profile/
+  );
+});
+test('A sampled loop is rejected even when its curvature is wide enough for every verge', () => {
+  const s = R.settings({
+    ...R.defaults,
+    laneCount: 1,
+    innerClearanceMm: 10,
+    outerClearanceMm: 10,
+    slotWidthMm: 1,
+    conductorWidthMm: 1,
+    conductorGapMm: 0,
+  });
+  assert.throws(
+    () =>
+      R.definition(s, {
+        type: S.TYPE,
+        controlPointsMm: [
+          [0, 0],
+          [1200, 1200],
+          [-800, 1200],
+          [300, 0],
+        ],
+      }),
+    /crosses itself/
+  );
+});
+test('A flowing circuit closes with smooth slot tangents and finite lengths for all lanes', () => {
+  const m = flowing({ laneCount: 3, laneSpacingMm: 90 }),
+    net = I.network(m.items, m.defs);
+  assert.equal(net.closed, true);
+  assert.equal(net.routes.length, 3);
+  for (const r of net.routes)
+    for (let d = 0; d < r.lengthMm; d += 17) {
+      const p = F.at(r, d);
+      assert.ok([p.x, p.y, p.heading, p.curvature].every(Number.isFinite));
+    }
+  assert.ok(!C.checks(m.items, m.defs, null).some(i => ['open', 'overlap', 'verge-step'].includes(i.code)));
+});
+test('Reflected and reversed sampled paths retain positions, headings and signed curvature', () => {
+  const m = flowing(),
+    r = I.network(m.items, m.defs).routes[0],
+    before = structuredClone(r);
+  const reverse = I.travelPlan(r, F.presets.Balanced, 125, -1);
+  assert.ok(reverse(100) > 0);
+  assert.deepEqual(r, before);
+  for (const d of [0, 100, 500]) {
+    const a = I.atTravel(r, d, 400, -1),
+      b = F.at(r, 400 - d);
+    close(a.x, b.x, 1e-8);
+    close(a.y, b.y, 1e-8);
+    close(a.curvature, -b.curvature, 1e-9);
+  }
+  const flipped = m.items.map(p => ({ ...p, y: -p.y, angle: -p.angle, flip: !p.flip })),
+    n = I.network(flipped, m.defs);
+  assert.equal(n.closed, true);
+  for (let i = 0; i < n.routes.length; i++)
+    close(n.routes[i].lengthMm, r.lengthMm + (I.network(m.items, m.defs).routes[i].lengthMm - r.lengthMm), 1e-7);
+});
+test('Timing lines use the same cross-section on every offset lane, including reverse entries', () => {
+  const m = flowing(),
+    net = I.network(m.items, m.defs),
+    piece = m.items[0],
+    d = m.defs[piece.definitionId],
+    fraction = 0.27,
+    offsets = I.offsets(net, { pieceId: piece.id, fraction }),
+    section = S.crossSection(d.parameters, d.geometry, fraction).map(p => F.point(p, piece));
+  for (const [i, route] of net.routes.entries()) {
+    const p = F.at(route, offsets[i].offsetMm),
+      a = section[0],
+      b = section[1];
+    const cross = (p.x - a[0]) * (b[1] - a[1]) - (p.y - a[1]) * (b[0] - a[0]);
+    assert.ok(Math.abs(cross) / F.dist(a, b) < 0.05);
+  }
+  assert.notEqual(offsets[0].offsetMm, offsets[1].offsetMm);
+});
+test('A curve traversed through its second port exports correct timing offsets and interpolation', () => {
+  const m = flowing(),
+    old = m.items[3],
+    c = m.defs[old.definitionId].parameters.controlPointsMm,
+    end = c[3],
+    points = c
+      .slice()
+      .reverse()
+      .map(p => [p[0] - end[0], p[1] - end[1]]),
+    d = F.validateDefinition(R.definition(m.s, { type: S.TYPE, controlPointsMm: points }, 'routed:reversed')),
+    origin = F.point(end, old),
+    piece = { ...old, definitionId: d.id, x: origin[0], y: origin[1] },
+    items = m.items.map(p => (p.id === old.id ? piece : p)),
+    defs = { ...m.defs, [d.id]: d },
+    net = I.network(items, defs),
+    fraction = 0.37;
+  assert.equal(net.closed, true);
+  assert.ok(net.routes.every(r => r.sections.find(s => s.pieceId === piece.id).reverse));
+  const line = S.crossSection(d.parameters, d.geometry, fraction).map(p => F.point(p, piece));
+  for (const [i, offset] of I.offsets(net, { pieceId: piece.id, fraction }).entries()) {
+    const p = F.at(net.routes[i], offset.offsetMm),
+      a = line[0],
+      b = line[1];
+    assert.ok(Math.abs((p.x - a[0]) * (b[1] - a[1]) - (p.y - a[1]) * (b[0] - a[0])) / F.dist(a, b) < 0.05);
+  }
+});
+test('Preferred radius warnings and material totals include flowing slots', () => {
+  const m = flowing({ minRadiusMm: 1000 }),
+    issues = C.checks(m.items, m.defs, null),
+    totals = R.materials(m.items, m.defs),
+    net = I.network(m.items, m.defs);
+  assert.ok(issues.some(i => i.code === 'radius'));
+  close(
+    totals.slotMm,
+    net.routes.reduce((n, r) => n + r.lengthMm, 0),
+    1e-7
+  );
+  close(totals.orderBraidMm, totals.slotMm * 2 * 1.1, 1e-7);
+  assert.ok(totals.sectionAreaMm2 > 0);
+});
+test('Gap bridge matches both fixed ends and restores a closed circuit without moving existing sections', () => {
+  const m = flowing(),
+    missing = m.items[0],
+    items = m.items.slice(1),
+    before = structuredClone(items),
+    connection = C.bridgeDraft(items, m.defs, [m.items[1].id, m.items.at(-1).id]),
+    d = F.validateDefinition(
+      R.definition(connection.settings, { type: S.TYPE, controlPointsMm: connection.controlPointsMm }, 'routed:bridge')
+    ),
+    p = { ...F.pose(d), ...connection.pose },
+    defs = { ...m.defs, [d.id]: d };
+  assert.deepEqual(items, before);
+  assert.equal(I.network([...items, p], defs).closed, true);
+  assert.ok(F.dist(F.ports(p, defs)[0].position, connection.targets[0].position) < 1e-7);
+  assert.throws(() => C.bridgeDraft(items, m.defs, []), /Select two/);
+  assert.equal(missing.definitionId, 'routed:flow');
+});
 
-function closeDraft(m,replaceId=null){const connection=C.closeLoopDraft(m.items,m.defs,replaceId),d=R.definition(connection.settings,{type:S.TYPE,controlPointsMm:connection.controlPointsMm},'routed:closed');return{connection,d,result:C.applyClosure(m.items,m.defs,connection,d)};}
-test('Fill closing gap finds the ends automatically and preserves every existing pose',()=>{
- for(const constructionMode of['sections','table'])for(const mirrored of[false,true]){
-  const m=flowing({constructionMode,laneCount:4,laneSpacingMm:90,innerClearanceMm:50,outerClearanceMm:200});m.items=m.items.slice(1);
-  if(mirrored)m.items=m.items.map(p=>({...p,y:-p.y,angle:-p.angle,flip:!p.flip}));
-  const before=structuredClone(m),{result}=closeDraft(m);
-  assert.deepEqual(m,before);assert.deepEqual(result.items.slice(0,-1),m.items);assert.equal(I.network(result.items,result.definitions).closed,true);assert.equal(result.items.length,m.items.length+1);
-  assert.deepEqual(I.prepare({format:'slotforge.layout',version:1,title:'Closed',pieces:result.items,definitions:Object.values(result.definitions)}).track.laneCount,4);
- }
+function closeDraft(m, replaceId = null) {
+  const connection = C.closeLoopDraft(m.items, m.defs, replaceId),
+    d = R.definition(
+      connection.settings,
+      { type: S.TYPE, controlPointsMm: connection.controlPointsMm },
+      'routed:closed'
+    );
+  return { connection, d, result: C.applyClosure(m.items, m.defs, connection, d) };
+}
+test('Fill closing gap finds the ends automatically and preserves every existing pose', () => {
+  for (const constructionMode of ['sections', 'table'])
+    for (const mirrored of [false, true]) {
+      const m = flowing({
+        constructionMode,
+        laneCount: 4,
+        laneSpacingMm: 90,
+        innerClearanceMm: 50,
+        outerClearanceMm: 200,
+      });
+      m.items = m.items.slice(1);
+      if (mirrored) m.items = m.items.map(p => ({ ...p, y: -p.y, angle: -p.angle, flip: !p.flip }));
+      const before = structuredClone(m),
+        { result } = closeDraft(m);
+      assert.deepEqual(m, before);
+      assert.deepEqual(result.items.slice(0, -1), m.items);
+      assert.equal(I.network(result.items, result.definitions).closed, true);
+      assert.equal(result.items.length, m.items.length + 1);
+      assert.deepEqual(
+        I.prepare({
+          format: 'slotforge.layout',
+          version: 1,
+          title: 'Closed',
+          pieces: result.items,
+          definitions: Object.values(result.definitions),
+        }).track.laneCount,
+        4
+      );
+    }
 });
-test('Reshape either end of a routed chain closes it without moving other sections or changing lane order',()=>{
- for(const constructionMode of['sections','table'])for(const mirrored of[false,true])for(const end of[0,5])for(const which of['modified','neighbour']){
-  const m=flowing({constructionMode,innerClearanceMm:50,outerClearanceMm:200});
-  // Shorten a straight transition at a terminal end of an otherwise closed loop.
-  const source=m.items[end],old=m.defs[source.definitionId],shape=old.parameters.type==='curve'?{type:'curve',slotRadiusMm:300,angleDeg:70}:{type:S.TYPE,controlPointsMm:old.parameters.controlPointsMm.map(p=>[p[0]*.9,p[1]])},d=R.definition(m.s,shape,'routed:short');
-  m.defs[d.id]=d;m.items[end]=F.join({...source,definitionId:d.id},d,0,{...F.ports(source,m.defs)[0],angle:F.wrap(F.ports(source,m.defs)[0].angle+180)});
-  if(mirrored)m.items=m.items.map(p=>({...p,y:-p.y,angle:-p.angle,flip:!p.flip}));
-  const selected=m.items[which==='modified'?end:(end+1)%m.items.length],before=structuredClone(m),net=F.connections(m.items,m.defs),anchored=[0,1].find(i=>net.links.has(selected.id+':'+i)),oldSlots=F.ports(selected,m.defs)[anchored].lanes,{result}=closeDraft(m,selected.id),changed=result.items.find(p=>p.id===selected.id);
-  assert.deepEqual(m,before);assert.equal(result.items.length,m.items.length);assert.equal(I.network(result.items,result.definitions).closed,true);
-  for(const p of m.items)if(p.id!==selected.id)assert.deepEqual(result.items.find(v=>v.id===p.id),p);
-  F.ports(changed,result.definitions)[anchored].lanes.forEach((point,i)=>close(F.dist(point,oldSlots[i]),0,.001));
-  assert.equal(result.definitions[old.id],old);assert.equal(result.definitions[changed.definitionId].parameters.routed.innerClearanceMm,50);
- }
+test('Reshape either end of a routed chain closes it without moving other sections or changing lane order', () => {
+  for (const constructionMode of ['sections', 'table'])
+    for (const mirrored of [false, true])
+      for (const end of [0, 5])
+        for (const which of ['modified', 'neighbour']) {
+          const m = flowing({ constructionMode, innerClearanceMm: 50, outerClearanceMm: 200 });
+          // Shorten a straight transition at a terminal end of an otherwise closed loop.
+          const source = m.items[end],
+            old = m.defs[source.definitionId],
+            shape =
+              old.parameters.type === 'curve'
+                ? { type: 'curve', slotRadiusMm: 300, angleDeg: 70 }
+                : { type: S.TYPE, controlPointsMm: old.parameters.controlPointsMm.map(p => [p[0] * 0.9, p[1]]) },
+            d = R.definition(m.s, shape, 'routed:short');
+          m.defs[d.id] = d;
+          m.items[end] = F.join({ ...source, definitionId: d.id }, d, 0, {
+            ...F.ports(source, m.defs)[0],
+            angle: F.wrap(F.ports(source, m.defs)[0].angle + 180),
+          });
+          if (mirrored) m.items = m.items.map(p => ({ ...p, y: -p.y, angle: -p.angle, flip: !p.flip }));
+          const selected = m.items[which === 'modified' ? end : (end + 1) % m.items.length],
+            before = structuredClone(m),
+            net = F.connections(m.items, m.defs),
+            anchored = [0, 1].find(i => net.links.has(selected.id + ':' + i)),
+            oldSlots = F.ports(selected, m.defs)[anchored].lanes,
+            { result } = closeDraft(m, selected.id),
+            changed = result.items.find(p => p.id === selected.id);
+          assert.deepEqual(m, before);
+          assert.equal(result.items.length, m.items.length);
+          assert.equal(I.network(result.items, result.definitions).closed, true);
+          for (const p of m.items)
+            if (p.id !== selected.id)
+              assert.deepEqual(
+                result.items.find(v => v.id === p.id),
+                p
+              );
+          F.ports(changed, result.definitions)[anchored].lanes.forEach((point, i) =>
+            close(F.dist(point, oldSlots[i]), 0, 0.001)
+          );
+          assert.equal(result.definitions[old.id], old);
+          assert.equal(result.definitions[changed.definitionId].parameters.routed.innerClearanceMm, 50);
+        }
 });
-test('Close loop rejects closed, disconnected, ambiguous, manufactured and interior selections',()=>{
- const m=flowing();assert.throws(()=>C.closeLoopDraft(m.items,m.defs),/already/);
- m.items=m.items.slice(1);assert.throws(()=>C.closeLoopDraft(m.items,m.defs,m.items[2].id),/interior/);
- assert.throws(()=>C.closeLoopDraft(m.items.slice(1),m.defs,'missing'),/Select one/);
- const duplicate={...m.items[1],id:'duplicate'};assert.throws(()=>C.closeLoopDraft([...m.items,duplicate],m.defs),/ambiguous/);
- const extra=flowing(),isolated=extra.items.map(p=>({...p,id:'extra-'+p.id,x:p.x+10000}));assert.throws(()=>C.closeLoopDraft([...m.items,...isolated],m.defs),/Separate circuits/);
- assert.throws(()=>C.closeLoopDraft(m.items.slice(0,1),m.defs),/at least two/);
- const plastic={...m.defs[m.items[0].definitionId],parameters:{...m.defs[m.items[0].definitionId].parameters,routed:undefined}};assert.throws(()=>C.closeLoopDraft(m.items,{...m.defs,[plastic.id]:plastic}),/only available/);
- const planning={...plastic,geometry:{...plastic.geometry,planningConnectors:plastic.geometry.connectors,connectors:[]}};assert.throws(()=>C.closeLoopDraft(m.items,{...m.defs,[planning.id]:planning}),/only available/);
- const moved=m.items.map((p,i)=>i===2?{...p,x:p.x+123}:p);assert.throws(()=>C.closeLoopDraft(moved,m.defs),/exactly two/);
+test('Close loop rejects closed, disconnected, ambiguous, manufactured and interior selections', () => {
+  const m = flowing();
+  assert.throws(() => C.closeLoopDraft(m.items, m.defs), /already/);
+  m.items = m.items.slice(1);
+  assert.throws(() => C.closeLoopDraft(m.items, m.defs, m.items[2].id), /interior/);
+  assert.throws(() => C.closeLoopDraft(m.items.slice(1), m.defs, 'missing'), /Select one/);
+  const duplicate = { ...m.items[1], id: 'duplicate' };
+  assert.throws(() => C.closeLoopDraft([...m.items, duplicate], m.defs), /ambiguous/);
+  const extra = flowing(),
+    isolated = extra.items.map(p => ({ ...p, id: 'extra-' + p.id, x: p.x + 10000 }));
+  assert.throws(() => C.closeLoopDraft([...m.items, ...isolated], m.defs), /Separate circuits/);
+  assert.throws(() => C.closeLoopDraft(m.items.slice(0, 1), m.defs), /at least two/);
+  const plastic = {
+    ...m.defs[m.items[0].definitionId],
+    parameters: { ...m.defs[m.items[0].definitionId].parameters, routed: undefined },
+  };
+  assert.throws(() => C.closeLoopDraft(m.items, { ...m.defs, [plastic.id]: plastic }), /only available/);
+  const planning = {
+    ...plastic,
+    geometry: { ...plastic.geometry, planningConnectors: plastic.geometry.connectors, connectors: [] },
+  };
+  assert.throws(() => C.closeLoopDraft(m.items, { ...m.defs, [planning.id]: planning }), /only available/);
+  const moved = m.items.map((p, i) => (i === 2 ? { ...p, x: p.x + 123 } : p));
+  assert.throws(() => C.closeLoopDraft(moved, m.defs), /exactly two/);
 });
-test('Closure rejects stale layouts and edited endpoints without mutating the original',()=>{
- const m=flowing();m.items=m.items.slice(1);const {connection,d}=closeDraft(m),before=structuredClone(m);
- assert.throws(()=>C.applyClosure(m.items.map((p,i)=>i? p:{...p,x:p.x+10}),m.defs,connection,d),/layout changed/);
- const modified=structuredClone(d);modified.parameters.controlPointsMm[3][0]+=20;modified.parameters.controlPointsMm[2][0]+=20;const changed=R.definition(modified.parameters.routed,R.shapeOf(modified.parameters),'changed');
- assert.throws(()=>C.applyClosure(m.items,m.defs,connection,changed),/match both/);assert.deepEqual(m,before);
+test('Closure rejects stale layouts and edited endpoints without mutating the original', () => {
+  const m = flowing();
+  m.items = m.items.slice(1);
+  const { connection, d } = closeDraft(m),
+    before = structuredClone(m);
+  assert.throws(
+    () =>
+      C.applyClosure(
+        m.items.map((p, i) => (i ? p : { ...p, x: p.x + 10 })),
+        m.defs,
+        connection,
+        d
+      ),
+    /layout changed/
+  );
+  const modified = structuredClone(d);
+  modified.parameters.controlPointsMm[3][0] += 20;
+  modified.parameters.controlPointsMm[2][0] += 20;
+  const changed = R.definition(modified.parameters.routed, R.shapeOf(modified.parameters), 'changed');
+  assert.throws(() => C.applyClosure(m.items, m.defs, connection, changed), /match both/);
+  assert.deepEqual(m, before);
 });
-test('Editing a flowing shape reflows connected sections and keeps the old definition for undo',()=>{const m=flowing(),before=structuredClone(m),piece=m.items[0],points=structuredClone(m.defs[piece.definitionId].parameters.controlPointsMm);points[1][1]+=50;const d=F.validateDefinition(R.definition(m.s,{type:S.TYPE,controlPointsMm:points},'routed:changed')),result=C.reflow(m.items,m.defs,new Map([[piece.id,d]]),piece.id);assert.deepEqual(m,before);assert.equal(result.definitions['routed:flow'],m.defs['routed:flow']);assert.ok(result.items.some((p,i)=>p.x!==m.items[i].x||p.y!==m.items[i].y||p.angle!==m.items[i].angle));});
-test('Flowing JSON round-trips use draft.4 while preserving draft.3 and ordinary contracts',()=>{const m=flowing(),out=I.prepare(raw(m)),again=I.prepare(JSON.parse(JSON.stringify(out)));assert.equal(out.version,1);assert.equal(out.integration.contractVersion,'1.0.0-draft.4');assert.deepEqual(again,out);assert.ok(out.preparedGeometry.routes.some(r=>r.segments.some(s=>s.type==='polyline')));assert.ok(I.picture(out).svg.includes('Table')===false);assert.match(D.pdfDiagram(out).svg,/stroke-width="3.2"/);assert.deepEqual(X.build(out).routed,R.materials(m.items,m.defs));});
-test('The shared flowing example preserves design identity, timing offsets and reverse direction',()=>{const example=require('../integration/slotforge-timing/routed-examples/closed-flowing-track.slotforge.json'),out=I.prepare(example,I.importLayout(example).state);assert.deepEqual(out,example);assert.equal(out.track.laneCount,3);assert.equal(out.integration.contractVersion,I.FLOWING_CONTRACT);assert.equal(out.timing.direction,-1);assert.equal(out.timing.startFinishOffsets.length,3);});
+test('Editing a flowing shape reflows connected sections and keeps the old definition for undo', () => {
+  const m = flowing(),
+    before = structuredClone(m),
+    piece = m.items[0],
+    points = structuredClone(m.defs[piece.definitionId].parameters.controlPointsMm);
+  points[1][1] += 50;
+  const d = F.validateDefinition(R.definition(m.s, { type: S.TYPE, controlPointsMm: points }, 'routed:changed')),
+    result = C.reflow(m.items, m.defs, new Map([[piece.id, d]]), piece.id);
+  assert.deepEqual(m, before);
+  assert.equal(result.definitions['routed:flow'], m.defs['routed:flow']);
+  assert.ok(result.items.some((p, i) => p.x !== m.items[i].x || p.y !== m.items[i].y || p.angle !== m.items[i].angle));
+});
+test('Flowing JSON round-trips use draft.4 while preserving draft.3 and ordinary contracts', () => {
+  const m = flowing(),
+    out = I.prepare(raw(m)),
+    again = I.prepare(JSON.parse(JSON.stringify(out)));
+  assert.equal(out.version, 1);
+  assert.equal(out.integration.contractVersion, '1.0.0-draft.4');
+  assert.deepEqual(again, out);
+  assert.ok(out.preparedGeometry.routes.some(r => r.segments.some(s => s.type === 'polyline')));
+  assert.ok(I.picture(out).svg.includes('Table') === false);
+  assert.match(D.pdfDiagram(out).svg, /stroke-width="3.2"/);
+  assert.deepEqual(X.build(out).routed, R.materials(m.items, m.defs));
+});
+test('The shared flowing example preserves design identity, timing offsets and reverse direction', () => {
+  const example = require('../integration/slotforge-timing/routed-examples/closed-flowing-track.slotforge.json'),
+    out = I.prepare(example, I.importLayout(example).state);
+  assert.deepEqual(out, example);
+  assert.equal(out.track.laneCount, 3);
+  assert.equal(out.integration.contractVersion, I.FLOWING_CONTRACT);
+  assert.equal(out.timing.direction, -1);
+  assert.equal(out.timing.startFinishOffsets.length, 3);
+});
 
-test('Returned flowing geometry cannot poison the cache or another definition',()=>{const s=R.settings({...R.defaults,minRadiusMm:251}),shape={type:'routed-spline',controlPointsMm:R.Spline.preset('bend',s)},a=R.definition(s,shape,'routed:isolated-a'),before=structuredClone(a.geometry),b=R.definition(s,shape,'routed:isolated-b');a.geometry.lanePaths[0].segments[0].points[1][0]=123456;a.geometry.lanePaths[0].segments[0].distancesMm[1]=987654;assert.deepEqual(b.geometry,before);assert.deepEqual(R.definition(s,shape).geometry,before);});
-test('Prepared sampled routes do not share mutable distance or timing arrays',()=>{const raw=structuredClone(require('../integration/slotforge-timing/routed-examples/closed-flowing-track.slotforge.json')),before=I.prepare(raw),out=I.prepare(raw),first=out.preparedGeometry.routes[0].segments.find(s=>s.type==='polyline'),other=out.preparedGeometry.routes[1].segments.find(s=>s.type==='polyline'),original=other.referenceFractions[1];first.distancesMm[1]=777777;first.referenceFractions[1]=.999;assert.equal(other.referenceFractions[1],original);assert.deepEqual(I.prepare(raw),before);});
+test('Returned flowing geometry cannot poison the cache or another definition', () => {
+  const s = R.settings({ ...R.defaults, minRadiusMm: 251 }),
+    shape = { type: 'routed-spline', controlPointsMm: R.Spline.preset('bend', s) },
+    a = R.definition(s, shape, 'routed:isolated-a'),
+    before = structuredClone(a.geometry),
+    b = R.definition(s, shape, 'routed:isolated-b');
+  a.geometry.lanePaths[0].segments[0].points[1][0] = 123456;
+  a.geometry.lanePaths[0].segments[0].distancesMm[1] = 987654;
+  assert.deepEqual(b.geometry, before);
+  assert.deepEqual(R.definition(s, shape).geometry, before);
+});
+test('Prepared sampled routes do not share mutable distance or timing arrays', () => {
+  const raw = structuredClone(
+      require('../integration/slotforge-timing/routed-examples/closed-flowing-track.slotforge.json')
+    ),
+    before = I.prepare(raw),
+    out = I.prepare(raw),
+    first = out.preparedGeometry.routes[0].segments.find(s => s.type === 'polyline'),
+    other = out.preparedGeometry.routes[1].segments.find(s => s.type === 'polyline'),
+    original = other.referenceFractions[1];
+  first.distancesMm[1] = 777777;
+  first.referenceFractions[1] = 0.999;
+  assert.equal(other.referenceFractions[1], original);
+  assert.deepEqual(I.prepare(raw), before);
+});

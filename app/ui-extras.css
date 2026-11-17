@@ -1,0 +1,441 @@
+/* Menus, onboarding, help and other interface additions. Uses the App Theme
+   variables (--bg, --panel, --ink, --line, --accent, --muted) so light, dark
+   and custom themes all apply. */
+
+/* ---------- Dropdown and context menus ---------- */
+.menu-anchor {
+  position: relative;
+  display: inline-block;
+}
+.menu-popover {
+  position: absolute;
+  z-index: 60;
+  min-width: 230px;
+  padding: 5px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 35%);
+}
+.menu-anchor > .menu-popover {
+  right: 0;
+  top: calc(100% + 6px);
+}
+.context-menu {
+  position: fixed;
+}
+.menu-popover[hidden] {
+  display: none;
+}
+.menu-popover [role='menuitem'] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.menu-popover [role='menuitem']:is(:hover, :focus-visible):not(:disabled) {
+  background: var(--ui-hover);
+  outline: none;
+}
+.menu-popover [role='menuitem']:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.menu-popover [role='menuitem'].danger {
+  color: var(--ui-error, #ff9b9f);
+}
+.menu-popover hr {
+  margin: 4px 2px;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+kbd {
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--ui-inset, var(--bg));
+  color: var(--muted);
+  font:
+    600 11px/1.5 ui-monospace,
+    'Cascadia Mono',
+    Consolas,
+    monospace;
+  white-space: nowrap;
+}
+
+/* ---------- Pack editor back link ---------- */
+.back-link {
+  text-decoration: none;
+}
+.back-link:hover {
+  text-decoration: underline;
+}
+
+/* ---------- Empty states with actions ---------- */
+.empty-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+.empty-action {
+  display: grid;
+  gap: 6px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.empty-action:hover {
+  border-color: var(--accent);
+}
+.empty-action strong {
+  font-size: 15px;
+}
+.empty-action span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.empty-action .empty-icon {
+  font-size: 22px;
+  color: var(--accent);
+}
+
+/* ---------- Welcome and help dialogs ---------- */
+.welcome-dialog,
+.help-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+.welcome-dialog h2 {
+  margin: 0 0 4px;
+  font-size: 24px;
+}
+.welcome-dialog .empty-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.welcome-dialog .welcome-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.shortcut-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 6px 28px;
+}
+.shortcut-groups h3 {
+  margin: 14px 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 50%, transparent);
+  font-size: 13px;
+}
+.shortcut-row span:last-child {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ---------- Short help text with details on demand ---------- */
+.more-info {
+  display: inline;
+}
+.more-info > summary {
+  display: inline;
+  cursor: pointer;
+  color: var(--ui-link, var(--accent));
+  font-size: 12px;
+  list-style: none;
+}
+.more-info > summary::-webkit-details-marker {
+  display: none;
+}
+.more-info[open] > summary {
+  display: none;
+}
+
+/* ---------- Header help button ---------- */
+.sf-help-button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font: 700 15px/1 inherit;
+  cursor: pointer;
+}
+.sf-help-button:hover,
+.sf-help-button[aria-expanded='true'] {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.sf-header-tools .menu-anchor > .menu-popover {
+  min-width: 210px;
+}
+
+/* "More" link on shortened help paragraphs. */
+.more-toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ui-link, var(--accent));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.more-toggle:hover {
+  text-decoration: underline;
+}
+.more-text {
+  display: inline;
+}
+.more-text[hidden] {
+  display: none;
+}
+
+/* ---------- Measurement units ---------- */
+.units-card {
+  margin-bottom: 22px;
+}
+.units-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.units-choice label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  cursor: pointer;
+}
+.units-choice label:has(input:checked) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.units-choice span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.unit-hint {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.unit-hint:empty {
+  display: none;
+}
+
+/* ---------- Lap times ---------- */
+.lap-table {
+  display: grid;
+  gap: 4px;
+}
+.lap-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lap-row strong {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.lap-row.fastest {
+  border-color: var(--accent);
+}
+.lap-diff,
+.lap-speed {
+  color: var(--muted);
+  font-size: 12px;
+}
+.lap-diff {
+  text-align: right;
+}
+
+/* ---------- Templates ---------- */
+.template-dialog {
+  width: min(900px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+.template-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+.template-card {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.template-card:hover,
+.template-card:focus-visible {
+  border-color: var(--accent);
+}
+.template-card span:last-child {
+  color: var(--muted);
+  font-size: 12px;
+}
+.template-art {
+  display: grid;
+  place-items: center;
+  height: 110px;
+  margin-bottom: 4px;
+  border-radius: 7px;
+  background: var(--ui-canvas, var(--bg));
+}
+.template-art svg {
+  width: 100%;
+  height: 100%;
+}
+.template-art-text {
+  color: var(--accent);
+  font-size: 54px;
+  line-height: 1;
+}
+
+/* ---------- Elevation side view ---------- */
+.elevation-profile h3 {
+  margin: 12px 0 6px;
+  font-size: 13px;
+}
+.elevation-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--ui-canvas, var(--bg));
+}
+.elevation-chart .ec-zero {
+  stroke: var(--line);
+  stroke-dasharray: 3 3;
+}
+.elevation-chart .ec-area {
+  fill: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.elevation-chart .ec-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.elevation-chart .ec-label {
+  fill: var(--muted);
+  font-size: 10px;
+}
+.elevation-profile.steep p {
+  color: var(--ui-warning);
+}
+
+/* ---------- Recent files in the File menu ---------- */
+.menu-popover .menu-label {
+  padding: 6px 10px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+#recent-files [role='menuitem'] {
+  display: block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu-popover [role='menuitem'].menu-quiet {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* ---------- Update notice (desktop app) ---------- */
+.update-notice {
+  position: fixed;
+  z-index: 70;
+  left: 16px;
+  bottom: 44px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 12px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 9px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 35%);
+}
+.update-card .update-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 18px;
+  margin: 0 0 18px;
+}
+.update-card dt {
+  color: var(--muted);
+}
+.update-card dd {
+  margin: 0;
+}
+.update-card .update-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.update-card .update-error {
+  color: var(--accent);
+}
+.update-card .update-hint {
+  margin: 14px 0 0;
+  font-size: 13px;
+}

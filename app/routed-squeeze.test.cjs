@@ -1,70 +1,399 @@
-const test=require('node:test'),assert=require('node:assert/strict'),F=require('./core.js'),R=F.Routed,S=R.Spline,I=require('./integration.js'),CP=require('./custom-packs.js'),CAD=require('./cad-export.js'),C=require('./routed-checks.js');
-const near=(a,b,t=1e-6)=>assert.ok(Math.abs(a-b)<t,`${a} != ${b}`);
-function section(overrides={},shape=null,profile={}){const s=R.settings({...R.defaults,laneCount:4,innerClearanceMm:50,outerClearanceMm:75,...profile});return F.validateDefinition(R.definition(s,{type:S.TYPE,controlPointsMm:shape||[[0,0],[400,0],[800,0],[1200,0]],squeeze:{version:1,spacingMm:80,transitionMm:300,anchorLane:'centre',...overrides}},'routed:squeeze'));}
-function raw(d,flip=false){return{format:'slotforge.layout',version:1,title:'Squeezed hairpin',definitions:[d],pieces:[{...F.pose(d),id:'placed',flip}],workspace:{routed:R.workspace({settings:d.parameters.routed})}};}
-test('Squeeze reaches 80 mm, returns to 100 mm with unchanged endpoints and tangents',()=>{
- const d=section(),g=d.geometry,ls=g.lanePaths;
- for(let i=0;i<4;i++){const seg=ls[i].segments[0];near(seg.points[0][1],-150+i*100);near(seg.points.at(-1)[1],-150+i*100);near(seg.headingsDeg[0],0);near(seg.headingsDeg.at(-1),0);near(seg.curvaturesPerMm[0],0);near(seg.curvaturesPerMm.at(-1),0);assert.ok(seg.lengthMm>1200);}
- for(let j=0;j<g.parametersT.length;j++){const x=ls[0].segments[0].points[j][0];for(let i=0;i<3;i++){const spacing=F.dist(ls[i].segments[0].points[j],ls[i+1].segments[0].points[j]);assert.ok(spacing>=80-1e-6&&spacing<=100+1e-6);if(x>=300&&x<=900)near(spacing,80);}}
-});
-test('A chosen lane stays exactly on its original curve; mirrored placement preserves lane identity',()=>{
- const s=R.settings({...R.defaults,laneCount:4,innerClearanceMm:50,outerClearanceMm:75}),shape=R.flowingFromCurve(s,{type:'curve',slotRadiusMm:400,angleDeg:90}).shape,d=section({anchorLane:3},shape.controlPointsMm),g=d.geometry;
- const lane=g.lanePaths[2].segments[0];g.parametersT.forEach((t,j)=>near(F.dist(lane.points[j],S.offset(S.evaluate(shape.controlPointsMm,t),50)),0));
- const ports=F.ports(raw(d,true).pieces[0],{[d.id]:d});for(let k=0;k<2;k++)for(let i=0;i<4;i++)near(F.dist(ports[k].lanes[i],F.point(k?g.lanePaths[i].end:g.lanePaths[i].start,raw(d,true).pieces[0])),0);
-});
-test('Squeezed conductor boundaries follow slot normals and preserve entered width',()=>{const d=section(),p=d.parameters,g=d.geometry;for(let lane=0;lane<4;lane++){const a=S.edgePoints(p,g,p.laneOffsetsMm[lane]+2.6),b=S.edgePoints(p,g,p.laneOffsetsMm[lane]+8.6),slot=g.lanePaths[lane].segments[0];for(let j=0;j<a.length;j++){near(F.dist(a[j],b[j]),6);near((a[j][0]-slot.points[j][0])*Math.cos(F.rad(slot.headingsDeg[j]))+(a[j][1]-slot.points[j][1])*Math.sin(F.rad(slot.headingsDeg[j])),0);}}});
-test('Lengths and minimum radii agree with an independent dense quintic straight squeeze',()=>{const d=section(),g=d.geometry;for(let lane=0;lane<4;lane++){let length=0,last=null,max=0;for(let j=0;j<=24000;j++){const x=j/20,u=Math.min(1,Math.min(x,1200-x)/300),w=u**3*(10-15*u+6*u*u),change=(lane-1.5)*-20,dy=change*30*u*u*(1-u)**2/300,ddy=change*60*u*(1-u)*(1-2*u)/300**2,pt=[x,-150+lane*100+change*w];if(last)length+=F.dist(last,pt);last=pt;max=Math.max(max,Math.abs(ddy)/(1+dy*dy)**1.5);}near(g.lanePaths[lane].lengthMm,length,.025);near(g.minRadiiMm[lane],1/max,.03);}});
-test('Squeeze metadata is strict, single lanes and unsafe transitions fail clearly',()=>{for(const change of[{version:2},{spacingMm:NaN},{spacingMm:101},{spacingMm:10},{transitionMm:0},{transitionMm:601},{anchorLane:0},{anchorLane:5},{unknown:1}])assert.throws(()=>section(change));assert.throws(()=>section({},null,{laneCount:1}),/two lanes/);assert.throws(()=>section({spacingMm:20,transitionMm:10}),/fold|overlap|abrupt/);const d=section();const malformed=structuredClone(d);malformed.parameters.type='straight';malformed.parameters.lengthMm=1200;assert.throws(()=>F.validateDefinition(malformed),/Squeeze/);});
-test('Reset restores uniform geometry and shape copies preserve squeeze settings',()=>{const d=section(),shape=R.shapeOf(d.parameters);assert.deepEqual(shape.squeeze,d.parameters.squeeze);delete shape.squeeze;const reset=R.definition(d.parameters.routed,shape);for(const l of reset.geometry.lanePaths)near(l.lengthMm,1200);assert.equal(reset.parameters.squeeze,undefined);});
-test('Squeezed layouts, saved packs and library backups round trip without flattening',()=>{const d=section(),input=raw(d),output=I.prepare(input);assert.equal(output.integration.contractVersion,'1.0.0-draft.6');const imported=I.importLayout(output);assert.deepEqual(imported.definitions[d.id].parameters.squeeze,d.parameters.squeeze);assert.deepEqual(imported.definitions[d.id].geometry,d.geometry);const saved=CP.addRouted(CP.empty(),d,{packId:'new',packName:'Hairpins',flip:true}),pack=CP.exportPack(saved.pack);assert.equal(pack.version,2);const again=CP.importPack(pack,CP.empty());assert.deepEqual(again.pieces[0].parameters.squeeze,d.parameters.squeeze);assert.equal(again.pieces[0].catalogueFlip,true);const backup=CP.serialize(saved.library);assert.equal(backup.version,3);assert.deepEqual(CP.read(backup).packs.at(-1).pieces[0].geometry,d.geometry);});
-test('Squeezed geometry drives SVG and DXF export including slots, conductors and wood outline',()=>{const d=section(),model=CAD.build(raw(d),{slots:true,slotEdges:true,conductors:true,surfaces:true,table:false}),slots=model.paths.filter(p=>p.layer==='SLOT_CENTRES');assert.equal(slots.length,4);for(let i=0;i<4;i++)assert.deepEqual(slots[i].points,d.geometry.lanePaths[i].segments[0].points);assert.match(CAD.svg(raw(d),{conductors:true}),/SLOT_CENTRES/);assert.match(CAD.dxf(raw(d),{conductors:true}),/LWPOLYLINE/);assert.ok(model.paths.filter(p=>p.layer==='BRAID_EDGES').length===16);assert.ok(model.paths.some(p=>p.layer==='SURFACE_EDGES'&&p.closed));});
-test('Reflow retains existing joins when replacing a corner with a squeezed flowing corner',()=>{const s=R.settings({...R.defaults,laneCount:4,innerClearanceMm:50,outerClearanceMm:75}),corner=R.definition(s,{type:'curve',slotRadiusMm:400,angleDeg:90},'corner'),straight=R.definition(s,{type:'straight',lengthMm:1000},'straight'),defs={corner,straight};for(const flip of[false,true]){const p={...F.pose(corner),id:'bend',flip},q=F.join({...F.pose(straight),id:'next'},straight,0,F.ports(p,defs)[1]),converted=R.flowingFromCurve(s,R.shapeOf(corner.parameters),flip),d=section({},converted.shape.controlPointsMm),result=C.reflow([p,q],defs,new Map([['bend',d]]),'bend',new Map([['bend',converted.flip]]));assert.equal(F.connections(result.items,result.definitions).open.length,2);near(F.dist(F.ports(p,defs)[0].position,F.ports(result.items[0],result.definitions)[0].position),0);}});
-test('Closed-loop routes, timing offsets and reverse animation use the squeezed slot lengths',()=>{
- const fixture=require('../integration/slotforge-timing/routed-examples/closed-routed-oval.slotforge.json'),clean=F.validateLayout(fixture),p=clean.pieces.find(p=>clean.definitions[p.definitionId].parameters.type==='straight'),old=clean.definitions[p.definitionId],L=old.parameters.lengthMm;
- const d=section({transitionMm:L/4},[[0,0],[L/3,0],[L*2/3,0],[L,0]],old.parameters.routed),next=C.reflow(clean.pieces,clean.definitions,new Map([[p.id,d]]),p.id),net=I.network(next.items,next.definitions);assert.equal(net.closed,true);
- const input={...fixture,definitions:Object.values(next.definitions),pieces:next.items},state=I.newState();state.direction=-1;state.startFinish={pieceId:p.id,fraction:.4};const output=I.prepare(input,state);assert.equal(output.preparedGeometry.closed,true);assert.equal(output.track.laneCount,old.parameters.routed.laneCount);assert.equal(output.timing.startFinishOffsets.length,old.parameters.routed.laneCount);
- const again=I.prepare(output,I.importLayout(output).state);assert.deepEqual(again.track,output.track);assert.deepEqual(again.timing.startFinishOffsets,output.timing.startFinishOffsets);
- for(const route of net.routes){const offset=I.offsets(net,state.startFinish).find(v=>v.routeId===route.id);assert.ok(offset);const speed=I.travelPlan(route,clean.profile,-1,offset.offsetMm);for(const t of[0,.25,.5,.75,1])assert.ok(Number.isFinite(speed(route.lengthMm*t)));}
-});
-test('Tabletop squeeze keeps footprint clearances separate from board-edge guidelines',()=>{const d=section({},null,{constructionMode:'table',innerClearanceMm:500,outerClearanceMm:600}),g=d.geometry;near(F.dist(g.sampledOutline[0],g.lanePaths[0].start),8.6);assert.equal(I.prepare(raw(d)).integration.contractVersion,I.SQUEEZE_CONTRACT);const material=R.materials(raw(d).pieces,{[d.id]:d});near(material.sectionAreaMm2,0);near(material.braidMm,g.conductorLengthMm);assert.ok(C.checks(raw(d).pieces,{[d.id]:d},null).some(i=>i.code==='table-missing'));});
-test('A zero-strength squeeze reproduces a curved section, and old shapes keep old contracts',()=>{const s=R.settings({...R.defaults,laneCount:4,innerClearanceMm:50,outerClearanceMm:75}),points=S.preset('bend',s),d=section({spacingMm:100},points),base=R.definition(s,{type:S.TYPE,controlPointsMm:points});for(let i=0;i<4;i++)near(d.geometry.lanePaths[i].lengthMm,base.geometry.lanePaths[i].lengthMm,.025);assert.equal(I.prepare(raw(base)).integration.contractVersion,I.FLOWING_CONTRACT);assert.equal(CP.exportPack({name:'Old pack',pieces:[base]}).version,1);});
-test('All lanes at the supported eight-lane limit can anchor an S-bend squeeze',()=>{const s=R.settings({...R.defaults,laneCount:8,laneSpacingMm:100,innerClearanceMm:50,outerClearanceMm:75}),points=S.preset('s-bend',s);for(const anchorLane of[1,4,8]){const d=section({anchorLane,transitionMm:600},points,s);assert.equal(d.geometry.lanePaths.length,8);assert.ok(d.geometry.lanePaths.every(l=>Number.isFinite(l.lengthMm)));}});
-
-function apexSection(shape=null,profile={},anchorLane='centre'){
- const s=R.settings({...R.defaults,laneCount:4,innerClearanceMm:50,outerClearanceMm:75,...profile});
- return F.validateDefinition(R.definition(s,{type:S.TYPE,controlPointsMm:shape||[[0,0],[100,0],[300,0],[1200,0]],squeeze:{version:2,shape:'apex',spacingMm:80,anchorLane}},'routed:apex'));
+const test = require('node:test'),
+  assert = require('node:assert/strict'),
+  F = require('./core.js'),
+  R = F.Routed,
+  S = R.Spline,
+  I = require('./integration.js'),
+  CP = require('./custom-packs.js'),
+  CAD = require('./cad-export.js'),
+  C = require('./routed-checks.js');
+const near = (a, b, t = 1e-6) => assert.ok(Math.abs(a - b) < t, `${a} != ${b}`);
+function section(overrides = {}, shape = null, profile = {}) {
+  const s = R.settings({ ...R.defaults, laneCount: 4, innerClearanceMm: 50, outerClearanceMm: 75, ...profile });
+  return F.validateDefinition(
+    R.definition(
+      s,
+      {
+        type: S.TYPE,
+        controlPointsMm: shape || [
+          [0, 0],
+          [400, 0],
+          [800, 0],
+          [1200, 0],
+        ],
+        squeeze: { version: 1, spacingMm: 80, transitionMm: 300, anchorLane: 'centre', ...overrides },
+      },
+      'routed:squeeze'
+    )
+  );
 }
-test('Smooth apex narrows over the whole physical section, with no plateau or endpoint kink',()=>{
- const d=apexSection(),g=d.geometry,first=g.lanePaths[0].segments[0],second=g.lanePaths[1].segments[0];let last=100,foundApex=false;
- for(let j=0;j<first.points.length;j++){const x=first.points[j][0],u=x/1200,spacing=F.dist(first.points[j],second.points[j]);near(spacing,100-20*(4*u*(1-u))**3);if(x<=600+1e-6)assert.ok(spacing<=last+1e-6);else assert.ok(spacing>=last-1e-6);last=spacing;if(Math.abs(x-600)<1e-6){near(spacing,80);foundApex=true;}else assert.ok(spacing>80);}
- assert.ok(foundApex);for(const lane of g.lanePaths){const seg=lane.segments[0];near(seg.headingsDeg[0],0);near(seg.headingsDeg.at(-1),0);near(seg.curvaturesPerMm[0],0);near(seg.curvaturesPerMm.at(-1),0);}
+function raw(d, flip = false) {
+  return {
+    format: 'slotforge.layout',
+    version: 1,
+    title: 'Squeezed hairpin',
+    definitions: [d],
+    pieces: [{ ...F.pose(d), id: 'placed', flip }],
+    workspace: { routed: R.workspace({ settings: d.parameters.routed }) },
+  };
+}
+test('Squeeze reaches 80 mm, returns to 100 mm with unchanged endpoints and tangents', () => {
+  const d = section(),
+    g = d.geometry,
+    ls = g.lanePaths;
+  for (let i = 0; i < 4; i++) {
+    const seg = ls[i].segments[0];
+    near(seg.points[0][1], -150 + i * 100);
+    near(seg.points.at(-1)[1], -150 + i * 100);
+    near(seg.headingsDeg[0], 0);
+    near(seg.headingsDeg.at(-1), 0);
+    near(seg.curvaturesPerMm[0], 0);
+    near(seg.curvaturesPerMm.at(-1), 0);
+    assert.ok(seg.lengthMm > 1200);
+  }
+  for (let j = 0; j < g.parametersT.length; j++) {
+    const x = ls[0].segments[0].points[j][0];
+    for (let i = 0; i < 3; i++) {
+      const spacing = F.dist(ls[i].segments[0].points[j], ls[i + 1].segments[0].points[j]);
+      assert.ok(spacing >= 80 - 1e-6 && spacing <= 100 + 1e-6);
+      if (x >= 300 && x <= 900) near(spacing, 80);
+    }
+  }
 });
-test('A 180-degree hairpin retains its joins and is narrowest at the apex under either reflection',()=>{
- const s=R.settings({...R.defaults,laneCount:4,innerClearanceMm:50,outerClearanceMm:75}),circle=R.definition(s,{type:'curve',slotRadiusMm:400,angleDeg:180},'routed:circle');
- for(const flip of[false,true]){const converted=R.flowingFromCurve(s,R.shapeOf(circle.parameters),flip),d=apexSection(converted.shape.controlPointsMm),old={...F.pose(circle),flip},next={...F.pose(d),flip:converted.flip};
-  const a=F.ports(old,{[circle.id]:circle}),b=F.ports(next,{[d.id]:d}),dx=a[0].position[0]-b[0].position[0],dy=a[0].position[1]-b[0].position[1];next.x+=dx;next.y+=dy;
-  const ports=F.ports(next,{[d.id]:d});for(let k=0;k<2;k++){near(F.dist(a[k].position,ports[k].position),0);for(let i=0;i<4;i++)near(F.dist(a[k].lanes[i],ports[k].lanes[i]),0);}
-  const pts=d.geometry.lanePaths.map(l=>l.segments[0].points),index=d.geometry.parametersT.findIndex(t=>Math.abs(t-.5)<1e-8);assert.ok(index>=0);for(let i=0;i<3;i++)near(F.dist(pts[i][index],pts[i+1][index]),80);
- }
+test('A chosen lane stays exactly on its original curve; mirrored placement preserves lane identity', () => {
+  const s = R.settings({ ...R.defaults, laneCount: 4, innerClearanceMm: 50, outerClearanceMm: 75 }),
+    shape = R.flowingFromCurve(s, { type: 'curve', slotRadiusMm: 400, angleDeg: 90 }).shape,
+    d = section({ anchorLane: 3 }, shape.controlPointsMm),
+    g = d.geometry;
+  const lane = g.lanePaths[2].segments[0];
+  g.parametersT.forEach((t, j) => near(F.dist(lane.points[j], S.offset(S.evaluate(shape.controlPointsMm, t), 50)), 0));
+  const ports = F.ports(raw(d, true).pieces[0], { [d.id]: d });
+  for (let k = 0; k < 2; k++)
+    for (let i = 0; i < 4; i++)
+      near(
+        F.dist(ports[k].lanes[i], F.point(k ? g.lanePaths[i].end : g.lanePaths[i].start, raw(d, true).pieces[0])),
+        0
+      );
 });
-test('Smooth apex lengths and curvature agree with an independent dense bell profile',()=>{
- const d=apexSection();for(let lane=0;lane<4;lane++){let last=null,length=0,max=0;const change=(lane-1.5)*-20;
-  for(let i=0;i<=24000;i++){const x=i/20,u=x/1200,pt=[x,-150+lane*100+change*(4*u*(1-u))**3],dy=change*192*u*u*(1-u)**2*(1-2*u)/1200,ddy=change*384*u*(1-u)*(1-5*u+5*u*u)/1200**2;if(last)length+=F.dist(last,pt);last=pt;max=Math.max(max,Math.abs(ddy)/(1+dy*dy)**1.5);}
-  near(d.geometry.lanePaths[lane].lengthMm,length,.025);near(d.geometry.minRadiiMm[lane],1/max,.1);
- }
+test('Squeezed conductor boundaries follow slot normals and preserve entered width', () => {
+  const d = section(),
+    p = d.parameters,
+    g = d.geometry;
+  for (let lane = 0; lane < 4; lane++) {
+    const a = S.edgePoints(p, g, p.laneOffsetsMm[lane] + 2.6),
+      b = S.edgePoints(p, g, p.laneOffsetsMm[lane] + 8.6),
+      slot = g.lanePaths[lane].segments[0];
+    for (let j = 0; j < a.length; j++) {
+      near(F.dist(a[j], b[j]), 6);
+      near(
+        (a[j][0] - slot.points[j][0]) * Math.cos(F.rad(slot.headingsDeg[j])) +
+          (a[j][1] - slot.points[j][1]) * Math.sin(F.rad(slot.headingsDeg[j])),
+        0
+      );
+    }
+  }
 });
-test('Smooth apex preserves anchoring, slot-normal conductor widths and sampled CAD paths',()=>{
- const s=R.settings({...R.defaults,laneCount:4,innerClearanceMm:50,outerClearanceMm:75}),d=apexSection(S.preset('bend',s),s,3),p=d.parameters,g=d.geometry,seg=g.lanePaths[2].segments[0];
- g.parametersT.forEach((t,j)=>near(F.dist(seg.points[j],S.offset(S.evaluate(p.controlPointsMm,t),50)),0));
- const a=S.edgePoints(p,g,p.laneOffsetsMm[0]+2.6),b=S.edgePoints(p,g,p.laneOffsetsMm[0]+8.6);a.forEach((pt,i)=>near(F.dist(pt,b[i]),6));
- const cad=CAD.build(raw(d),{table:false});cad.paths.filter(p=>p.layer==='SLOT_CENTRES').forEach((path,i)=>assert.deepEqual(path.points,g.lanePaths[i].segments[0].points));
+test('Lengths and minimum radii agree with an independent dense quintic straight squeeze', () => {
+  const d = section(),
+    g = d.geometry;
+  for (let lane = 0; lane < 4; lane++) {
+    let length = 0,
+      last = null,
+      max = 0;
+    for (let j = 0; j <= 24000; j++) {
+      const x = j / 20,
+        u = Math.min(1, Math.min(x, 1200 - x) / 300),
+        w = u ** 3 * (10 - 15 * u + 6 * u * u),
+        change = (lane - 1.5) * -20,
+        dy = (change * 30 * u * u * (1 - u) ** 2) / 300,
+        ddy = (change * 60 * u * (1 - u) * (1 - 2 * u)) / 300 ** 2,
+        pt = [x, -150 + lane * 100 + change * w];
+      if (last) length += F.dist(last, pt);
+      last = pt;
+      max = Math.max(max, Math.abs(ddy) / (1 + dy * dy) ** 1.5);
+    }
+    near(g.lanePaths[lane].lengthMm, length, 0.025);
+    near(g.minRadiiMm[lane], 1 / max, 0.03);
+  }
 });
-test('Smooth apex round trips through layouts and packs, and negotiates draft.7 without changing legacy squeezes',()=>{
- const d=apexSection(),out=I.prepare(raw(d));assert.equal(out.integration.contractVersion,'1.0.0-draft.7');assert.deepEqual(I.importLayout(out).definitions[d.id].geometry,d.geometry);
- const saved=CP.addRouted(CP.empty(),d,{packId:'new',packName:'Smooth corners'}),pack=CP.exportPack(saved.pack),again=CP.importPack(pack,CP.empty());assert.deepEqual(again.pieces[0].parameters.squeeze,d.parameters.squeeze);
- const legacy=section();assert.equal(I.prepare(raw(legacy)).integration.contractVersion,'1.0.0-draft.6');assert.equal(legacy.parameters.squeeze.version,1);
- const reset=R.shapeOf(d.parameters);delete reset.squeeze;const plain=R.definition(d.parameters.routed,reset);plain.geometry.lanePaths.forEach(l=>near(l.lengthMm,1200));
+test('Squeeze metadata is strict, single lanes and unsafe transitions fail clearly', () => {
+  for (const change of [
+    { version: 2 },
+    { spacingMm: NaN },
+    { spacingMm: 101 },
+    { spacingMm: 10 },
+    { transitionMm: 0 },
+    { transitionMm: 601 },
+    { anchorLane: 0 },
+    { anchorLane: 5 },
+    { unknown: 1 },
+  ])
+    assert.throws(() => section(change));
+  assert.throws(() => section({}, null, { laneCount: 1 }), /two lanes/);
+  assert.throws(() => section({ spacingMm: 20, transitionMm: 10 }), /fold|overlap|abrupt/);
+  const d = section();
+  const malformed = structuredClone(d);
+  malformed.parameters.type = 'straight';
+  malformed.parameters.lengthMm = 1200;
+  assert.throws(() => F.validateDefinition(malformed), /Squeeze/);
 });
-test('Smooth apex rejects unsupported shapes and ambiguous transition metadata',()=>{
- const d=apexSection();for(const change of[{shape:'unknown'},{shape:undefined},{transitionMm:200},{version:3},{spacingMm:10},{anchorLane:5}]){const bad=structuredClone(d);Object.assign(bad.parameters.squeeze,change);assert.throws(()=>F.validateDefinition(bad));}
+test('Reset restores uniform geometry and shape copies preserve squeeze settings', () => {
+  const d = section(),
+    shape = R.shapeOf(d.parameters);
+  assert.deepEqual(shape.squeeze, d.parameters.squeeze);
+  delete shape.squeeze;
+  const reset = R.definition(d.parameters.routed, shape);
+  for (const l of reset.geometry.lanePaths) near(l.lengthMm, 1200);
+  assert.equal(reset.parameters.squeeze, undefined);
+});
+test('Squeezed layouts, saved packs and library backups round trip without flattening', () => {
+  const d = section(),
+    input = raw(d),
+    output = I.prepare(input);
+  assert.equal(output.integration.contractVersion, '1.0.0-draft.6');
+  const imported = I.importLayout(output);
+  assert.deepEqual(imported.definitions[d.id].parameters.squeeze, d.parameters.squeeze);
+  assert.deepEqual(imported.definitions[d.id].geometry, d.geometry);
+  const saved = CP.addRouted(CP.empty(), d, { packId: 'new', packName: 'Hairpins', flip: true }),
+    pack = CP.exportPack(saved.pack);
+  assert.equal(pack.version, 2);
+  const again = CP.importPack(pack, CP.empty());
+  assert.deepEqual(again.pieces[0].parameters.squeeze, d.parameters.squeeze);
+  assert.equal(again.pieces[0].catalogueFlip, true);
+  const backup = CP.serialize(saved.library);
+  assert.equal(backup.version, 3);
+  assert.deepEqual(CP.read(backup).packs.at(-1).pieces[0].geometry, d.geometry);
+});
+test('Squeezed geometry drives SVG and DXF export including slots, conductors and wood outline', () => {
+  const d = section(),
+    model = CAD.build(raw(d), { slots: true, slotEdges: true, conductors: true, surfaces: true, table: false }),
+    slots = model.paths.filter(p => p.layer === 'SLOT_CENTRES');
+  assert.equal(slots.length, 4);
+  for (let i = 0; i < 4; i++) assert.deepEqual(slots[i].points, d.geometry.lanePaths[i].segments[0].points);
+  assert.match(CAD.svg(raw(d), { conductors: true }), /SLOT_CENTRES/);
+  assert.match(CAD.dxf(raw(d), { conductors: true }), /LWPOLYLINE/);
+  assert.ok(model.paths.filter(p => p.layer === 'BRAID_EDGES').length === 16);
+  assert.ok(model.paths.some(p => p.layer === 'SURFACE_EDGES' && p.closed));
+});
+test('Reflow retains existing joins when replacing a corner with a squeezed flowing corner', () => {
+  const s = R.settings({ ...R.defaults, laneCount: 4, innerClearanceMm: 50, outerClearanceMm: 75 }),
+    corner = R.definition(s, { type: 'curve', slotRadiusMm: 400, angleDeg: 90 }, 'corner'),
+    straight = R.definition(s, { type: 'straight', lengthMm: 1000 }, 'straight'),
+    defs = { corner, straight };
+  for (const flip of [false, true]) {
+    const p = { ...F.pose(corner), id: 'bend', flip },
+      q = F.join({ ...F.pose(straight), id: 'next' }, straight, 0, F.ports(p, defs)[1]),
+      converted = R.flowingFromCurve(s, R.shapeOf(corner.parameters), flip),
+      d = section({}, converted.shape.controlPointsMm),
+      result = C.reflow([p, q], defs, new Map([['bend', d]]), 'bend', new Map([['bend', converted.flip]]));
+    assert.equal(F.connections(result.items, result.definitions).open.length, 2);
+    near(F.dist(F.ports(p, defs)[0].position, F.ports(result.items[0], result.definitions)[0].position), 0);
+  }
+});
+test('Closed-loop routes, timing offsets and reverse animation use the squeezed slot lengths', () => {
+  const fixture = require('../integration/slotforge-timing/routed-examples/closed-routed-oval.slotforge.json'),
+    clean = F.validateLayout(fixture),
+    p = clean.pieces.find(p => clean.definitions[p.definitionId].parameters.type === 'straight'),
+    old = clean.definitions[p.definitionId],
+    L = old.parameters.lengthMm;
+  const d = section(
+      { transitionMm: L / 4 },
+      [
+        [0, 0],
+        [L / 3, 0],
+        [(L * 2) / 3, 0],
+        [L, 0],
+      ],
+      old.parameters.routed
+    ),
+    next = C.reflow(clean.pieces, clean.definitions, new Map([[p.id, d]]), p.id),
+    net = I.network(next.items, next.definitions);
+  assert.equal(net.closed, true);
+  const input = { ...fixture, definitions: Object.values(next.definitions), pieces: next.items },
+    state = I.newState();
+  state.direction = -1;
+  state.startFinish = { pieceId: p.id, fraction: 0.4 };
+  const output = I.prepare(input, state);
+  assert.equal(output.preparedGeometry.closed, true);
+  assert.equal(output.track.laneCount, old.parameters.routed.laneCount);
+  assert.equal(output.timing.startFinishOffsets.length, old.parameters.routed.laneCount);
+  const again = I.prepare(output, I.importLayout(output).state);
+  assert.deepEqual(again.track, output.track);
+  assert.deepEqual(again.timing.startFinishOffsets, output.timing.startFinishOffsets);
+  for (const route of net.routes) {
+    const offset = I.offsets(net, state.startFinish).find(v => v.routeId === route.id);
+    assert.ok(offset);
+    const speed = I.travelPlan(route, clean.profile, -1, offset.offsetMm);
+    for (const t of [0, 0.25, 0.5, 0.75, 1]) assert.ok(Number.isFinite(speed(route.lengthMm * t)));
+  }
+});
+test('Tabletop squeeze keeps footprint clearances separate from board-edge guidelines', () => {
+  const d = section({}, null, { constructionMode: 'table', innerClearanceMm: 500, outerClearanceMm: 600 }),
+    g = d.geometry;
+  near(F.dist(g.sampledOutline[0], g.lanePaths[0].start), 8.6);
+  assert.equal(I.prepare(raw(d)).integration.contractVersion, I.SQUEEZE_CONTRACT);
+  const material = R.materials(raw(d).pieces, { [d.id]: d });
+  near(material.sectionAreaMm2, 0);
+  near(material.braidMm, g.conductorLengthMm);
+  assert.ok(C.checks(raw(d).pieces, { [d.id]: d }, null).some(i => i.code === 'table-missing'));
+});
+test('A zero-strength squeeze reproduces a curved section, and old shapes keep old contracts', () => {
+  const s = R.settings({ ...R.defaults, laneCount: 4, innerClearanceMm: 50, outerClearanceMm: 75 }),
+    points = S.preset('bend', s),
+    d = section({ spacingMm: 100 }, points),
+    base = R.definition(s, { type: S.TYPE, controlPointsMm: points });
+  for (let i = 0; i < 4; i++) near(d.geometry.lanePaths[i].lengthMm, base.geometry.lanePaths[i].lengthMm, 0.025);
+  assert.equal(I.prepare(raw(base)).integration.contractVersion, I.FLOWING_CONTRACT);
+  assert.equal(CP.exportPack({ name: 'Old pack', pieces: [base] }).version, 1);
+});
+test('All lanes at the supported eight-lane limit can anchor an S-bend squeeze', () => {
+  const s = R.settings({ ...R.defaults, laneCount: 8, laneSpacingMm: 100, innerClearanceMm: 50, outerClearanceMm: 75 }),
+    points = S.preset('s-bend', s);
+  for (const anchorLane of [1, 4, 8]) {
+    const d = section({ anchorLane, transitionMm: 600 }, points, s);
+    assert.equal(d.geometry.lanePaths.length, 8);
+    assert.ok(d.geometry.lanePaths.every(l => Number.isFinite(l.lengthMm)));
+  }
+});
+
+function apexSection(shape = null, profile = {}, anchorLane = 'centre') {
+  const s = R.settings({ ...R.defaults, laneCount: 4, innerClearanceMm: 50, outerClearanceMm: 75, ...profile });
+  return F.validateDefinition(
+    R.definition(
+      s,
+      {
+        type: S.TYPE,
+        controlPointsMm: shape || [
+          [0, 0],
+          [100, 0],
+          [300, 0],
+          [1200, 0],
+        ],
+        squeeze: { version: 2, shape: 'apex', spacingMm: 80, anchorLane },
+      },
+      'routed:apex'
+    )
+  );
+}
+test('Smooth apex narrows over the whole physical section, with no plateau or endpoint kink', () => {
+  const d = apexSection(),
+    g = d.geometry,
+    first = g.lanePaths[0].segments[0],
+    second = g.lanePaths[1].segments[0];
+  let last = 100,
+    foundApex = false;
+  for (let j = 0; j < first.points.length; j++) {
+    const x = first.points[j][0],
+      u = x / 1200,
+      spacing = F.dist(first.points[j], second.points[j]);
+    near(spacing, 100 - 20 * (4 * u * (1 - u)) ** 3);
+    if (x <= 600 + 1e-6) assert.ok(spacing <= last + 1e-6);
+    else assert.ok(spacing >= last - 1e-6);
+    last = spacing;
+    if (Math.abs(x - 600) < 1e-6) {
+      near(spacing, 80);
+      foundApex = true;
+    } else assert.ok(spacing > 80);
+  }
+  assert.ok(foundApex);
+  for (const lane of g.lanePaths) {
+    const seg = lane.segments[0];
+    near(seg.headingsDeg[0], 0);
+    near(seg.headingsDeg.at(-1), 0);
+    near(seg.curvaturesPerMm[0], 0);
+    near(seg.curvaturesPerMm.at(-1), 0);
+  }
+});
+test('A 180-degree hairpin retains its joins and is narrowest at the apex under either reflection', () => {
+  const s = R.settings({ ...R.defaults, laneCount: 4, innerClearanceMm: 50, outerClearanceMm: 75 }),
+    circle = R.definition(s, { type: 'curve', slotRadiusMm: 400, angleDeg: 180 }, 'routed:circle');
+  for (const flip of [false, true]) {
+    const converted = R.flowingFromCurve(s, R.shapeOf(circle.parameters), flip),
+      d = apexSection(converted.shape.controlPointsMm),
+      old = { ...F.pose(circle), flip },
+      next = { ...F.pose(d), flip: converted.flip };
+    const a = F.ports(old, { [circle.id]: circle }),
+      b = F.ports(next, { [d.id]: d }),
+      dx = a[0].position[0] - b[0].position[0],
+      dy = a[0].position[1] - b[0].position[1];
+    next.x += dx;
+    next.y += dy;
+    const ports = F.ports(next, { [d.id]: d });
+    for (let k = 0; k < 2; k++) {
+      near(F.dist(a[k].position, ports[k].position), 0);
+      for (let i = 0; i < 4; i++) near(F.dist(a[k].lanes[i], ports[k].lanes[i]), 0);
+    }
+    const pts = d.geometry.lanePaths.map(l => l.segments[0].points),
+      index = d.geometry.parametersT.findIndex(t => Math.abs(t - 0.5) < 1e-8);
+    assert.ok(index >= 0);
+    for (let i = 0; i < 3; i++) near(F.dist(pts[i][index], pts[i + 1][index]), 80);
+  }
+});
+test('Smooth apex lengths and curvature agree with an independent dense bell profile', () => {
+  const d = apexSection();
+  for (let lane = 0; lane < 4; lane++) {
+    let last = null,
+      length = 0,
+      max = 0;
+    const change = (lane - 1.5) * -20;
+    for (let i = 0; i <= 24000; i++) {
+      const x = i / 20,
+        u = x / 1200,
+        pt = [x, -150 + lane * 100 + change * (4 * u * (1 - u)) ** 3],
+        dy = (change * 192 * u * u * (1 - u) ** 2 * (1 - 2 * u)) / 1200,
+        ddy = (change * 384 * u * (1 - u) * (1 - 5 * u + 5 * u * u)) / 1200 ** 2;
+      if (last) length += F.dist(last, pt);
+      last = pt;
+      max = Math.max(max, Math.abs(ddy) / (1 + dy * dy) ** 1.5);
+    }
+    near(d.geometry.lanePaths[lane].lengthMm, length, 0.025);
+    near(d.geometry.minRadiiMm[lane], 1 / max, 0.1);
+  }
+});
+test('Smooth apex preserves anchoring, slot-normal conductor widths and sampled CAD paths', () => {
+  const s = R.settings({ ...R.defaults, laneCount: 4, innerClearanceMm: 50, outerClearanceMm: 75 }),
+    d = apexSection(S.preset('bend', s), s, 3),
+    p = d.parameters,
+    g = d.geometry,
+    seg = g.lanePaths[2].segments[0];
+  g.parametersT.forEach((t, j) => near(F.dist(seg.points[j], S.offset(S.evaluate(p.controlPointsMm, t), 50)), 0));
+  const a = S.edgePoints(p, g, p.laneOffsetsMm[0] + 2.6),
+    b = S.edgePoints(p, g, p.laneOffsetsMm[0] + 8.6);
+  a.forEach((pt, i) => near(F.dist(pt, b[i]), 6));
+  const cad = CAD.build(raw(d), { table: false });
+  cad.paths
+    .filter(p => p.layer === 'SLOT_CENTRES')
+    .forEach((path, i) => assert.deepEqual(path.points, g.lanePaths[i].segments[0].points));
+});
+test('Smooth apex round trips through layouts and packs, and negotiates draft.7 without changing legacy squeezes', () => {
+  const d = apexSection(),
+    out = I.prepare(raw(d));
+  assert.equal(out.integration.contractVersion, '1.0.0-draft.7');
+  assert.deepEqual(I.importLayout(out).definitions[d.id].geometry, d.geometry);
+  const saved = CP.addRouted(CP.empty(), d, { packId: 'new', packName: 'Smooth corners' }),
+    pack = CP.exportPack(saved.pack),
+    again = CP.importPack(pack, CP.empty());
+  assert.deepEqual(again.pieces[0].parameters.squeeze, d.parameters.squeeze);
+  const legacy = section();
+  assert.equal(I.prepare(raw(legacy)).integration.contractVersion, '1.0.0-draft.6');
+  assert.equal(legacy.parameters.squeeze.version, 1);
+  const reset = R.shapeOf(d.parameters);
+  delete reset.squeeze;
+  const plain = R.definition(d.parameters.routed, reset);
+  plain.geometry.lanePaths.forEach(l => near(l.lengthMm, 1200));
+});
+test('Smooth apex rejects unsupported shapes and ambiguous transition metadata', () => {
+  const d = apexSection();
+  for (const change of [
+    { shape: 'unknown' },
+    { shape: undefined },
+    { transitionMm: 200 },
+    { version: 3 },
+    { spacingMm: 10 },
+    { anchorLane: 5 },
+  ]) {
+    const bad = structuredClone(d);
+    Object.assign(bad.parameters.squeeze, change);
+    assert.throws(() => F.validateDefinition(bad));
+  }
 });

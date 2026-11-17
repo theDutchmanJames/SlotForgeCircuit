@@ -1,543 +1,4381 @@
-(async()=>{'use strict';
-const F=window.Forge,I=window.SlotForgeIntegration,CP=window.CustomPacks,CF=window.CatalogueFolders,DL=window.DesignLibrary,XM=window.TrackExports,RA=window.ReferenceArtwork,G=F.G,$=id=>document.getElementById(id),E=G.attrs,NS='http://www.w3.org/2000/svg',STORAGE='slotforge.editor.v1',CUSTOM='slotforge.custom.v1';
-const DS=window.LocalWorkspace;await DS.init();if(DS.startupFailed)return;DL.setBackend(DS.disk?DS:null);
-const defs=Object.create(null),packs=window.TRACK_PACKS;for(const pack of packs)for(const d of pack.pieces)if(d.parameters)defs[d.id]={...d,geometry:G.derive(d.parameters)};
-let colourByPiece=false,pieceColourModel=window.PieceColours.build([]);
-try{colourByPiece=localStorage.getItem('slotforge.piece-colours.v1')==='true';}catch{}
-let exportChoice='current',exportMenuGeneration=0,exportSourceGeneration=0;
-let planning=F.Planning.validate(),designToolsUI=null;
-let previewCar=F.PreviewCar.settings(),routedState=F.Routed.workspace(),routedUI=null;const routedPack=F.Routed.pack(routedState.settings);packs.push(routedPack);
-let cadUI=null,freeformUI=null,elevationUI=null,exportCadAvailable=false,exportTrackAvailable=false;
-let guideOrigin=null,spaceGuide=null,librarySource=null,deleteDesignRevision=null;
-const referenceRequests=RA.requestGuard();
-let referenceChoice=null,referenceEditingId=null,referenceQueue=Promise.resolve(),libraryRender=0,designSaveGeneration=0,designSaveBusy=false,deleteDesignId=null;
-const folderState={};try{Object.assign(folderState,JSON.parse(localStorage.getItem('slotforge.catalogue-folders.v1')||'{}'));}catch{}
-let selectedIds=new Set(),mirrorNew=false,integrationState=I.newState();
-let customPieceSelection=new Set(),customSelectionPack=null,deletePackPieces=null,deletePackBusy=false,browserPackBaseline;
-let customLibrary=CP.empty(),customs=[],items=[],selected=null,title='Club circuit',profile={...F.presets.Balanced},history=[],future=[],view={x:-300,y:-600,w:3500,h:2300},network={closed:false,routes:[]},snapEnabled=true,playing=false,carDistances=[0,0],speedPlans=[],lastTime=0,drag=null,space=false,storageAvailable=true,browserPackUnsaved=false,toastTimer,confirmAction=null;
-const svg=(tag,attrs={},parent)=>{const el=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(attrs))el.setAttribute(k,v);if(parent)parent.append(el);return el;};
-const say=(message,error=false)=>{$('toast').textContent=message;$('toast').hidden=false;$('toast').style.borderColor=error?'#e5484d':'#657184';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,5500);$('status').textContent=message;};
-const current=()=>items.find(p=>p.id===selected),defOf=p=>defs[p.definitionId],meters=n=>(n/1000).toFixed(2)+' m';
-const selection=()=>items.filter(p=>selectedIds.has(p.id));
-function setSelection(ids,primary){selectedIds=new Set(window.DesignTools.expanded(items,[...ids]));selected=selectedIds.has(primary)?primary:[...selectedIds].at(-1)||null;$('status').textContent=selectedIds.size?selectedIds.size+' pieces selected':'Ready';}
-function rememberMirror(value){mirrorNew=!!value;$('mirror-new').checked=mirrorNew;try{localStorage.setItem('slotforge.mirror-new.v1',JSON.stringify(mirrorNew));}catch{}}
-function snapshot(){return JSON.stringify({items,planning,previewCar,routedState,spaceGuide,librarySource,title,selected,selectedIds:[...selectedIds],mirrorNew,profile,integrationState});}
-function checkpoint(){history.push(snapshot());if(history.length>80)history.shift();future=[];}
-function restore(s){const p=JSON.parse(s);librarySource=librarySource?.id===p.integrationState?.designId?librarySource:p.librarySource||null;items=p.items;planning=F.Planning.validate(p.planning);previewCar=F.PreviewCar.settings(p.previewCar);routedState=F.Routed.workspace(p.routedState);syncRoutedPack();spaceGuide=F.validateSpaceGuide(p.spaceGuide);title=p.title;setSelection(p.selectedIds||(p.selected?[p.selected]:[]),p.selected);rememberMirror(p.mirrorNew);profile=p.profile;integrationState=p.integrationState||I.newState();stop();$('track-name').value=title;updateSliders();updateCarControls();refresh();}
-function undo(){if(!history.length)return;future.push(snapshot());restore(history.pop());}
-function redo(){if(!future.length)return;history.push(snapshot());restore(future.pop());}
-function persist(){try{const raw=layout(false);if(DS.disk){$('save-state').textContent='Saving to disk…';DS.putCurrent(raw,librarySource).then(()=>{storageAvailable=true;$('save-state').textContent='Saved to disk';}).catch(e=>{storageAvailable=false;$('save-state').textContent='Not saved to disk';say(e.message+' Export JSON to keep these changes.',true);});}else{localStorage.setItem(STORAGE,JSON.stringify({...raw,editorState:{librarySource}}));storageAvailable=true;$('save-state').textContent='Saved in browser';}}catch(e){$('save-state').textContent='Saving unavailable';storageAvailable=false;say(e.message,true);}}
-function backupStorage(key){try{const raw=localStorage.getItem(key);if(raw!==null)localStorage.setItem(key+'.recovery',raw);}catch{}}
-function activePack(){return customLibrary.packs.find(p=>p.id===customLibrary.activePackId)||customLibrary.packs[0];}
-function allPacks(){return [...packs,...customLibrary.packs];}
-function writeBrowserPacks(data){const value=JSON.stringify(data);localStorage.setItem(CP.STORAGE,value);browserPackBaseline=value;}
-async function saveRoutedDefinition(d,flip,packId,packName){const saved=CP.addRouted(customLibrary,d,{packId,packName,flip}),data=CP.serialize(saved.library);if(DS.disk)await DS.putPacks(data);else writeBrowserPacks(data);customLibrary=saved.library;customs=customLibrary.packs.flatMap(p=>p.pieces);defs[saved.definition.id]=saved.definition;populatePacks();renderPackControls();renderCustomLibrary();renderTrackPacks();catalogue();return{definition:saved.definition,packId:saved.pack.id,packName:saved.pack.name};}
-function paletteBounds(d){const b=d.geometry.boundsMm;return d.catalogueFlip?[b[0],-b[1]-b[3],b[2],b[3]]:b;}
-function paletteBody(d){const body=drawBody(d);return d.catalogueFlip?'<g transform="scale(1,-1)">'+body+'</g>':body;}
-async function persistCustom(){customs=customLibrary.packs.flatMap(p=>p.pieces);populatePacks();renderPackControls();renderCustomLibrary();renderTrackPacks();catalogue();try{const data=CP.serialize(customLibrary);if(DS.disk){$('save-state').textContent='Saving packs to disk…';await DS.putPacks(data);$('save-state').textContent='Saved to disk';}else{writeBrowserPacks(data);browserPackUnsaved=false;}return true;}catch(e){if(!DS.disk)browserPackUnsaved=true;$('save-state').textContent='Packs not saved';say('Track packs were not saved: '+e.message+' Export a pack file to keep your changes.',true);return false;}}
-
-function exportDefinition(d){return{id:d.id,name:d.name,sku:d.sku,pack:d.pack,family:d.family,parameters:d.parameters,color:d.color,status:d.status,mirror:d.mirror,...(d.referenceImage?{referenceImage:d.referenceImage}:{})};}
-function layout(withRoutes=true){const used=[...new Set(items.map(p=>p.definitionId))];return I.prepare({format:'slotforge.layout',version:1,title,pieces:items,definitions:used.map(id=>exportDefinition(defs[id])),profile,workspace:{planning,previewCar,routed:routedState,...(spaceGuide?{spaceGuide}:{})}},integrationState,withRoutes);}
-
-function timingOffset(id){return I.offsets(network,integrationState.startFinish).find(s=>s.routeId===id)?.offsetMm||0;}
-function renderTimingLine(){
- const layer=$('timing-line');layer.replaceChildren();const ref=integrationState.startFinish,p=items.find(p=>p.id===ref?.pieceId);if(!p)return;const d=defOf(p),q=d.parameters;if(!d.geometry.lanePaths.length)return;
- const local=q.type==='freeform'?F.FreeForm.crossSection(d,ref.fraction):q.type==='routed-spline'?F.Routed.Spline.crossSection(q,d.geometry,ref.fraction):q.type==='straight'?[[q.lengthMm*ref.fraction,0],[q.lengthMm*ref.fraction,q.widthMm]]:[G.pt(q.innerRadiusMm,F.rad(q.angleDeg*ref.fraction)),G.pt(q.innerRadiusMm+q.widthMm,F.rad(q.angleDeg*ref.fraction))];if(!local)return;const [a,b]=local.map(v=>F.point(v,p));
- svg('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#fff','stroke-width':10},layer);svg('line',{x1:a[0],y1:a[1],x2:b[0],y2:b[1],stroke:'#20242b','stroke-width':10,'stroke-dasharray':'10 10'},layer);
- const label=svg('text',{x:a[0],y:a[1]-18,fill:'#fff','font-size':20},layer);label.textContent='START / FINISH';
-}
-function updateTimingControls(){
- const ref=integrationState.startFinish,p=items.find(p=>p.id===ref?.pieceId);$('timing-section').textContent=p?defOf(p).name+' · '+(ref.fraction*100).toFixed(1)+'%':ref?'Timing section removed — choose another.':'Select a road piece, then set the timing line.';
- $('timing-badge').textContent=p?'Set':ref?'Choose piece':'Not set';$('timing-badge').classList.toggle('has-issues',!!ref&&!p);
- $('timing-position').disabled=!p;$('timing-position').value=ref?ref.fraction*100:50;$('travel-direction').value=integrationState.direction;
- $('timing-lanes').replaceChildren();for(const[r,i]of network.routes.map((r,i)=>[r,i])){const label=document.createElement('label');label.className='field';label.textContent='Lane '+(i+1)+' display name';const input=document.createElement('input');input.maxLength=100;input.value=integrationState.routeLabels[r.id]||'Lane '+(i+1);input.onchange=()=>{checkpoint();integrationState.routeLabels[r.id]=input.value.trim()||'Lane '+(i+1);updateInspector();persist();};label.append(input);$('timing-lanes').append(label);}
- const messages=I.compatibility(items,defs,network,ref).issues.map(i=>i.message);if(integrationState.requiresLaneRemap)messages.unshift('Route topology has changed. Reconfirm lane mapping in SlotForge Timing.');if(document.body.dataset.section!=='export')$('timing-compatibility').textContent=messages.join(' ');
-}
-function editTiming(fn){checkpoint();stop();fn();carDistances=[0,0];refresh();}
-async function exportPNG(raw=layout(false)){
- try{const picture=I.picture(raw,{borders:$('picture-borders').checked}),url=URL.createObjectURL(new Blob([picture.svg],{type:'image/svg+xml'}));let blob;
- try{const image=new Image();image.src=url;await image.decode();const canvas=document.createElement('canvas');canvas.width=picture.width;canvas.height=picture.height;canvas.getContext('2d').drawImage(image,0,0);blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));}finally{URL.revokeObjectURL(url);}
- if(!blob||blob.size>5*1024*1024)throw Error('Picture exceeds the 5 MiB limit.');download(XM.filename(raw.title)+'.png',blob,'image/png');say('Transparent track picture exported.');}catch(e){say(e.message,true);}
-}
-function download(name,text,type='application/json'){const a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type}));a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function downloadTrack(raw){const file=XM.portableJSON(raw);download(XM.filename(raw.title)+'.slotforge.json',file.text);say('“'+raw.title+'” exported as a track file (.slotforge.json). Use Import track JSON to open it in Circuit.'+(file.geometryIncluded?'':' Compact file: slot geometry regenerates from the embedded definitions.'));}
-function save(){try{downloadTrack(layout());}catch(e){say(e.message,true);}}
-function confirmReplace(fn){if(!items.length){fn();return;}confirmAction=fn;$('confirm-dialog').showModal();}
-function applyImport(raw,source=null){const result=I.importLayout(raw);const merged=F.mergeDefinitions(result.definitions,result.pieces,defs);Object.assign(defs,merged.definitions);checkpoint();librarySource=source;items=merged.pieces;planning=F.Planning.validate(result.workspace?.planning);previewCar=F.PreviewCar.settings(result.workspace?.previewCar);routedState=F.Routed.workspace(result.workspace?.routed);syncRoutedPack();if(items.length&&items.every(p=>defOf(p).parameters.routed))$('pack').value=F.Routed.ID;spaceGuide=result.workspace?.spaceGuide||null;title=result.title;profile=result.profile;integrationState=result.state;setSelection([]);$('track-name').value=title;stop();updateSliders();updateCarControls();refresh();fit();location.hash='builder';routeSection();say(source?'Saved track opened.':'Track imported. Choose Save to Library to keep a named copy.');}
-const drawBody=(d,print=false)=>d.parameters.routed?F.Routed.draw(d,print,routedState.display):window.TrackDrawing.body(!print&&colourByPiece&&pieceColourModel.colour(d)?{...d,color:pieceColourModel.colour(d)}:d,print);
-function updatePieceColours(){pieceColourModel=window.PieceColours.build([...allPacks().flatMap(p=>p.pieces),...items.map(defOf)]);$('piece-colours').setAttribute('aria-pressed',String(colourByPiece));$('piece-colours').textContent='Colour by piece: '+(colourByPiece?'On':'Off');$('piece-colour-key').hidden=!colourByPiece;const pack=allPacks().find(p=>p.id===$('pack').value);$('piece-colour-legend').replaceChildren();if(colourByPiece){for(const entry of pieceColourModel.legend(pack?.pieces||[])){const row=document.createElement('div');row.className='piece-colour-row';const swatch=document.createElement('i');swatch.style.background=entry.color;row.append(swatch,document.createTextNode(entry.label));$('piece-colour-legend').append(row);}if(!$('piece-colour-legend').children.length)$('piece-colour-legend').textContent='No straight or circular road sizes in this pack.';}}
-$('piece-colours').onclick=()=>{colourByPiece=!colourByPiece;try{localStorage.setItem('slotforge.piece-colours.v1',String(colourByPiece));}catch{}catalogue();renderCanvas();};
-function transform(p){return`translate(${p.x} ${p.y}) rotate(${p.angle}) scale(1 ${p.flip?-1:1})`;}
-function guideSize(g){return Number(g.lengthMm.toFixed(1))+' × '+Number(g.widthMm.toFixed(1))+' mm';}
-function renderSpaceGuide(){
- const layer=$('space-guide-layer');layer.replaceChildren();$('space-guide-lock').hidden=!spaceGuide;$('space-guide-edit').textContent=spaceGuide?(spaceGuide.kind==='table'?'Table…':'Space guide…'):'＋ Space guide';if(!spaceGuide)return;
- const g=spaceGuide,u=view.w/Math.max(1,$('canvas').clientWidth);layer.setAttribute('pointer-events',g.locked?'none':'auto');layer.classList.toggle('locked',g.locked);$('space-guide-lock').textContent=g.locked?'Unlock guide':'Lock guide';$('space-guide-lock').setAttribute('aria-pressed',String(g.locked));
- svg('path',{d:F.Routed.Table.path(g),class:'space-guide-area'+(g.kind==='table'?' space-guide-table':''),'data-guide':'move'},layer);
- if(g.shape?.type==='boards')svg('path',{d:F.Routed.Table.boardPath(g),fill:'none',stroke:'#a38c66','stroke-width':1,'stroke-dasharray':'5 4','vector-effect':'non-scaling-stroke','pointer-events':'none'},layer);
- const label=svg('text',{x:g.x+10*u,y:g.y+22*u,'font-size':12*u,'pointer-events':'none',class:'space-guide-label'},layer);label.textContent=(g.kind==='table'?'Table · ':'Available space · ')+guideSize(g)+(g.shape?.type==='boards'?' · '+g.shape.boards.length+' boards':g.shape?' · L shape':'')+(g.locked?' · Locked':'');
- if(!g.locked&&g.shape?.type!=='boards')svg('rect',{x:g.x+g.lengthMm-7*u,y:g.y+g.widthMm-7*u,width:14*u,height:14*u,class:'space-guide-handle','data-guide':'resize'},layer);
-}
-function openSpaceGuide(){finishDrag(true);const g=spaceGuide||{lengthMm:3000,widthMm:1500,locked:false};guideOrigin={x:spaceGuide?.x??view.x+view.w/2-g.lengthMm/2,y:spaceGuide?.y??view.y+view.h/2-g.widthMm/2};$('guide-length').value=g.lengthMm;$('guide-width').value=g.widthMm;$('guide-lock').checked=g.locked;$('guide-kind').value=g.kind||'guide';$('guide-scale').value=100;$('guide-error').textContent='';$('guide-remove').hidden=!spaceGuide;guideShape.fill(g);$('space-guide-dialog').showModal();}
-const guideShapeHost=document.createElement('div');$('guide-scale').closest('.guide-scale-row').before(guideShapeHost);const guideShape=window.TableShapeEditor.init('guide-base',guideShapeHost,()=>({lengthMm:Number($('guide-length').value),widthMm:Number($('guide-width').value)}),{setSize:s=>{$('guide-length').value=s.lengthMm;$('guide-width').value=s.widthMm;$('guide-kind').value='table';},boardMode:active=>{for(const id of ['guide-length','guide-width'])$(id).readOnly=active;},track:()=>'<g transform="translate('+(-(guideOrigin?.x??0))+' '+(-(guideOrigin?.y??0))+')">'+items.map(p=>'<g transform="'+transform(p)+'">'+drawBody(defOf(p))+'</g>').join('')+'</g>'});for(const id of['guide-length','guide-width'])$(id).addEventListener('input',guideShape.render);
-$('space-guide-edit').onclick=openSpaceGuide;
-$('space-guide-lock').onclick=()=>{if(!spaceGuide)return;finishDrag(true);checkpoint();spaceGuide={...spaceGuide,locked:!spaceGuide.locked};refresh();say(spaceGuide.locked?'Space guide locked. Build freely over it.':'Space guide unlocked. Drag its area or resize handle.');};
-$('guide-apply-scale').onclick=()=>{const before=[$('guide-length').value,$('guide-width').value];try{const factor=Number($('guide-scale').value)/100;if(!Number.isFinite(factor)||factor<=0)throw Error('Enter a positive scale percentage.');const g=F.validateSpaceGuide({x:0,y:0,lengthMm:Number($('guide-length').value)*factor,widthMm:Number($('guide-width').value)*factor,locked:false});$('guide-length').value=g.lengthMm;$('guide-width').value=g.widthMm;guideShape.scale(factor);$('guide-scale').value=100;$('guide-error').textContent='';}catch(e){[$('guide-length').value,$('guide-width').value]=before;guideShape.render();$('guide-error').textContent=e.message;}};
-$('space-guide-form').onsubmit=e=>{e.preventDefault();try{const lengthMm=Number($('guide-length').value),widthMm=Number($('guide-width').value),g=F.validateSpaceGuide({x:guideOrigin?.x??0,y:guideOrigin?.y??0,lengthMm,widthMm,kind:$('guide-kind').value,locked:$('guide-lock').checked,...(guideShape.read()?{shape:guideShape.read()}:{})});checkpoint();spaceGuide=g;refresh();fit();$('space-guide-dialog').close();say('Available space: '+guideSize(g)+(g.locked?' · Locked':''));}catch(error){$('guide-error').textContent=error.message;}};
-$('guide-remove').onclick=()=>{checkpoint();spaceGuide=null;refresh();$('space-guide-dialog').close();say('Space guide removed. Undo restores it.');};
-function renderSnapGuide(guide){const layer=$('snap-guide');layer.replaceChildren();if(guide)svg('path',{d:guide.d,transform:transform(guide.pose),fill:'none',stroke:'#76d9f2','stroke-width':3,'stroke-dasharray':'8 5','vector-effect':'non-scaling-stroke'},layer);}
-function renderCanvas(guide=null){updatePieceColours();renderSnapGuide(guide);renderSpaceGuide();const fragment=document.createDocumentFragment();for(const p of items){const d=defOf(p),group=svg('g',{'data-id':p.id,class:'piece',transform:transform(p)});group.innerHTML=drawBody(d);if(selectedIds.has(p.id))svg('path',{d:d.geometry.outlineSvgPath,class:'selected-outline'},group);const tip=svg('title',{},group);tip.textContent=d.name;fragment.append(group);}$('roads').replaceChildren(fragment);renderTimingLine();const con=F.connections(items,defs),portFragment=document.createDocumentFragment();for(const port of con.open){const c=svg('circle',{cx:port.position[0],cy:port.position[1],r:4*view.w/Math.max(1,$('canvas').clientWidth),fill:selectedIds.has(port.pieceId)?'#f0bd6b':'#83919d',stroke:'#171b21','stroke-width':1,class:'port'});portFragment.append(c);}$('ports').replaceChildren(portFragment);$('canvas-empty').hidden=items.length>0||!!spaceGuide;if(designToolsUI)designToolsUI.render();}
-function updateView(){const r=$('canvas').getBoundingClientRect();view.h=view.w*(r.height||650)/(r.width||1000);$('canvas').setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);for(const[k,v]of Object.entries({x:view.x,y:view.y,width:view.w,height:view.h}))$('grid-bg').setAttribute(k,v);$('zoom-level').textContent=Math.round(100*1000/view.w)+'%';renderSpaceGuide();}
-function fit(){let b=F.bounds(items,defs);if(spaceGuide){const g=spaceGuide,minX=items.length?Math.min(b[0],g.x):g.x,minY=items.length?Math.min(b[1],g.y):g.y,maxX=items.length?Math.max(b[0]+b[2],g.x+g.lengthMm):g.x+g.lengthMm,maxY=items.length?Math.max(b[1]+b[3],g.y+g.widthMm):g.y+g.widthMm;b=[minX,minY,maxX-minX,maxY-minY];}const r=$('canvas').getBoundingClientRect(),ratio=(r.width||1000)/(r.height||650);view.w=Math.max(b[2]+300,(b[3]+340)*ratio,500);view.h=view.w/ratio;view.x=b[0]+b[2]/2-view.w/2;view.y=b[1]+b[3]/2-view.h/2;updateView();renderCanvas();}
-function zoom(factor,atPoint){const center=atPoint||[view.x+view.w/2,view.y+view.h/2],u=(center[0]-view.x)/view.w,v=(center[1]-view.y)/view.h;view.w=Math.max(250,Math.min(50000,view.w*factor));updateView();view.x=center[0]-view.w*u;view.y=center[1]-view.h*v;updateView();renderCanvas();}
-function world(event){const r=$('canvas').getBoundingClientRect();return[view.x+(event.clientX-r.left)/r.width*view.w,view.y+(event.clientY-r.top)/r.height*view.h];}
-function inventory(){const map=new Map();for(const p of items){const d=defOf(p);if(!map.has(d.id))map.set(d.id,{d,count:0});map.get(d.id).count++;}return[...map.values()];}
-function routedCatalogueDefinition(d){const clone=F.validateDefinition({...d,id:'routed:'+F.uid()}),signature=v=>JSON.stringify({...exportDefinition(v),id:''}),key=signature(clone),existing=Object.values(defs).find(v=>v.parameters.routed&&signature(v)===key);if(existing)return existing;defs[clone.id]=clone;return clone;}
-function summary(){const roads=items.filter(p=>defOf(p).geometry.lanePaths.length&&!defOf(p).parameters.foldOverride),length=roads.reduce((sum,p)=>sum+defOf(p).geometry.centrelineLengthMm,0);return{planning:items.filter(p=>!!defOf(p).parameters.planning||defOf(p).parameters.foldOverride).length,roads:roads.length,borders:items.filter(p=>defOf(p).parameters.type.endsWith('border')).length,references:items.filter(p=>defOf(p).parameters.type==='reference'||defOf(p).parameters.foldOverride).length,length,bounds:F.bounds(items,defs)};}
-function updateInspector(){$('builder-cad').hidden=!items.some(p=>defOf(p).parameters.routed);const s=summary();const ff=items.find(p=>defOf(p).parameters.type==='freeform'),invalidFreeform=ff&&!defOf(ff).geometry.valid;$('length-total').nextElementSibling.textContent=ff?'Reference slot':'Track centreline';$('piece-total').textContent=ff?1:s.roads+s.planning;$('road-total-label').textContent=ff?'FreeForm circuit':s.planning?'Road pieces · includes estimates':'Road pieces';$('border-total').textContent=s.borders;$('reference-total').textContent=s.references-s.planning;$('length-total').classList.toggle('unknown-length',!!s.planning);$('length-total').textContent=invalidFreeform?'Not calculated':s.planning?(s.roads?meters(s.length)+' + unknown':'Not calculated'):meters(s.length);$('footprint').textContent=items.length?`${Math.ceil(s.bounds[2]-1e-6)} × ${Math.ceil(s.bounds[3]-1e-6)} mm`:'—';$('lane-lengths').replaceChildren();if(network.closed)for(const[r,i]of network.routes.map((r,i)=>[r,i])){const row=document.createElement('div');row.className='lane-row';row.innerHTML=`<span><i class="lane-dot"></i>${E(integrationState.routeLabels[r.id]||'Lane '+(i+1))}</span><strong>${meters(r.lengthMm)}</strong>`;$('lane-lengths').append(row);}else{const p=document.createElement('p');p.className='fine';p.textContent=s.planning?'Visual planning uses approximate connection points. Guide slots and lap lengths are not calculated for these pieces.':'Per-lane circuit lengths appear when the track is connected into one loop.';$('lane-lengths').append(p);}
- const group=selection(),p=current();$('adjust-plastic-lanes').hidden=group.length!==1||!F.PlasticLanes.supported(p&&defOf(p).parameters);$('layer-order').disabled=!group.length||group.length===items.length;$('selection-empty').hidden=!!p;$('selection').hidden=!p;for(const id of['rotate','mirror','duplicate','delete'])$(id).disabled=!p;if(p){const d=defOf(p);$('selection-name').textContent=d.name;$('selection-code').textContent=`${d.pack} · ${d.sku||'Custom piece'}`;for(const[k,id]of[['x','pos-x'],['y','pos-y'],['angle','pos-angle']])if(document.activeElement!==$(id))$(id).value=Number(p[k].toFixed(2));const q=d.parameters;$('selection-details').textContent=`${q.foldOverride?'Planning-only fold override':q.planning?'Visual planning · approximate magnetic ends':q.type==='reference'?'Reference picture · approximate display size':d.status==='user-defined'?'User-defined':'Nominal'} · ${q.type==='reference'?q.lengthMm+' × '+q.widthMm+' mm display box':q.widthMm+' mm wide'}${q.laneCount?' · '+q.laneCount+' lanes':''}${q.laneSpacingMm?' · '+q.laneSpacingMm+' mm slot spacing':''}${p.flip?' · reflected':''}${q.laneChange?' · lane changer · straight-through preview':''}`;$('mirror').disabled=group.some(p=>!defOf(p).mirror);
- if(group.length>1){$('selection-name').textContent=group.length+' pieces selected';$('selection-code').textContent='Drag any selected piece to move the whole selection.';$('selection-details').textContent='Rotate, mirror, duplicate and delete apply to all selected pieces.';}
- $('add-borders').hidden=$('add-borders').disabled=!group.some(p=>['straight','curve'].includes(defOf(p).parameters.type));document.querySelector('.position-grid').hidden=group.length>1;$('custom-from').hidden=group.length>1||d.parameters.type==='reference';$('reference-resize').hidden=group.length>1||d.parameters.type!=='reference';}
- const locked=group.some(p=>p.locked);$('selection-badge').textContent=group.length?group.length+' selected'+(locked?' · Locked':''):'None';for(const id of['rotate','mirror','delete','pos-x','pos-y','pos-angle','layer-order'])if(locked)$(id).disabled=true;for(const id of['pos-x','pos-y','pos-angle'])if(!locked)$(id).disabled=false;$('inspector-selection').classList.toggle('has-selection',!!p);$('position-folder').hidden=group.length>1;$('parts-badge').textContent=String(items.length);
- $('inventory').replaceChildren();for(const{d,count}of inventory()){const row=document.createElement('div');row.className='inventory-row';const name=document.createElement('span');name.textContent=d.name;const code=document.createElement('small');code.textContent=(d.sku||d.pack)+(d.parameters.foldOverride?' · Planning-only fold override':d.parameters.planning?' · Visual estimate':d.parameters.type==='reference'?' · Reference':'');name.append(code);const n=document.createElement('b');n.textContent=count;row.append(name,n);row.tabIndex=0;row.setAttribute('role','button');row.title='Find these pieces on the track';const locate=()=>focusIssue({pieceIds:items.filter(p=>p.definitionId===d.id).map(p=>p.id)});row.onclick=locate;row.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();locate();}};$('inventory').append(row);}if(!items.length)$('inventory').textContent='Your parts will appear here.';if(routedUI)routedUI.render();if(freeformUI)freeformUI.render();if(elevationUI)elevationUI.render();$('undo').disabled=!history.length;$('redo').disabled=!future.length;
-}
-function refresh(saveLocal=true){network=I.network(items,defs);integrationState=I.reconcile(integrationState,network);if(!network.closed)stop();const visual=items.some(p=>defOf(p).parameters.planning||defOf(p).parameters.foldOverride),known=items.some(p=>defOf(p).geometry.lanePaths.length),visualEnds=visual?F.connections(items.filter(p=>defOf(p).parameters.planning),defs).open.length:0;$('connection-state').textContent=items.some(p=>defOf(p).parameters.foldOverride)?'Planning-only fold override':visual&&!known?'Visual layout · '+(visualEnds?visualEnds+' open ends':'ends aligned') :network.closed?'● Closed circuit':network.openEnds?`${network.openEnds} open ends`:items.length?'Separate circuits':'Start a circuit';$('connection-state').classList.toggle('open',!network.closed);$('measurement-basis').textContent=visual?'Approximate planning · mm':items.some(p=>defOf(p).parameters.routed)?'Routed dimensions · mm':'Nominal dimensions · mm';$('play').disabled=!network.closed;$('play').title=network.reason;$('preview-message').textContent=visual&&!known?'Approximate visual layout · PDF and parts list available · no slot simulation':network.closed?(items.some(p=>defOf(p).parameters.laneChange)?'Straight-through preview · lane switching not simulated':'Two cars · slot-following demonstration'):network.reason;renderCanvas();updateInspector();updateTimingControls();if(playing)rebuildMotion();if(saveLocal)persist();}
-function select(id){setSelection(id?[id]:[]);renderCanvas();updateInspector();}
-function add(def,reflected=CP.preferredFlip(def,mirrorNew)){if(items.some(p=>defOf(p).parameters.type==='freeform')){say('FreeForm is one complete circuit. Use New track to begin a piece-based design.',true);return false;}if(items.length>=500){say('This first iteration supports up to 500 placed pieces.',true);return false;}checkpoint();stop();let p=F.pose(def,view.x+view.w/2,view.y+view.h/2),net=F.connections(items,defs);p.flip=!!def.mirror&&reflected;const preferred=net.open.filter(c=>c.pieceId===selected).sort((a,b)=>b.index-a.index),rest=net.open.filter(c=>c.pieceId!==selected).reverse();const candidate=F.ports(p,defs)[0];let attached=false;if(candidate&&snapEnabled){for(const target of [...preferred,...rest]){if(!F.compatible(candidate,target)||Math.abs(candidate.heightMm-target.heightMm)>=.15)continue;const targetPiece=items.find(item=>item.id===target.pieceId),joined=window.RoutedChecks.joinStraight(p,def,0,{...target,placement:targetPiece,definitionId:targetPiece?.definitionId},defs),jp=F.ports(joined,defs)[0];if(!F.slotsMatch(jp,target,.1))continue;p=joined;attached=true;break;}}if(!attached){const b=def.geometry.boundsMm;p.x-=b[0]+b[2]/2;p.y-=(b[1]+b[3]/2)*(p.flip?-1:1);}items.push(p);setSelection([p.id]);refresh();say(attached?'Piece connected. Drag to reposition, or add the next piece.':def.parameters.type.endsWith('border')?'Border added. Position it beside the road; borders move freely.':'Piece added at the centre of the view.');return true;}
-function populatePacks(){const prev=$('pack').value;$('pack').replaceChildren();for(const p of allPacks()){const o=document.createElement('option');o.value=p.id;o.textContent=p.name+(p.inLibrary===false?' (draft)':'');$('pack').append(o);}$('pack').value=allPacks().some(p=>p.id===prev)?prev:packs[0].id;const family=$('custom-family').value;$('custom-family').replaceChildren();for(const p of[{id:'custom',name:'Custom / unbranded'},...packs]){const o=document.createElement('option');o.value=p.id;o.textContent=p.name;$('custom-family').append(o);}$('custom-family').value=family||'custom';}
-
-function showPackInfo(){const p=allPacks().find(p=>p.id===$('pack').value);if(!p)return;if(p.trackSystem==='routed'){$('pack-info').textContent='Routed wood · editable slot dimensions · mm';return;}const nominal=p.pieces.filter(d=>d.geometry).length;const text=[p.modelScale?'Model scale '+p.modelScale:'',p.trackSystem==='slotless'?'Slotless · approximate visual planning':nominal?'Physical sizes in mm · nominal geometry':'Reference artwork only',p.id==='slotforge.fleischmann-auto-rallye'?'90 mm slot spacing assumed':p.id==='slotforge.afx-racing'?'Modern Tomy connectors':''].filter(Boolean).join(' · ');$('pack-info').textContent=text;$('pack-info').title=p.planningNote||'';}
-function catalogue(){updatePieceColours();if(routedUI)routedUI.render();showPackInfo();const pack=allPacks().find(p=>p.id===$('pack').value)||packs[0],query=$('search').value.trim().toLowerCase(),only=$('buildable').checked;const list=pack.pieces.filter(d=>(!only||d.geometry||d.referencePlan)&&(!query||(d.name+' '+d.sku).toLowerCase().includes(query)));$('catalogue-count').textContent=list.length+' pieces';$('catalogue').replaceChildren();for(const folder of CF.group(list)){if(query&&!folder.pieces.length)continue;const details=document.createElement('details');details.className='catalogue-folder';const key=pack.id+':'+folder.name;details.open=query?!!folder.pieces.length:(folderState[key]??folder.name==='Straights');const heading=document.createElement('summary');heading.textContent=folder.name;const count=document.createElement('span');count.textContent=folder.pieces.length;heading.append(count);details.append(heading);details.ontoggle=()=>{if(query||!details.isConnected)return;folderState[key]=details.open;try{localStorage.setItem('slotforge.catalogue-folders.v1',JSON.stringify(folderState));}catch{}};const contents=document.createElement('div');contents.className='folder-pieces';details.append(contents);$('catalogue').append(details);if(!folder.pieces.length){const empty=document.createElement('p');empty.className='fine';empty.textContent=only?'No buildable pieces here. Turn off Buildable only to see reference items.':'No pieces in this folder.';contents.append(empty);}for(const d of folder.pieces){const button=document.createElement('button');button.className='piece-card';button.title=d.geometry?'Add '+d.name:d.referencePlan?'Add visual planning piece · approximate':'Plan with reference artwork';if(d.asset&&!(colourByPiece&&window.PieceColours.eligible(d))){const img=document.createElement('img');img.src=d.asset;img.alt='';img.loading='lazy';button.append(img);}else{const image=svg('svg',{viewBox:paletteBounds(d).map((v,i)=>i<2?v-15:v+30).join(' ')});image.innerHTML=paletteBody(d);button.append(image);}const words=document.createElement('span'),name=document.createElement('strong'),small=document.createElement('small');name.textContent=d.name;small.textContent=(d.sku?d.sku+' · ':'')+(d.geometry?(d.parameters.foldOverride?'Planning-only fold override':d.status==='user-defined'?'Your dimensions':'Nominal'):d.referencePlan?'Visual planning · approximate':'Reference · planning options');if(!d.geometry)small.className='reference';words.append(name,small);button.append(words);button.onclick=()=>{if(d.geometry){if(d.parameters.routed&&pack.id===F.Routed.ID){if(items.length>=500){say('This first iteration supports up to 500 placed pieces.',true);return;}add(routedCatalogueDefinition(d),CP.preferredFlip(d,mirrorNew));}else add(d);}else if(d.referencePlan){const intendedDesign=integrationState.designId;referenceQueue=referenceQueue.then(()=>integrationState.designId===intendedDesign?placeReference(d,{automatic:true}):undefined);}else openReference(d);};contents.append(button);}}if(!list.length){const n=document.createElement('div');n.className='no-results';n.textContent=customLibrary.packs.some(p=>p.id===$('pack').value)?'This pack is empty. Choose “＋ Custom” to add its first piece.':only?'No buildable pieces match. Turn off “Buildable only” to see reference artwork.':'No matching pieces.';$('catalogue').append(n);}}
-function openReference(source,piece=null){
- referenceRequests.cancel();
- const preset=source.parameters?packs.flatMap(p=>p.pieces).find(d=>d.family===source.family&&d.sku===source.sku&&d.name===source.name):null;if(!source.referencePlan&&preset?.referencePlan)source={...source,referencePlan:preset.referencePlan};
- referenceChoice=source;referenceEditingId=piece?.id||null;const q=source.parameters?.planning||source.referencePlan,display=source.parameters||{},measure=source.referenceDimensions||{};
- $('reference-name').textContent=source.name;const preview=$('reference-image'),imageSource=source.referenceImage||source.asset;preview.onload=null;preview.hidden=!imageSource;if(imageSource)preview.src=imageSource;else preview.removeAttribute('src');$('reference-notes').textContent=(source.notes||[]).join(' ');$('reference-error').textContent='';$('reference-place').disabled=false;$('reference-place').textContent=piece?'Apply planning settings':'Place in layout';
- $('reference-width').value=display.lengthMm||350;$('reference-height').value=display.widthMm||200;$('reference-snap').checked=!!q||!source.parameters&&/straight|curve|chicane|crossover|narrow/i.test(source.name)&&!/support|guardrail|pillar|controller/i.test(source.name);
- $('reference-shape').value=q?.type||(/curve|bend|hairpin/i.test(source.name)?'curve':'straight');$('reference-road-width').value=q?.widthMm||measure.widthMm||measure.roadWidthMm||200;$('reference-length').value=q?.lengthMm||measure.lengthMm||measure.roadLengthMm||display.lengthMm||350;$('reference-radius').value=q?.innerRadiusMm||measure.innerRadiusMm||300;$('reference-angle').value=q?.angleDeg||measure.angleDeg||45;
- $('reference-image').onload=()=>{const image=$('reference-image');if(!display.lengthMm&&image.naturalWidth&&image.naturalHeight)$('reference-height').value=+(350*image.naturalHeight/image.naturalWidth).toFixed(1);};updateReferenceForm();$('reference-dialog').showModal();
-}
-function updateReferenceForm(){const active=$('reference-snap').checked,curve=$('reference-shape').value==='curve';$('reference-display-fields').hidden=active;$('reference-planning-fields').hidden=!active;$('reference-length-field').hidden=curve;$('reference-radius-field').hidden=!curve;$('reference-angle-field').hidden=!curve;}
-function referenceFormPlan(source){if(!$('reference-snap').checked)return null;const previous=source.parameters?.planning||source.referencePlan;return F.validatePlanning({type:$('reference-shape').value,widthMm:Number($('reference-road-width').value),lengthMm:Number($('reference-length').value),innerRadiusMm:Number($('reference-radius').value),angleDeg:Number($('reference-angle').value),reflectX:previous?.reflectX||false,artworkPaddingMm:previous?.artworkPaddingMm||0});}
-function referenceCanvas(image){const canvas=document.createElement('canvas'),ratio=Math.min(1,512/Math.max(image.naturalWidth,image.naturalHeight));canvas.width=Math.max(1,Math.round(image.naturalWidth*ratio));canvas.height=Math.max(1,Math.round(image.naturalHeight*ratio));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);return canvas;}
-const referenceImageAdapter={
- load:async source=>{const image=new Image();image.src=source;await image.decode();return image;},
- capture:image=>referenceCanvas(image).toDataURL('image/png'),
- pixels:image=>{const canvas=referenceCanvas(image);return canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height);},
- encode:image=>{const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(image.width,image.height);pixels.data.set(image.data);ctx.putImageData(pixels,0,0);return canvas.toDataURL('image/png');}
-};
-async function placeReference(source=referenceChoice,{automatic=false}={}){
- if(!source)return;const editingId=automatic?null:referenceEditingId,designId=integrationState.designId,button=$('reference-place'),token=automatic?null:referenceRequests.begin();
- const active=()=>integrationState.designId===designId&&(automatic||referenceRequests.current(token)&&$('reference-dialog').open);
- if(!automatic)button.disabled=true;
- try{const planning=automatic?F.validatePlanning(source.referencePlan):referenceFormPlan(source),size=planning?F.planningSize(planning):{lengthMm:Number($('reference-width').value),widthMm:Number($('reference-height').value)},mirror=source.parameters?source.mirror:source.referenceMirror;
- let d=F.validateDefinition({id:'reference:'+F.uid(),name:source.name,sku:source.sku,pack:source.pack,family:source.family,color:source.color,parameters:{type:'reference',...size,...(planning?{planning}:{})},mirror:mirror!==false});
- const referenceImage=await RA.prepare(source,planning,referenceImageAdapter,active);
- if(!active())return;d=F.validateDefinition({...d,...(referenceImage?{referenceImage}:{})});
- d=Object.values(defs).find(existing=>existing.parameters.type==='reference'&&existing.name===d.name&&existing.sku===d.sku&&existing.family===d.family&&existing.pack===d.pack&&existing.mirror===d.mirror&&I.canonical(existing.parameters)===I.canonical(d.parameters)&&existing.referenceImage===d.referenceImage)||d;
- if(editingId){const placed=items.find(p=>p.id===editingId);if(!placed)throw Error('This piece was removed.');if(placed.locked)throw Error('Unlock this piece before editing it.');checkpoint();defs[d.id]=d;placed.definitionId=d.id;stop();refresh();}else{defs[d.id]=d;add(d);}
- if(!automatic)$('reference-dialog').close();say(planning?'Visual planning piece '+(editingId?'updated.':'added.')+' Approximate ends snap; PDF includes its quantity. Slot lengths are not calculated.':'Reference picture placed. Edit its planning settings to enable approximate snapping.');
- }catch(e){if(!active())return;if(!automatic)$('reference-error').textContent=e.message;say('Could not place reference: '+e.message,true);}finally{if(!automatic&&referenceRequests.current(token)&&$('reference-dialog').open)button.disabled=false;}
-}
-function selectionLocked(){if(selection().some(p=>p.locked)){say('Unlock the selected pieces before editing them.',true);return true;}return false;}
-function modify(fn){const p=current();if(!p||selectionLocked())return;checkpoint();stop();fn(p);refresh();}
-function replaceGroup(group){const changed=new Map(group.map(p=>[p.id,p]));items=items.map(p=>changed.get(p.id)||p);}
-function arrangeSelection(position){
- if(!selectedIds.size||!['front','back'].includes(position)||selectionLocked())return;
- const ordered=F.arrange(items,selectedIds,position);
- if(ordered.every((p,i)=>p===items[i])){say(position==='front'?'Selection is already at the front.':'Selection is already at the back.');return;}
- checkpoint();items=ordered;refresh();say(position==='front'?'Selection brought to front.':'Selection sent to back.');
-}
-function rotate(sign=1){const group=selection();if(!group.length||selectionLocked())return;checkpoint();stop();const b=F.bounds(group,defs),center=[b[0]+b[2]/2,b[1]+b[3]/2];replaceGroup(F.repositionGroup(group,{x:center[0],y:center[1],angle:0,flip:false},{x:center[0],y:center[1],angle:15*sign,flip:false}));refresh();}
-function mirror(){const p=current(),group=selection();if(selectionLocked()||!p||group.some(p=>!defOf(p).mirror))return;checkpoint();stop();const d=defOf(p),anchor=d.geometry.connectors[0]?.position||[d.geometry.boundsMm[0]+d.geometry.boundsMm[2]/2,d.geometry.boundsMm[1]+d.geometry.boundsMm[3]/2],before=F.point(anchor,p),target={...p,flip:!p.flip},after=F.point(anchor,target);target.x+=before[0]-after[0];target.y+=before[1]-after[1];replaceGroup(F.repositionGroup(group,p,target));rememberMirror(target.flip!==!!d.catalogueFlip);refresh();}
-function duplicate(){if(items.some(p=>defOf(p).parameters.type==='freeform')){say('Use Save to Library as a new copy to duplicate a FreeForm design.');return;}const group=selection();if(!group.length)return;if(items.length+group.length>500){say('The layout limit is 500 pieces.',true);return;}checkpoint();stop();const groups=new Map();const copies=group.map(p=>{if(p.groupId&&!groups.has(p.groupId))groups.set(p.groupId,F.uid());return{...p,id:F.uid(),locked:false,...(p.groupId?{groupId:groups.get(p.groupId)}:{}),x:p.x+120,y:p.y+120};});items.push(...copies);setSelection(copies.map(p=>p.id));refresh();}
-function remove(){if(!selectedIds.size||selectionLocked())return;checkpoint();stop();items=items.filter(p=>!selectedIds.has(p.id));setSelection([]);refresh();}
-function example(){checkpoint();stop();librarySource=null;integrationState=I.newState();planning=F.Planning.validate();spaceGuide=null;routedState=F.Routed.workspace();syncRoutedPack();items=[];const seq=[...Array(3).fill('carrera:20509'),...Array(6).fill('carrera:20572'),...Array(3).fill('carrera:20509'),...Array(6).fill('carrera:20572')];let last;for(const id of seq){const d=defs[id];let p=F.pose(d,0,0);if(last)p=F.join(p,d,0,F.ports(last,defs)[1]);items.push(p);last=p;}title='Club circuit';$('track-name').value=title;setSelection([]);profile={...F.presets.Balanced};updateSliders();updateCarControls();refresh();fit();}
-function newTrack(){checkpoint();stop();librarySource=null;integrationState=I.newState();planning=F.Planning.validate();spaceGuide=null;routedState=F.Routed.workspace();syncRoutedPack();items=[];setSelection([]);title='Untitled circuit';$('track-name').value=title;refresh();fit();}
-function rebuildMotion(){speedPlans=network.routes.slice(0,2).map(r=>I.travelPlan(r,profile,timingOffset(r.id),integrationState.direction));}
-const motion=F.animationLoop(requestAnimationFrame,cancelAnimationFrame,frame);
-function stop(){motion.stop();playing=false;$('play').textContent='▶ Live preview';$('cars').replaceChildren();lastTime=0;}
-function togglePlay(){if(playing){stop();return;}if(!network.closed)return;playing=true;rebuildMotion();$('play').textContent='Ⅱ Pause preview';lastTime=0;motion.start();}
-function frame(t){if(!playing)return;const dt=lastTime?Math.min(.05,(t-lastTime)/1000):0;lastTime=t;const factor=Number($('playback').value);const body=[];for(const[r,i]of network.routes.slice(0,2).map((r,i)=>[r,i])){carDistances[i]=(carDistances[i]+speedPlans[i](carDistances[i])*dt*factor)%r.lengthMm;const q=I.atTravel(r,carDistances[i],timingOffset(r.id),integrationState.direction),drift=Math.sign(q.curvature)*profile.drift*Math.min(1,Math.abs(q.curvature)*350);body.push(`<g class="car" transform="translate(${q.x} ${q.y}) rotate(${q.heading})"><g transform="rotate(${drift})">${F.PreviewCar.draw(previewCar,i?'#66b4e7':'#ec6167')}</g><circle r="2" fill="white"/></g>`);}$('cars').innerHTML=body.join('');}
-const sliderSpecs=[['speed','Top speed',200,3000,50,v=>(v/1000).toFixed(2)+' m/s'],['acceleration','Acceleration',100,4000,100,v=>(v/1000).toFixed(1)+' m/s²'],['brake','Braking',100,5000,100,v=>(v/1000).toFixed(1)+' m/s²'],['corner','Cornering speed',.2,.95,.01,v=>Math.round(v*100)+'%'],['drift','Visual drift',0,30,1,v=>v+'°']];
-function updateCarControls(){const s=previewCar,d=F.PreviewCar.dimensions(s),custom=s.scale==='custom';$('preview-car-scale').value=s.scale;for(const[key,id]of[['lengthMm','preview-car-length'],['widthMm','preview-car-width']]){$(id).value=Number(d[key].toFixed(6));$(id).disabled=!custom;}$('preview-car-apply').hidden=!custom;$('preview-car-error').textContent='';$('preview-car-size').textContent=d.lengthMm.toFixed(2)+' × '+d.widthMm.toFixed(2)+' mm · length × width';}
-function setCarSize(raw){try{const next=F.PreviewCar.settings(raw);if(JSON.stringify(next)!==JSON.stringify(previewCar)){checkpoint();previewCar=next;updateInspector();persist();}updateCarControls();}catch(e){$('preview-car-error').textContent=e.message;}}
-$('preview-car-scale').onchange=()=>{const scale=$('preview-car-scale').value;setCarSize(scale==='custom'?{version:1,scale,...F.PreviewCar.dimensions(previewCar)}:{version:1,scale});};
-$('preview-car-apply').onclick=()=>setCarSize({version:1,scale:'custom',lengthMm:$('preview-car-length').value.trim()===''?NaN:Number($('preview-car-length').value),widthMm:$('preview-car-width').value.trim()===''?NaN:Number($('preview-car-width').value)});
-for(const id of['preview-car-length','preview-car-width'])$(id).addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('preview-car-apply').click();}});
-
-function updateSliders(){for(const[k,,min,max,step,label]of sliderSpecs){if($('tune-'+k)){$('tune-'+k).value=profile[k];$('value-'+k).textContent=label(profile[k]);}}$('preset').value=Object.keys(F.presets).find(k=>JSON.stringify(F.presets[k])===JSON.stringify(profile))||'Custom';}
-function initSliders(){for(const[k,name,min,max,step,label]of sliderSpecs){const lab=document.createElement('label');lab.className='slider-label';lab.htmlFor='tune-'+k;lab.append(document.createTextNode(name));const output=document.createElement('output');output.id='value-'+k;lab.append(output);const input=document.createElement('input');input.type='range';input.min=min;input.max=max;input.step=step;input.id='tune-'+k;input.setAttribute('aria-label',name);input.oninput=()=>{profile[k]=Number(input.value);updateSliders();if(playing)rebuildMotion();persist();};$('sliders').append(lab,input);}updateSliders();}
-let customDraft=null,customToBuilder=false,customSlotOffsets=null;
-const plasticCustomHost=document.createElement('div');$('piece-form').querySelector('[name=family]').closest('label').after(plasticCustomHost);
-const plasticCustomFields=window.PlasticLanesUI.fields(plasticCustomHost,updateCustom);
-const plasticUI=window.PlasticLanesUI.init({packs:()=>customLibrary.packs,apply:async(draft,packId,token)=>{
- const placement=items.find(p=>p.id===token.pieceId);window.DesignTools.editable(items,[token.pieceId]);if(integrationState.designId!==token.designId||placement?.definitionId!==token.definitionId)throw Error('The selected piece has changed. Reopen Lane spacing.');
- let d=F.validateDefinition({...draft,id:'custom:'+F.uid()});
- if(packId){const next=CP.read(CP.serialize(customLibrary)),pack=next.packs.find(p=>p.id===packId);if(!pack)throw Error('Choose an existing custom pack.');if(next.packs.reduce((n,p)=>n+p.pieces.length,0)>=500)throw Error('The custom library supports up to 500 pieces.');d={...d,pack:pack.name};pack.pieces.push(d);pack.inLibrary=true;next.activePackId=pack.id;const data=CP.serialize(next);if(DS.disk)await DS.putPacks(data);else writeBrowserPacks(data);customLibrary=next;customs=next.packs.flatMap(p=>p.pieces);populatePacks();renderPackControls();renderCustomLibrary();renderTrackPacks();}
- if(integrationState.designId!==token.designId||!items.includes(placement)||placement.definitionId!==token.definitionId)throw Error('The layout changed while saving. The pack variant was kept; reopen Lane spacing to apply it.');checkpoint();stop();defs[d.id]=d;placement.definitionId=d.id;refresh();catalogue();say('Lane spacing updated. Road outline and connections kept in place.'+(packId?' Variant saved to pack.':''));
-}});
-$('adjust-plastic-lanes').onclick=()=>{const p=current();if(p&&selection().length===1&&F.PlasticLanes.supported(defOf(p).parameters))plasticUI.open(defOf(p),{pieceId:p.id,definitionId:p.definitionId,designId:integrationState.designId});};
-function familyDraft(){const f=$('piece-form').elements;return CP.curveParameters({innerRadiusMm:Number(f.baseRadiusMm.value),widthMm:Number(f.widthMm.value),angleDeg:Number(f.angleDeg.value),laneCount:Number(f.laneCount.value),laneSpacingMm:Number(f.laneSpacingMm.value)});}
-function matchingCurve(){const f=$('piece-form').elements;return !customSlotOffsets&&f.type.value==='curve'&&f.curveMode.value==='family';}
-function updateCurveHelper(){
- const f=$('piece-form').elements,matching=matchingCurve();$('curve-helper').hidden=f.type.value!=='curve';$('curve-family-fields').hidden=!matching;f.baseRadiusMm.disabled=!matching;f.radiusNumber.disabled=!matching;f.innerRadiusMm.readOnly=matching;f.curveMode.disabled=!!customSlotOffsets;$('curve-family-preview').hidden=!matching;
- if(!matching)return;
- const base=familyDraft(),selected=Number(f.radiusNumber.value),p=CP.curveParameters(base,selected);f.innerRadiusMm.value=p.innerRadiusMm;
- if(/^My (straight|curve)$/.test(f.name.value)||/^R[1-8] curve ·/.test(f.name.value))f.name.value='R'+selected+' curve · '+p.angleDeg+'°';
- const count=Math.max(4,selected),rows=[],paths=[],extent=base.innerRadiusMm+count*base.widthMm;
- for(let n=1;n<=count;n++){const r=base.innerRadiusMm+(n-1)*base.widthMm,shape=G.derive({...base,innerRadiusMm:r,angleDeg:90});paths.push(G.path(shape.outlineSvgPath,n===selected?'#e5484d':'#303a46','#9da9b8',2));paths.push(`<text x="${(r+base.widthMm/2)*.707}" y="${-(r+base.widthMm/2)*.707}" fill="white" text-anchor="middle" font-size="${extent/28}">R${n}</text>`);rows.push(`<tr${n===selected?' class="active"':''}><td>R${n}</td><td>${+r.toFixed(2)}</td><td>${+(r+base.widthMm).toFixed(2)}</td></tr>`);}
- $('curve-family-diagram').setAttribute('viewBox',`-20 ${-extent-20} ${extent+40} ${extent+40}`);$('curve-family-diagram').innerHTML=paths.join('');$('curve-family-table').innerHTML='<table><thead><tr><th>Radius</th><th>Inner edge · mm</th><th>Outer edge · mm</th></tr></thead><tbody>'+rows.join('')+'</tbody></table>';
- const gap=base.widthMm-(base.laneCount-1)*base.laneSpacingMm,whole=360/base.angleDeg;$('curve-family-note').textContent=`Nesting diagram shows 90° for clarity. Selected piece: ${base.angleDeg}°; ${Number.isInteger(whole)?whole+' pieces make a full circle':'this angle does not divide a full circle evenly'}. Slots across the join between radii: ${+gap.toFixed(2)} mm${Math.abs(gap-base.laneSpacingMm)>.01?' (different from the '+base.laneSpacingMm+' mm spacing within a piece)':''}. Settings are remembered for this pack. Existing pieces keep their dimensions.`;
-}
-function formDraft(){const f=$('piece-form').elements,isSwitch=f.type.value.startsWith('lane-'),p={type:isSwitch?'straight':f.type.value,widthMm:Number(f.widthMm.value)};if(isSwitch){p.laneChange=f.type.value.slice(5);p.switchStartMm=Number(f.switchStartMm.value);p.switchEndMm=Number(f.switchEndMm.value);}if(p.type.startsWith('straight'))p.lengthMm=Number(f.lengthMm.value);else{p.innerRadiusMm=Number(f.innerRadiusMm.value);p.angleDeg=Number(f.angleDeg.value);}if(p.type.endsWith('border'))p.side=f.side.value;else if(customSlotOffsets)p.laneOffsetsMm=[...customSlotOffsets];else{p.laneCount=isSwitch?2:Number(f.laneCount.value);p.laneSpacingMm=Number(f.laneSpacingMm.value);}const laneAdjustment=plasticCustomFields.read(p);if(laneAdjustment)p.laneAdjustment=laneAdjustment;return F.validateDefinition({id:'custom:preview',name:f.name.value,pack:activePack().name,family:f.family.value,parameters:p,color:f.color.value,status:'user-defined'});}
-function updateCustom(){const f=$('piece-form').elements,curve=f.type.value.startsWith('curve'),border=f.type.value.endsWith('border'),isSwitch=f.type.value.startsWith('lane-');if(isSwitch)f.laneCount.value=2;for(const [field,show]of [['length',!curve],['radius',curve],['angle',curve],['lanes',!border&&!isSwitch&&!customSlotOffsets],['spacing',!border&&!customSlotOffsets],['side',border],['switch-start',isSwitch],['switch-end',isSwitch]]){const el=document.querySelector(`[data-field="${field}"]`);el.hidden=!show;for(const input of el.querySelectorAll('input,select'))input.disabled=!show;}$('measured-slots').hidden=!customSlotOffsets||border;$('measured-slots-note').textContent=customSlotOffsets?'Preserved slot positions from the road edge: '+customSlotOffsets.join(' / ')+' mm.':'';try{updateCurveHelper();customDraft=formDraft();const b=customDraft.geometry.boundsMm;$('custom-preview').setAttribute('viewBox',`${b[0]-25} ${b[1]-25} ${b[2]+50} ${b[3]+50}`);$('custom-preview').innerHTML=window.TrackDrawing.body(customDraft);$('custom-summary').textContent=customDraft.geometry.lanePaths.length?'Slot lengths: '+customDraft.geometry.lanePaths.map(l=>l.lengthMm.toFixed(1)+' mm').join(' / '):'Border footprint only. Adds no road or lane length.';if(customDraft.geometry.alternateLanePaths){$('custom-summary').textContent+=' · Change routes: '+customDraft.geometry.alternateLanePaths.map(r=>r.lengthMm.toFixed(1)+' mm').join(' / ')+'. Preview and circuit totals use the straight-through lanes. These curves approximate your measured switch.';}$('custom-error').textContent='';$('create-piece').disabled=false;}catch(e){customDraft=null;$('custom-error').textContent=e.message;$('custom-summary').textContent='Adjust the measurements to create a valid piece.';$('custom-preview').replaceChildren();$('create-piece').disabled=true;}}
-function openCustom(from){customSlotOffsets=from?.parameters.laneOffsetsMm?[...from.parameters.laneOffsetsMm]:null;customToBuilder=document.body.dataset.section==='builder';$('create-piece').textContent=customToBuilder?'Create & add to track':'Add piece to pack';$('piece-pack-name').textContent='Adding to '+activePack().name;const form=$('piece-form');form.reset();plasticCustomFields.set(from?.parameters.laneAdjustment);const f=form.elements;if(!from&&activePack().curveFamily){const base=activePack().curveFamily;for(const key of ['widthMm','angleDeg','laneCount','laneSpacingMm'])f[key].value=base[key];f.baseRadiusMm.value=base.innerRadiusMm;}if(from){f.curveMode.value='independent';f.name.value=from.name.slice(0,91)+' — custom';for(const[k,v]of Object.entries(from.parameters))if(f[k])f[k].value=v;if(from.parameters.laneChange)f.type.value='lane-'+from.parameters.laneChange;if(customSlotOffsets){f.laneCount.value=customSlotOffsets.length;f.laneSpacingMm.value=customSlotOffsets.length>1?(customSlotOffsets.at(-1)-customSlotOffsets[0])/(customSlotOffsets.length-1):100;}if(![...f.family.options].some(o=>o.value===from.family)){const o=document.createElement('option');o.value=from.family;o.textContent='Imported connectors: '+from.family;f.family.append(o);}f.family.value=from.family;f.color.value=from.color;}else f.family.value='custom';$('piece-dialog').showModal();updateCustom();}
-function createCustom(e){e.preventDefault();updateCustom();if(!customDraft)return;if(customs.length>=500){say('The custom library supports up to 500 pieces.',true);return;}const d={...customDraft,id:'custom:'+F.uid()};if(matchingCurve())activePack().curveFamily=familyDraft();activePack().pieces.push(d);defs[d.id]=d;persistCustom();$('piece-dialog').close();if(customToBuilder){$('pack').value=activePack().id;$('search').value='';catalogue();location.hash='builder';routeSection();updateView();add(d);}else{renderCustomLibrary();say(d.name+' added to '+activePack().name+'.');}}
-async function importPack(raw){if(raw?.format==='slotforge.layout')throw Error('This is a complete track. Use Import track JSON under Import & Export → Tracks.');const p=CP.importPack(raw,customLibrary);if(document.body.dataset.section==='packs'){$('packs-search').value='';$('packs-filter').querySelectorAll('[data-pack-filter]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.packFilter==='own')));}customLibrary.packs.push(p);customLibrary.activePackId=p.id;for(const d of p.pieces)defs[d.id]=d;const saving=persistCustom();$('pack').value=p.id;$('search').value='';catalogue();if(document.body.dataset.section==='export'){$('export-pack-select').value=p.id;updateExportNote('export-pack-select','export-pack-note','export-custom');}if(await saving)say(p.name+' imported as one pack with '+p.pieces.length+' '+(p.pieces.length===1?'piece.':'pieces.'));}
-function populateExportSelect(id,preferred){const el=$(id),old=preferred||el.value||activePack().id;el.replaceChildren();for(const p of allPacks()){const n=p.pieces.filter(d=>d.parameters).length,o=document.createElement('option');o.value=p.id;o.textContent=p.name+' · '+n+' '+(n===1?'piece':'pieces')+(n<p.pieces.length?' (supported definitions only)':'');o.disabled=!n;el.append(o);}el.value=allPacks().some(p=>p.id===old)?old:activePack().id;}
-function updateExportNote(id,note,button){const p=allPacks().find(p=>p.id===$(id).value),count=p?.pieces.filter(d=>d.parameters).length||0,excluded=(p?.pieces.length||0)-count;$(note).textContent=count+' '+(count===1?'piece definition will be exported.':'piece definitions will be exported together.')+(excluded?' '+excluded+' reference-only items have no parametric geometry and are excluded.':'');$(button).disabled=!count;}
-function exportPack(preferred){const id=typeof preferred==='string'?preferred:(document.body.dataset.section==='builder'?$('pack').value:activePack().id);populateExportSelect('pack-export-choice',id);updateExportNote('pack-export-choice','pack-export-note','pack-export-download');$('pack-export-dialog').showModal();}
-function downloadPack(id){try{const p=allPacks().find(p=>p.id===id);if(!p)throw Error('Choose a pack to export.');const out=CP.exportPack(p);if(!out.pieces.length)throw Error('Add a piece to this pack before exporting.');const safe=p.name.replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').slice(0,90)||'Track-pack';const text=JSON.stringify(out,null,2);if(new TextEncoder().encode(text).length>5*1024*1024)throw Error('This pack exceeds the 5 MiB import limit. Split its pieces into smaller packs before sharing. Use Storage to download a full workspace backup.');download(safe+'.track-pack.json',text);say(p.name+' exported with '+out.pieces.length+' '+(out.pieces.length===1?'piece.':'pieces.'));}catch(e){say(e.message,true);}}
-
-function readFile(input,fn){const file=input.files?.[0];input.value='';if(!file)return;if(file.size>5*1024*1024){say('Choose a JSON file smaller than 5 MB.',true);return;}file.text().then(t=>fn(JSON.parse(t))).catch(e=>say('Could not import: '+e.message,true));}
-function exportCSV(raw=layout(false)){const model=XM.build(raw);download(XM.filename(model.title)+'-parts.csv',XM.csv(model),'text/csv;charset=utf-8');}
-let pdfSnapshot=null,pdfBusy=false;
-const pdfDiagram=window.TrackDrawing.pdfDiagram;
-function openPdfReport(raw=layout()){try{stop();const model=XM.build(raw);if(!model.pieces.length)throw Error('Add pieces before exporting a PDF.');pdfSnapshot=model.layout;$('pdf-track-name').textContent=model.title;$('pdf-track-details').textContent=model.pieces.length+' placed pieces · '+(model.summary.invalidFreeform?'Draft needs attention · lengths not calculated':model.summary.planning?'approximate visual layout':meters(model.summary.length)+(model.summary.freeform?' reference slot':' track centreline'));$('pdf-preview').innerHTML=pdfDiagram(model.layout).svg;$('pdf-error').textContent='';$('pdf-dialog').showModal();}catch(e){say(e.message,true);}}
-async function downloadPDF(){if(pdfBusy||!pdfSnapshot)return;pdfBusy=true;const buttons=[...$('pdf-dialog').querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);$('pdf-orientation').disabled=true;$('pdf-error').textContent='';$('pdf-download').textContent='Generating PDF…';try{const picture=pdfDiagram(pdfSnapshot),url=URL.createObjectURL(new Blob([picture.svg],{type:'image/svg+xml'}));let data;try{const image=new Image();image.src=url;await image.decode();const canvas=document.createElement('canvas');canvas.width=picture.width;canvas.height=picture.height;const context=canvas.getContext('2d');context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);context.drawImage(image,0,0);data=canvas.toDataURL('image/jpeg',.95);}finally{URL.revokeObjectURL(url);}const result=window.TrackPDF.create(pdfSnapshot,{data,width:picture.width,height:picture.height},{orientation:$('pdf-orientation').value});download(XM.filename(result.title)+'.pdf',result.bytes,'application/pdf');$('pdf-dialog').close();say('PDF downloaded: '+result.title+' · '+result.pages+' '+(result.pages===1?'page':'pages'));}catch(e){$('pdf-error').textContent='Could not generate the PDF: '+e.message;}finally{pdfBusy=false;buttons.forEach(b=>b.disabled=false);$('pdf-orientation').disabled=false;$('pdf-download').textContent='Download PDF';}}
-$('pdf-download').onclick=downloadPDF;$('pdf-dialog').addEventListener('cancel',e=>{if(pdfBusy)e.preventDefault();});
-// Empty canvas draws a selection marquee. Space or middle-button drag pans.
-$('canvas').addEventListener('pointerdown',e=>{
- if(drag||e.button!==0&&e.button!==1)return;$('canvas').focus({preventScroll:true});if(e.target.closest('.car'))return;
- const pos=world(e),id=e.target.closest('[data-id]')?.getAttribute('data-id');
- if(space||e.button===1){drag={type:'pan',startClient:[e.clientX,e.clientY],view:{...view}};}
- else if(!spaceGuide?.locked&&e.target.closest('[data-guide]')){stop();drag={type:'guide',resize:e.target.closest('[data-guide]').dataset.guide==='resize',start:pos,original:{...spaceGuide},snapshot:snapshot(),moved:false};}
- else if(id){
-  if(e.shiftKey){const ids=new Set(selectedIds);const related=window.DesignTools.expanded(items,[id]);if(ids.has(id))related.forEach(k=>ids.delete(k));else related.forEach(k=>ids.add(k));setSelection(ids,id);renderCanvas();updateInspector();return;}
-  if(!selectedIds.has(id))select(id);else{selected=id;updateInspector();}
-  if(selectionLocked())return;stop();drag={type:'piece',id,start:pos,originals:selection().map(p=>({...p})),snapshot:snapshot(),moved:false};
- }else{
-  const previous=[...selectedIds],previousPrimary=selected;if(!e.shiftKey)select(null);
-  drag={type:'select',start:pos,startClient:[e.clientX,e.clientY],base:e.shiftKey?previous:[],previous,previousPrimary,moved:false};
- }
- drag.pointerId=e.pointerId;$('canvas').setPointerCapture(e.pointerId);e.preventDefault();
-});
-$('canvas').addEventListener('pointermove',e=>{
- if(!drag||e.pointerId!==drag.pointerId)return;
- if(drag.type==='pan'){const r=$('canvas').getBoundingClientRect();view.x=drag.view.x-(e.clientX-drag.startClient[0])/r.width*view.w;view.y=drag.view.y-(e.clientY-drag.startClient[1])/r.height*view.h;updateView();return;}
- const pos=world(e);
- if(drag.type==='guide'){const dx=pos[0]-drag.start[0],dy=pos[1]-drag.start[1];if(!drag.moved&&Math.hypot(dx,dy)<1)return;spaceGuide=drag.resize?F.resizeSpaceGuide(drag.original,dx,dy,e.shiftKey):F.moveSpaceGuide(drag.original,dx,dy);drag.moved=true;renderSpaceGuide();$('status').textContent='Available space: '+guideSize(spaceGuide);return;}
- if(drag.type==='select'){
-  if(!drag.moved&&Math.hypot(e.clientX-drag.startClient[0],e.clientY-drag.startClient[1])<3)return;
-  drag.moved=true;const hits=items.filter(p=>F.inSelectionBox(p,defOf(p),drag.start,pos)).map(p=>p.id);
-  setSelection([...drag.base,...hits]);renderCanvas();updateInspector();
-  const box=$('selection-box');box.hidden=false;box.style.display='block';
-  for(const[k,v]of Object.entries({x:Math.min(pos[0],drag.start[0]),y:Math.min(pos[1],drag.start[1]),width:Math.abs(pos[0]-drag.start[0]),height:Math.abs(pos[1]-drag.start[1])}))box.setAttribute(k,v);
-  $('status').textContent=selectedIds.size+' pieces selected';return;
- }
- const dx=pos[0]-drag.start[0],dy=pos[1]-drag.start[1];if(Math.hypot(dx,dy)<1&&!drag.moved)return;drag.moved=true;
- let moved=drag.originals.map(p=>({...p,x:p.x+dx,y:p.y+dy})),snapped=null;
- if(snapEnabled&&!e.shiftKey){
-  const remaining=items.filter(p=>!selectedIds.has(p.id)),open=F.connections(moved,defs).open,targets=F.connections(remaining,defs).open;
-  for(const candidate of moved){
-   const allowed=open.filter(p=>p.pieceId===candidate.id).map(p=>p.index);
-   const result=F.snap(candidate,remaining,defs,Math.min(100,view.w/$('canvas').clientWidth*22),allowed,targets);
-   if(result&&(!snapped||result.score<snapped.score)&&(result.kind==='side'||allowed.some(i=>F.dist(F.ports(result.pose,defs)[i].position,result.target.position)<.15)))snapped={...result,original:candidate};
+(async () => {
+  'use strict';
+  const F = window.Forge,
+    I = window.SlotForgeIntegration,
+    CP = window.CustomPacks,
+    CF = window.CatalogueFolders,
+    DL = window.DesignLibrary,
+    XM = window.TrackExports,
+    RA = window.ReferenceArtwork,
+    G = F.G,
+    $ = id => document.getElementById(id),
+    E = G.attrs,
+    NS = 'http://www.w3.org/2000/svg',
+    STORAGE = 'slotforge.editor.v1',
+    CUSTOM = 'slotforge.custom.v1';
+  // The version shown in the header comes from integration.js, the single source.
+  for (const el of document.querySelectorAll('.sf-version')) el.textContent = 'v' + I.VERSION;
+  const DS = window.LocalWorkspace;
+  await DS.init();
+  if (DS.startupFailed) return;
+  DL.setBackend(DS.disk ? DS : null);
+  const defs = Object.create(null),
+    packs = window.TRACK_PACKS;
+  for (const pack of packs)
+    for (const d of pack.pieces) if (d.parameters) defs[d.id] = { ...d, geometry: G.derive(d.parameters) };
+  let colourByPiece = false,
+    pieceColourModel = window.PieceColours.build([]);
+  try {
+    colourByPiece = localStorage.getItem('slotforge.piece-colours.v1') === 'true';
+  } catch {}
+  let exportChoice = 'current',
+    exportMenuGeneration = 0,
+    exportSourceGeneration = 0;
+  let planning = F.Planning.validate(),
+    designToolsUI = null;
+  let previewCar = F.PreviewCar.settings(),
+    routedState = F.Routed.workspace(),
+    routedUI = null;
+  const routedPack = F.Routed.pack(routedState.settings);
+  packs.push(routedPack);
+  let cadUI = null,
+    freeformUI = null,
+    elevationUI = null,
+    exportCadAvailable = false,
+    exportTrackAvailable = false;
+  let guideOrigin = null,
+    spaceGuide = null,
+    librarySource = null,
+    deleteDesignRevision = null;
+  const referenceRequests = RA.requestGuard();
+  let referenceChoice = null,
+    referenceEditingId = null,
+    referenceQueue = Promise.resolve(),
+    libraryRender = 0,
+    designSaveGeneration = 0,
+    designSaveBusy = false,
+    deleteDesignId = null;
+  const folderState = {};
+  try {
+    Object.assign(folderState, JSON.parse(localStorage.getItem('slotforge.catalogue-folders.v1') || '{}'));
+  } catch {}
+  let selectedIds = new Set(),
+    mirrorNew = false,
+    integrationState = I.newState();
+  let customPieceSelection = new Set(),
+    customSelectionPack = null,
+    deletePackPieces = null,
+    deletePackBusy = false,
+    browserPackBaseline;
+  let customLibrary = CP.empty(),
+    customs = [],
+    items = [],
+    selected = null,
+    title = 'Club circuit',
+    profile = { ...F.presets.Balanced },
+    history = [],
+    future = [],
+    view = { x: -300, y: -600, w: 3500, h: 2300 },
+    network = { closed: false, routes: [] },
+    snapEnabled = true,
+    playing = false,
+    carDistances = [0, 0],
+    speedPlans = [],
+    lastTime = 0,
+    drag = null,
+    space = false,
+    storageAvailable = true,
+    browserPackUnsaved = false,
+    toastTimer,
+    confirmAction = null;
+  const svg = (tag, attrs = {}, parent) => {
+    const el = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    if (parent) parent.append(el);
+    return el;
+  };
+  const say = (message, error = false) => {
+    $('toast').textContent = message;
+    $('toast').hidden = false;
+    $('toast').style.borderColor = error ? '#e5484d' : '#657184';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => ($('toast').hidden = true), 5500);
+    $('status').textContent = message;
+  };
+  const current = () => items.find(p => p.id === selected),
+    defOf = p => defs[p.definitionId],
+    meters = n => (n / 1000).toFixed(2) + ' m';
+  const selection = () => items.filter(p => selectedIds.has(p.id));
+  function setSelection(ids, primary) {
+    selectedIds = new Set(window.DesignTools.expanded(items, [...ids]));
+    selected = selectedIds.has(primary) ? primary : [...selectedIds].at(-1) || null;
+    $('status').textContent = selectedIds.size ? selectedIds.size + ' pieces selected' : 'Ready';
   }
- }
- if(snapped)moved=F.repositionGroup(moved,snapped.original,snapped.pose);
- replaceGroup(moved);renderCanvas(snapped?.guide);$('status').textContent=snapped?(snapped.kind==='side'?'Road sides aligned · release to place':'Connector aligned · release to place'):'Moving selection · hold Shift to disable snapping';
-});
-function finishDrag(cancel=false){
- if(!drag)return;
- if(drag.type==='guide'&&drag.moved){if(cancel)spaceGuide=drag.original;else{history.push(drag.snapshot);if(history.length>80)history.shift();future=[];}refresh();$('status').textContent=cancel?'Guide change cancelled':'Space guide updated';}
- if(drag.type==='piece'&&drag.moved){if(cancel)replaceGroup(drag.originals);else{history.push(drag.snapshot);if(history.length>80)history.shift();future=[];}refresh();$('status').textContent=cancel?'Move cancelled':selectedIds.size+' pieces placed';}
- if(drag.type==='select'){$('selection-box').style.display='none';if(cancel){setSelection(drag.previous,drag.previousPrimary);renderCanvas();updateInspector();}else $('status').textContent=selectedIds.size?selectedIds.size+' pieces selected':'Ready';}
- const pointerId=drag.pointerId;drag=null;if($('canvas').hasPointerCapture(pointerId))$('canvas').releasePointerCapture(pointerId);if(routedUI)routedUI.render();
-}
-$('canvas').addEventListener('pointerup',e=>{if(e.pointerId===drag?.pointerId)finishDrag();});$('canvas').addEventListener('pointercancel',e=>{if(e.pointerId===drag?.pointerId)finishDrag(true);});$('canvas').addEventListener('wheel',e=>{e.preventDefault();if(drag)return;zoom(Math.exp(Math.sign(e.deltaY)*.12),world(e));},{passive:false});
-document.addEventListener('keydown',e=>{
- if(document.body.dataset.section!=='builder'||document.querySelector('dialog[open]')||e.target.closest('input,select,textarea,[contenteditable="true"]'))return;
- if(e.code==='Space'&&!e.ctrlKey&&!e.metaKey&&!e.altKey){space=true;e.preventDefault();return;}
- const action=F.shortcut(e);if(!action)return;e.preventDefault();
- if(drag){if(action==='escape')finishDrag(true);return;}
- const actions={selectAll:()=>{setSelection(items.map(p=>p.id));renderCanvas();updateInspector();},undo,redo,duplicate,save,rotate,rotateBack:()=>rotate(-1),mirror,remove,escape:()=>select(null)};
- actions[action]();
-});document.addEventListener('keyup',e=>{if(e.code==='Space')space=false;});window.addEventListener('blur',()=>{space=false;finishDrag(true);});
-$('layer-order').onchange=()=>{const position=$('layer-order').value;$('layer-order').value='';arrangeSelection(position);};
-$('undo').onclick=undo;$('redo').onclick=redo;$('rotate').onclick=e=>rotate(e.shiftKey?-1:1);$('mirror').onclick=mirror;$('duplicate').onclick=duplicate;$('delete').onclick=remove;$('snap').onclick=()=>{snapEnabled=!snapEnabled;$('snap').setAttribute('aria-pressed',snapEnabled);$('snap').textContent=snapEnabled?'Snap on':'Snap off';};$('zoom-in').onclick=()=>zoom(.8);$('zoom-out').onclick=()=>zoom(1.25);$('fit').onclick=fit;$('save').onclick=save;$('builder-pdf').onclick=()=>openPdfReport(layout());$('builder-cad').onclick=()=>cadUI.open(layout());$('print').onclick=()=>exportSelectedTrack('pdf');$('csv').onclick=()=>exportCSV();$('new').onclick=()=>confirmReplace(newTrack);$('demo').onclick=()=>confirmReplace(example);$('empty-demo').onclick=example;$('play').onclick=togglePlay;$('restart').onclick=()=>{carDistances=[0,0];if(!playing&&network.closed)togglePlay();};
-$('mirror-new').onchange=()=>rememberMirror($('mirror-new').checked);
-$('pack').onchange=()=>{const chosen=allPacks().find(p=>p.id===$('pack').value);if(chosen&&!chosen.pieces.some(d=>d.geometry||d.referencePlan))$('buildable').checked=false;if(customLibrary.packs.some(p=>p.id===$('pack').value)){customLibrary.activePackId=$('pack').value;persistCustom();}catalogue();};$('search').oninput=catalogue;$('buildable').onchange=catalogue;$('custom').onclick=()=>{if($('pack').value===F.Routed.ID||customLibrary.packs.some(p=>p.id===$('pack').value&&p.pieces.length&&p.pieces.every(d=>d.parameters.routed))){$('routed-new-section').click();return;}if(customLibrary.packs.some(p=>p.id===$('pack').value))customLibrary.activePackId=$('pack').value;openCustom();};$('custom-from').onclick=()=>current()&&openCustom(defOf(current()));$('piece-form').oninput=updateCustom;$('piece-form').onchange=e=>{if(e.target.name==='type'&&e.target.value.startsWith('lane-')){const f=$('piece-form').elements;f.switchStartMm.value=Number(f.lengthMm.value)*.2;f.switchEndMm.value=Number(f.lengthMm.value)*.8;if(f.name.value==='My straight')f.name.value='My lane changer';}updateCustom();};$('piece-form').onsubmit=createCustom;$('uniform-slots').onclick=()=>{customSlotOffsets=null;updateCustom();};$('import-pack').onclick=()=>$('pack-file').click();$('export-pack').onclick=exportPack;$('pack-file').onchange=()=>readFile($('pack-file'),importPack);$('open').onclick=()=>$('layout-file').click();$('layout-file').onchange=()=>readFile($('layout-file'),raw=>{if(raw?.format==='slotforge.custom-pack')throw Error('This is a track pack. Use Import pack JSON under Import & Export → Track Packs.');I.importLayout(raw);confirmReplace(()=>{try{applyImport(raw);}catch(e){say(e.message,true);}});});
-$('track-name').onchange=()=>{checkpoint();title=$('track-name').value.trim()||'Untitled circuit';$('track-name').value=title;updateInspector();persist();};for(const[k,id]of[['x','pos-x'],['y','pos-y'],['angle','pos-angle']])$(id).onchange=()=>{const v=$(id).value.trim()===''?NaN:Number($(id).value);if(!Number.isFinite(v)||Math.abs(v)>1000000){say('Enter a finite coordinate within ±1,000,000.',true);if(current())$(id).value=current()[k];updateInspector();return;}modify(p=>p[k]=k==='angle'?F.wrap(v):v);};
-for(const id of['layout','tune'])$('tab-'+id).onclick=()=>{for(const n of['layout','tune']){$('tab-'+n).setAttribute('aria-selected',id===n);$('tab-'+n).tabIndex=id===n?0:-1;$(n+'-panel').hidden=id!==n;}};
-document.querySelector('.inspector-tabs').addEventListener('keydown',e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const id=e.key==='Home'?'layout':e.key==='End'?'tune':document.activeElement.id==='tab-layout'?'tune':'layout';$('tab-'+id).click();$('tab-'+id).focus();});
-$('preset').onchange=()=>{if(F.presets[$('preset').value]){profile={...F.presets[$('preset').value]};updateSliders();if(playing)rebuildMotion();persist();}};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());$('confirm-cancel').onclick=()=>$('confirm-dialog').close();$('confirm-save').onclick=save;$('confirm-go').onclick=()=>{$('confirm-dialog').close();confirmAction?.();confirmAction=null;};new ResizeObserver(()=>updateView()).observe($('canvas'));
-try{rememberMirror(JSON.parse(localStorage.getItem('slotforge.mirror-new.v1'))===true);}catch{rememberMirror(false);}
-populatePacks();initSliders();updateCarControls();try{const saved=localStorage.getItem(CP.STORAGE),legacy=localStorage.getItem(CUSTOM);browserPackBaseline=saved;customLibrary=CP.read(DS.disk?DS.packs:saved!==null?JSON.parse(saved):legacy!==null?JSON.parse(legacy):null);customs=customLibrary.packs.flatMap(p=>p.pieces);if(customs.some(d=>defs[d.id]))throw Error('Saved piece IDs collide with installed packs.');for(const d of customs)defs[d.id]=d;const requested=new URLSearchParams(location.search).get('pack');if(customLibrary.packs.some(p=>p.id===requested))customLibrary.activePackId=requested;if(requested){const url=new URL(location.href);url.searchParams.delete('pack');window.history.replaceState(null,'',url.pathname+url.search+url.hash);if(DS.disk)await DS.putPacks(CP.serialize(customLibrary));else writeBrowserPacks(CP.serialize(customLibrary));}}catch{backupStorage(CP.STORAGE);backupStorage(CUSTOM);customLibrary=CP.empty();customs=[];say('Saved pack library could not be loaded. Original data was retained for recovery.',true);}populatePacks();renderPackControls();let loaded=false;try{const raw=DS.disk?DS.current:localStorage.getItem(STORAGE);if(raw){const input=DS.disk?raw:JSON.parse(raw),saved=I.importLayout(input);try{librarySource=DL.validateSource(DS.disk?DS.currentSource:input.editorState?.librarySource,saved.state.designId);}catch{librarySource=null;}const merged=F.mergeDefinitions(saved.definitions,saved.pieces,defs);Object.assign(defs,merged.definitions);items=merged.pieces;planning=F.Planning.validate(saved.workspace?.planning);previewCar=F.PreviewCar.settings(saved.workspace?.previewCar);routedState=F.Routed.workspace(saved.workspace?.routed);syncRoutedPack();spaceGuide=saved.workspace?.spaceGuide||null;title=saved.title;profile=saved.profile;integrationState=saved.state;$('track-name').value=title;loaded=true;}}catch{backupStorage(STORAGE);say('Saved layout could not be restored. Starting with the example.',true);}catalogue();updateSliders();updateCarControls();updateView();if(loaded){refresh();fit();}else{example();history=[];future=[];updateInspector();}
-
-
-let borderPlan=null;
-function previewBorders(){
- const roads=selection().filter(p=>['straight','curve'].includes(defOf(p).parameters.type)),side=$('border-sides').value;
- borderPlan=F.planBorders(roads,items,defs,side==='both'?['inner','outer']:[side]);
- $('borders-selection').textContent=roads.length+' selected road pieces';
- $('border-side-help').textContent=borderPlan.sideMode==='circuit'?'Inside and outside follow the connected circuit, including straights, bends and mirrored pieces.':'Open or unsupported circuits have no unique inside. Sides follow a connected bend; isolated straights use local right as inside and local left as outside. Use Both sides when unsure.';
- $('borders-summary').textContent=borderPlan.overflow?'These borders would exceed the 500-piece layout limit. Select fewer road pieces.':borderPlan.added.length+' border pieces will be added.'+(borderPlan.duplicates?' '+borderPlan.duplicates+' already placed sections skipped.':'');
- $('borders-missing').replaceChildren();
- for(const missing of borderPlan.missing.slice(0,10)){const li=document.createElement('li');li.textContent=missing.name+' — no matching '+(missing.side==='inner'?'inside':'outside')+' border geometry';$('borders-missing').append(li);}
- if(borderPlan.missing.length>10){const li=document.createElement('li');li.textContent='And '+(borderPlan.missing.length-10)+' more unmatched edges.';$('borders-missing').append(li);}
- $('place-borders').disabled=borderPlan.overflow||!borderPlan.added.length;
-}
-$('add-borders').onclick=()=>{previewBorders();$('borders-dialog').showModal();};$('border-sides').onchange=previewBorders;
-$('place-borders').onclick=()=>{previewBorders();if(borderPlan.overflow||!borderPlan.added.length)return;checkpoint();stop();const count=borderPlan.added.length,ids=[...selectedIds,...borderPlan.added.map(p=>p.id)];items.push(...borderPlan.added);setSelection(ids,selected);$('borders-dialog').close();refresh();say(count+' borders added. Road and borders are selected together.');};
-
-function renderPackControls(){
- const select=$('custom-pack-select');select.replaceChildren();for(const p of customLibrary.packs){const o=document.createElement('option');o.value=p.id;o.textContent=p.name+(p.inLibrary?'':' (draft)');select.append(o);}select.value=activePack().id;$('custom-pack-name').value=activePack().name;$('editing-pack-name').textContent=activePack().name;$('pack-contents-title').textContent='Pieces in '+activePack().name;$('custom-pack-status').textContent=activePack().pieces.length+' pieces · '+(activePack().inLibrary?'Saved to Track Pack Library':'Draft pack');populateExportSelect('export-pack-select');updateExportNote('export-pack-select','export-pack-note','export-custom');
-}
-async function saveToLibrary(){try{const p=activePack();p.name=CP.name($('custom-pack-name').value);p.pieces=p.pieces.map(d=>({...d,pack:p.name}));for(const d of p.pieces)defs[d.id]=d;p.inLibrary=true;if(await persistCustom())say(p.name+' saved to Track Pack Library with '+p.pieces.length+' pieces.');}catch(e){say(e.message,true);}}
-function renderTrackPacks(){
- const query=$('packs-search').value.trim().toLowerCase(),filter=$('packs-filter').querySelector('[aria-pressed="true"]')?.dataset.packFilter||'all';
- const own=customLibrary.packs,built=packs,groups=[{id:'builtin',title:'Built-in packs',description:'Manufacturer catalogues and routed wood templates, ready to use.',packs:built},{id:'own',title:'Your packs',description:'Imported collections and pieces you create. Drafts stay here while you work.',packs:own}];
- const host=$('pack-library');host.replaceChildren();let shown=0;
- $('packs-count').textContent=built.length+' built-in · '+own.length+' of your own';
- for(const group of groups){
-  if(filter!=='all'&&filter!==group.id)continue;
-  const matches=group.packs.filter(p=>(p.name+' '+(p.modelScale||'')+' '+(p.trackSystem||'')).toLowerCase().includes(query));if(!matches.length)continue;
-  const section=document.createElement('section');section.className='pack-hub-group';
-  const heading=document.createElement('h2');heading.textContent=group.title+' · '+matches.length;
-  const description=document.createElement('p');description.className='fine';description.textContent=group.description;
-  const grid=document.createElement('div');grid.className='pack-hub-grid';section.append(heading,description,grid);host.append(section);
-  for(const p of matches){
-   shown++;const custom=group.id==='own',routed=p.id===F.Routed.ID,card=document.createElement('article');card.className='pack-hub-card';card.dataset.packId=p.id;
-   const art=document.createElement('div');art.className='pack-hub-art';art.setAttribute('aria-hidden','true');
-   const curve=p.pieces.find(d=>(d.parameters||d.geometry?.parameters)?.type==='curve'),straight=p.pieces.find(d=>(d.parameters||d.geometry?.parameters)?.type==='straight'),samples=[...new Set([curve,straight,...p.pieces].filter(Boolean))].slice(0,2);
-   for(const d of samples){try{if(d.asset&&!custom){const img=document.createElement('img');img.src=d.asset;img.alt='';img.loading='lazy';art.append(img);}else{const definition=d.geometry?d:{...d,geometry:G.derive(d.parameters)},preview=svg('svg',{viewBox:paletteBounds(definition).map((v,i)=>i<2?v-15:v+30).join(' ')});preview.innerHTML=paletteBody(definition);art.append(preview);}}catch{/* A missing preview must not hide the pack's management controls. */}}
-   if(!art.children.length){const empty=document.createElement('span');empty.className='pack-hub-placeholder';empty.textContent='＋';art.append(empty);}
-   const body=document.createElement('div');body.className='pack-hub-body';
-   const badge=document.createElement('span');badge.className='pack-hub-badge';badge.textContent=custom?(p.inLibrary?'Saved pack':'Draft pack'):routed?'Routed wood':(p.modelScale||'Manufacturer pack');
-   const title=document.createElement('h3');title.textContent=p.name;
-   const info=document.createElement('p');info.className='pack-hub-info';info.textContent=p.pieces.length+' '+(p.pieces.length===1?'piece':'pieces')+(p.trackSystem==='slotless'?' · Slotless planning':routed?' · Editable slots and surfaces':custom?' · Your piece collection':' · Roads, borders and accessories');
-   const actions=document.createElement('div');actions.className='pack-hub-actions';
-   const use=document.createElement('button');use.className='btn primary';use.textContent='Use in builder';use.disabled=!p.pieces.length;use.onclick=()=>{$('pack').value=p.id;$('search').value='';if(!p.pieces.some(d=>d.geometry||d.referencePlan))$('buildable').checked=false;catalogue();location.hash='builder';routeSection();say(p.name+' selected. Choose a piece to add to your track.');};
-   const open=document.createElement('button');open.className=custom&&!p.pieces.length?'btn primary':'btn';open.textContent=custom?(p.pieces.length?'Edit pack':'Add pieces'):routed?'Configure':'Browse pieces';open.onclick=()=>{if(custom){customLibrary.activePackId=p.id;persistCustom();location.hash='custom';routeSection();}else location.href=p.gallery;};
-   const output=document.createElement('button');output.className='btn quiet';output.textContent='Export pack';output.disabled=!p.pieces.some(d=>d.parameters);if(output.disabled)output.title='This pack has reference artwork only. There are no supported piece definitions to export.';output.onclick=()=>exportPack(p.id);
-   if(p.pieces.length)actions.append(use,open,output);else actions.append(open);body.append(badge,title,info,actions);card.append(art,body);grid.append(card);
+  function rememberMirror(value) {
+    mirrorNew = !!value;
+    $('mirror-new').checked = mirrorNew;
+    try {
+      localStorage.setItem('slotforge.mirror-new.v1', JSON.stringify(mirrorNew));
+    } catch {}
   }
- }
- $('packs-empty').hidden=shown!==0;$('packs-result').textContent=shown+' '+(shown===1?'pack':'packs')+' shown';
-}
+  function snapshot() {
+    return JSON.stringify({
+      items,
+      planning,
+      previewCar,
+      routedState,
+      spaceGuide,
+      librarySource,
+      title,
+      selected,
+      selectedIds: [...selectedIds],
+      mirrorNew,
+      profile,
+      integrationState,
+    });
+  }
+  function checkpoint() {
+    history.push(snapshot());
+    if (history.length > 80) history.shift();
+    future = [];
+  }
+  function restore(s) {
+    const p = JSON.parse(s);
+    librarySource = librarySource?.id === p.integrationState?.designId ? librarySource : p.librarySource || null;
+    items = p.items;
+    planning = F.Planning.validate(p.planning);
+    previewCar = F.PreviewCar.settings(p.previewCar);
+    routedState = F.Routed.workspace(p.routedState);
+    syncRoutedPack();
+    spaceGuide = F.validateSpaceGuide(p.spaceGuide);
+    title = p.title;
+    setSelection(p.selectedIds || (p.selected ? [p.selected] : []), p.selected);
+    rememberMirror(p.mirrorNew);
+    profile = p.profile;
+    integrationState = p.integrationState || I.newState();
+    stop();
+    $('track-name').value = title;
+    updateSliders();
+    updateCarControls();
+    refresh();
+  }
+  function undo() {
+    if (!history.length) return;
+    future.push(snapshot());
+    restore(history.pop());
+  }
+  function redo() {
+    if (!future.length) return;
+    history.push(snapshot());
+    restore(future.pop());
+  }
+  // Edits are saved once editing pauses briefly, not after every change: preparing a save
+  // takes several milliseconds on a large track and each save writes the whole layout.
+  // Quitting, exporting, backups and closing the window save a waiting change first.
+  const SAVE_DELAY = 400;
+  let saveTimer = 0;
+  function persist() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(persistNow, SAVE_DELAY);
+    $('save-state').textContent = DS.disk ? 'Saving to disk…' : 'Saving…';
+  }
+  DS.deferred?.({ pending: () => !!saveTimer, run: persistNow });
+  window.addEventListener('pagehide', () => saveTimer && persistNow());
+  function persistNow() {
+    clearTimeout(saveTimer);
+    saveTimer = 0;
+    try {
+      const raw = layout(false);
+      if (DS.disk) {
+        $('save-state').textContent = 'Saving to disk…';
+        DS.putCurrent(raw, librarySource)
+          .then(() => {
+            storageAvailable = true;
+            $('save-state').textContent = 'Saved to disk';
+          })
+          .catch(e => {
+            storageAvailable = false;
+            $('save-state').textContent = 'Not saved to disk';
+            say(e.message + ' Export JSON to keep these changes.', true);
+          });
+      } else {
+        localStorage.setItem(STORAGE, JSON.stringify({ ...raw, editorState: { librarySource } }));
+        storageAvailable = true;
+        $('save-state').textContent = 'Saved in browser';
+      }
+    } catch (e) {
+      $('save-state').textContent = 'Saving unavailable';
+      storageAvailable = false;
+      say(e.message, true);
+    }
+  }
+  function backupStorage(key) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw !== null) localStorage.setItem(key + '.recovery', raw);
+    } catch {}
+  }
+  function activePack() {
+    return customLibrary.packs.find(p => p.id === customLibrary.activePackId) || customLibrary.packs[0];
+  }
+  function allPacks() {
+    return [...packs, ...customLibrary.packs];
+  }
+  function writeBrowserPacks(data) {
+    const value = JSON.stringify(data);
+    localStorage.setItem(CP.STORAGE, value);
+    browserPackBaseline = value;
+  }
+  async function saveRoutedDefinition(d, flip, packId, packName) {
+    const saved = CP.addRouted(customLibrary, d, { packId, packName, flip }),
+      data = CP.serialize(saved.library);
+    if (DS.disk) await DS.putPacks(data);
+    else writeBrowserPacks(data);
+    customLibrary = saved.library;
+    customs = customLibrary.packs.flatMap(p => p.pieces);
+    defs[saved.definition.id] = saved.definition;
+    populatePacks();
+    renderPackControls();
+    renderCustomLibrary();
+    renderTrackPacks();
+    catalogue();
+    return { definition: saved.definition, packId: saved.pack.id, packName: saved.pack.name };
+  }
+  function paletteBounds(d) {
+    const b = d.geometry.boundsMm;
+    return d.catalogueFlip ? [b[0], -b[1] - b[3], b[2], b[3]] : b;
+  }
+  function paletteBody(d) {
+    const body = drawBody(d);
+    return d.catalogueFlip ? '<g transform="scale(1,-1)">' + body + '</g>' : body;
+  }
+  async function persistCustom() {
+    customs = customLibrary.packs.flatMap(p => p.pieces);
+    populatePacks();
+    renderPackControls();
+    renderCustomLibrary();
+    renderTrackPacks();
+    catalogue();
+    try {
+      const data = CP.serialize(customLibrary);
+      if (DS.disk) {
+        $('save-state').textContent = 'Saving packs to disk…';
+        await DS.putPacks(data);
+        $('save-state').textContent = 'Saved to disk';
+      } else {
+        writeBrowserPacks(data);
+        browserPackUnsaved = false;
+      }
+      return true;
+    } catch (e) {
+      if (!DS.disk) browserPackUnsaved = true;
+      $('save-state').textContent = 'Packs not saved';
+      say('Track packs were not saved: ' + e.message + ' Export a pack file to keep your changes.', true);
+      return false;
+    }
+  }
 
-function updateCustomSelection(){
- const members=activePack().pieces;const count=customPieceSelection.size;
- $('custom-select-all').checked=!!members.length&&count===members.length;$('custom-select-all').indeterminate=count>0&&count<members.length;$('custom-select-all').disabled=!members.length;
- $('custom-selection-count').textContent=count+' selected';$('custom-delete-selected').disabled=!count;$('custom-delete-selected').textContent=count?'Delete selected ('+count+')':'Delete selected';
-}
-function askDeletePackPieces(ids){
- const pack=activePack(),chosen=new Set(ids),pieces=pack.pieces.filter(d=>chosen.has(d.id));if(!pieces.length||deletePackBusy)return;
- deletePackPieces={packId:pack.id,ids:pieces.map(d=>d.id)};$('delete-pack-pieces-summary').textContent=pieces.length===1?'Delete “'+pieces[0].name+'” from “'+pack.name+'”?':'Delete '+pieces.length+' pieces from “'+pack.name+'”?';$('delete-pack-pieces-error').textContent='';$('delete-pack-pieces-dialog').showModal();
-}
-async function confirmDeletePackPieces(){
- if(!deletePackPieces||deletePackBusy)return;deletePackBusy=true;
- let committed=false;const request=deletePackPieces;$('delete-pack-pieces-confirm').disabled=$('delete-pack-pieces-cancel').disabled=true;
- try{if(!DS.disk&&(browserPackBaseline===undefined||localStorage.getItem(CP.STORAGE)!==browserPackBaseline))throw Error('Another browser tab changed the saved packs. Reload before deleting, or export your current pack to keep unsaved changes.');const next=CP.removePieces(customLibrary,request.packId,request.ids),data=CP.serialize(next);
-  if(DS.disk)await DS.putPacks(data);else writeBrowserPacks(data);
-  committed=true;customLibrary=next;customs=next.packs.flatMap(p=>p.pieces);browserPackUnsaved=false;customPieceSelection.clear();deletePackPieces=null;$('delete-pack-pieces-dialog').close();
-  // Keep definitions for placed pieces and the builder's undo/redo history.
-  // Saved designs already embed their own definitions independently of packs.
-  populatePacks();renderPackControls();renderCustomLibrary();renderTrackPacks();catalogue();
-  $('save-state').textContent=DS.disk?'Saved to disk':'Saved in browser';say(request.ids.length+' '+(request.ids.length===1?'piece deleted':'pieces deleted')+' from the pack. Existing tracks are kept.');
- }catch(e){if(committed)say('Pieces were deleted and saved, but the display could not refresh. Reload to update the view. '+e.message,true);else $('delete-pack-pieces-error').textContent='Pieces were not deleted: '+e.message;}
- finally{deletePackBusy=false;$('delete-pack-pieces-confirm').disabled=$('delete-pack-pieces-cancel').disabled=false;}
-}
-let customPage=0;
-function renderCustomLibrary(){
- const host=$('custom-library');host.replaceChildren();$('custom-pages').hidden=true;
- const pack=activePack(),members=pack.pieces;if(customSelectionPack!==pack.id){customPieceSelection.clear();customSelectionPack=pack.id;customPage=0;}customPieceSelection=new Set([...customPieceSelection].filter(id=>members.some(d=>d.id===id)));updateCustomSelection();if(!members.length){const empty=document.createElement('div');empty.className='custom-empty';empty.innerHTML='<h2>This pack has no pieces yet</h2><p>Choose “Add track piece to this pack” to add straights, curves, borders or lane changers to this set.</p>';host.append(empty);return;}
- customPage=Math.min(customPage,Math.max(0,Math.floor((members.length-1)/24)*24));pageControls($('custom-pages'),customPage,members.length,24,value=>{customPage=value;renderCustomLibrary();});
- for(const d of members.slice(customPage,customPage+24)){const card=document.createElement('article');card.className='export-card custom-piece';card.dataset.pieceId=d.id;const pick=document.createElement('label');pick.className='check';const box=document.createElement('input');box.type='checkbox';box.checked=customPieceSelection.has(d.id);box.setAttribute('aria-label','Select '+d.name);box.onchange=()=>{if(box.checked)customPieceSelection.add(d.id);else customPieceSelection.delete(d.id);updateCustomSelection();};pick.append(box,document.createTextNode(' Select piece'));card.append(pick);
-  const preview=svg('svg',{viewBox:paletteBounds(d).map((v,i)=>i<2?v-15:v+30).join(' '),'aria-label':d.name});preview.innerHTML=paletteBody(d);
-  const name=document.createElement('h2');name.textContent=d.name;
-  const info=document.createElement('p');info.textContent=(d.parameters.foldOverride?'Planning-only fold override · ':'')+d.parameters.widthMm+' mm wide · '+(d.parameters.laneChange?'Lane changer · '+d.parameters.laneChange:d.parameters.type==='reference'?'Reference picture':d.parameters.type.endsWith('border')?'Border':d.geometry.lanePaths.length+' lanes');
-  const actions=document.createElement('div');actions.className='view-actions';const addButton=document.createElement('button');addButton.className='btn primary';addButton.textContent='Use in builder';addButton.onclick=()=>{location.hash='builder';routeSection();updateView();add(d);};
-  const copy=document.createElement('button');copy.className='btn';copy.textContent='Copy & adjust';copy.onclick=()=>d.parameters.routed?routedUI.createFrom(d,activePack().id):openCustom(d);copy.hidden=d.parameters.type==='reference';const removeButton=document.createElement('button');removeButton.className='btn';removeButton.textContent='Delete from pack';removeButton.setAttribute('aria-label','Delete '+d.name+' from pack');removeButton.onclick=()=>askDeletePackPieces([d.id]);actions.append(addButton,copy,removeButton);card.append(preview,name,info,actions);host.append(card);
- }
-}
-async function openDesignSave(){
- const generation=++designSaveGeneration;stop();$('save-design-form').reset();$('design-name').value=title;$('design-save-error').textContent='';$('design-save-submit').disabled=true;$('save-design-dialog').showModal();
- try{const records=await DL.summaries();if(generation!==designSaveGeneration||!$('save-design-dialog').open)return;const existing=records.find(r=>r.id===integrationState.designId);if(existing&&!librarySource&&existing.designRevision===layout(false).design.revision)librarySource=DL.source(existing);const unknown=!!existing&&librarySource?.id!==existing.id;$('design-copy').checked=unknown;$('design-copy').disabled=unknown;$('design-save-note').textContent=unknown?'This drawing has no saved-version baseline. Save a new copy, or open the saved design to update it.':existing?'Saving updates the version opened in this window. Choose a new copy to keep that version.':'This saves a new design in your library.';$('design-copy-label').hidden=!existing;$('design-save-submit').textContent=unknown?'Save new copy':existing?'Update saved design':'Save design';$('design-save-submit').disabled=false;}catch(e){if(generation===designSaveGeneration&&$('save-design-dialog').open)$('design-save-error').textContent=e.message;}
-}
-async function saveDesign(e){
- e.preventDefault();if(designSaveBusy)return;designSaveBusy=true;$('design-save-error').textContent='';const buttons=[...$('save-design-dialog').querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);
- try{const record=await DL.save(layout(false),$('design-name').value,$('design-copy').checked,librarySource?.id===integrationState.designId?librarySource.revision:null),imported=I.importLayout(record.layout);checkpoint();librarySource=DL.source(record);title=imported.title;integrationState=imported.state;$('track-name').value=title;refresh();$('save-design-dialog').close();say('“'+title+'” saved to your Track Library.');if(document.body.dataset.section==='library')renderDesignLibrary();}
- catch(error){$('design-save-error').textContent=error.message;}finally{designSaveBusy=false;buttons.forEach(b=>b.disabled=false);}
-}
-function designDownload(record){downloadTrack(record.layout);}
-let libraryOffset=0;
-function pageControls(host,offset,total,limit,change){
- host.replaceChildren();host.hidden=total<=limit;if(host.hidden)return;
- const previous=document.createElement('button'),next=document.createElement('button'),label=document.createElement('span');
- previous.className=next.className='btn';previous.textContent='Previous';next.textContent='Next';previous.disabled=offset===0;next.disabled=offset+limit>=total;
- previous.onclick=()=>change(Math.max(0,offset-limit));next.onclick=()=>change(offset+limit);
- label.textContent='Page '+(Math.floor(offset/limit)+1)+' of '+Math.ceil(total/limit);label.setAttribute('aria-live','polite');host.append(previous,label,next);
-}
-async function renderDesignLibrary(){
- const generation=++libraryRender,host=$('design-library');host.replaceChildren();$('design-library-status').textContent='Loading saved designs…';$('design-pages').hidden=true;
- try{const page=await DL.page({query:$('design-search').value.trim(),offset:libraryOffset,limit:24});if(generation!==libraryRender)return;
- if(!page.items.length&&libraryOffset&&page.total){libraryOffset=Math.max(0,Math.floor((page.total-1)/24)*24);return renderDesignLibrary();}
- $('design-library-status').textContent=page.total?((libraryOffset+1)+'–'+Math.min(page.total,libraryOffset+24)+' of '+page.total+' matching saved designs'):$('design-search').value.trim()?'No tracks match this search.':'Your library is empty. Save the current design to start a collection.';
- pageControls($('design-pages'),libraryOffset,page.total,24,value=>{libraryOffset=value;renderDesignLibrary();});
- const previews=[];
- for(const record of page.items){
-  const card=document.createElement('article');card.className='custom-card design-card';const picture=document.createElement('div');picture.className='design-thumbnail';picture.textContent=record.pieceCount?'Loading preview…':'Empty design';card.append(picture);
-  const name=document.createElement('h2');name.textContent=record.title;card.append(name);const info=document.createElement('p');info.className='fine';const date=new Date(record.updatedAt);info.textContent=record.pieceCount+' placed pieces · '+(record.laneCount?record.laneCount+' lanes · closed circuit':'Open / drawing-only layout')+(Number.isNaN(date.getTime())?'':' · Saved '+date.toLocaleString());card.append(info);
-  const actions=document.createElement('div');actions.className='view-actions';const open=document.createElement('button');open.className='btn primary';open.textContent='Open in builder';open.onclick=async()=>{try{const fresh=await DL.get(record.id);confirmReplace(()=>{try{applyImport(fresh.layout,DL.source(fresh));}catch(e){say(e.message,true);}});}catch(e){say(e.message,true);}};
-  const downloadButton=document.createElement('button');downloadButton.className='btn';downloadButton.textContent='Export track JSON';downloadButton.onclick=async()=>{try{designDownload(await DL.get(record.id));}catch(e){say(e.message,true);}};
-  const remove=document.createElement('button');remove.className='btn quiet';remove.textContent='Delete';remove.onclick=()=>{deleteDesignId=record.id;deleteDesignRevision=record.revision;$('delete-design-name').textContent=record.title;$('delete-design-dialog').showModal();};
-  const exportButton=document.createElement('button');exportButton.className='btn';exportButton.textContent='Export…';exportButton.onclick=()=>{setTransferKind('tracks');exportChoice='saved:'+record.id;location.hash='export';routeSection();};actions.append(open,exportButton,downloadButton,remove);card.append(actions);host.append(card);if(record.pieceCount)previews.push({record,picture});
- }
- // Two bounded requests at a time; abandoned pages cannot populate the new page.
- async function loadPreviews(){while(previews.length&&generation===libraryRender){const {record,picture}=previews.shift();try{const result=await DL.preview(record.id);if(generation!==libraryRender)return;if(result.revision!==record.revision){picture.textContent='Track updated — reopen this page';continue;}const image=document.createElement('img');image.alt=record.title;image.loading='lazy';image.src='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(result.svg);picture.replaceChildren(image);}catch(e){if(generation===libraryRender){picture.textContent='Preview unavailable';picture.title=e.message;}}}}
- void loadPreviews();void loadPreviews();
- }catch(e){if(generation===libraryRender)$('design-library-status').textContent=e.message;}
-}
+  function exportDefinition(d) {
+    return {
+      id: d.id,
+      name: d.name,
+      sku: d.sku,
+      pack: d.pack,
+      family: d.family,
+      parameters: d.parameters,
+      color: d.color,
+      status: d.status,
+      mirror: d.mirror,
+      ...(d.referenceImage ? { referenceImage: d.referenceImage } : {}),
+    };
+  }
+  function layout(withRoutes = true) {
+    const used = [...new Set(items.map(p => p.definitionId))];
+    return I.prepare(
+      {
+        format: 'slotforge.layout',
+        version: 1,
+        title,
+        pieces: items,
+        definitions: used.map(id => exportDefinition(defs[id])),
+        profile,
+        workspace: { planning, previewCar, routed: routedState, ...(spaceGuide ? { spaceGuide } : {}) },
+      },
+      integrationState,
+      withRoutes
+    );
+  }
 
-function setTransferKind(kind){
- const packs=kind==='packs';$('transfer-tracks').hidden=packs;$('transfer-packs').hidden=!packs;
- document.querySelectorAll('[data-transfer-kind]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.transferKind===(packs?'packs':'tracks'))));
-}
-function exportButtons(disabled){document.querySelectorAll('[data-track-export]').forEach(b=>b.disabled=disabled||!exportTrackAvailable||b.hasAttribute('data-cad-export')&&!exportCadAvailable);}
-function showExportTrack(model){
- exportTrackAvailable=!!model.pieces.length;exportCadAvailable=model.routed.sections>0;$('cad-export-note').textContent=exportCadAvailable?model.routed.sections+' routed sections available.'+(model.pieces.length>model.routed.sections?' Non-routed pieces are excluded.':''):'This track has no routed sections. Use PDF or PNG for a picture of modular track pieces.';
- $('export-summary').textContent=model.title+' · '+model.pieces.length+' placed pieces';$('export-source-note').textContent=exportChoice==='current'?'Current builder track, including changes not yet saved to the library.':'Saved library snapshot. Your current builder track is kept in place.';
- const preview=$('export-track-preview');preview.replaceChildren();if(model.pieces.length)preview.innerHTML=I.picture(model.layout,{maxDimension:500}).svg;else preview.textContent='This track is empty.';
- const notes=model.layout.compatibility.issues.map(issue=>issue.message);if(model.layout.timing.requiresLaneRemap)notes.unshift('Reconfirm lane mapping in SlotForge Timing.');$('timing-compatibility').textContent=notes.join(' ');$('export-contract').textContent='Integration contract '+model.layout.integration.contractVersion+'.';exportButtons(!model.pieces.length);
-}
-async function loadExportTrack(){
- const generation=++exportSourceGeneration;exportTrackAvailable=false;exportCadAvailable=false;exportButtons(true);$('export-source-error').textContent='';$('export-summary').textContent='Loading selected track…';$('export-track-preview').replaceChildren();
- try{const model=await XM.resolveSource(exportChoice,()=>layout(),DL.get);if(generation!==exportSourceGeneration)return;showExportTrack(model);}catch(e){if(generation!==exportSourceGeneration)return;$('export-summary').textContent='Selected track unavailable';$('export-source-note').textContent='Choose another track to export.';$('export-source-error').textContent=e.message;}
-}
-async function populateExportTracks(){
- const generation=++exportMenuGeneration,select=$('export-track-select');++exportSourceGeneration;exportTrackAvailable=false;select.disabled=true;exportButtons(true);let records=[],libraryError='';
- try{records=await DL.summaries();}catch(e){libraryError=e.message;}if(generation!==exportMenuGeneration)return;select.replaceChildren();const current=document.createElement('option');current.value='current';current.textContent='Current builder track — '+title;select.append(current);
- if(records.length){const group=document.createElement('optgroup');group.label='Saved in Track Library';for(const record of records){const option=document.createElement('option');option.value='saved:'+record.id;option.textContent=String(record.title||'Unnamed saved track');const date=new Date(record.updatedAt);if(!Number.isNaN(date.getTime()))option.textContent+=' · '+date.toLocaleString();group.append(option);}select.append(group);}
- if(exportChoice!=='current'&&!records.some(r=>'saved:'+r.id===exportChoice)){const missing=document.createElement('option');missing.value=exportChoice;missing.textContent='Saved track unavailable — select another';select.append(missing);}select.value=exportChoice;select.disabled=false;await loadExportTrack();if(generation===exportMenuGeneration&&libraryError)$('export-source-error').textContent=libraryError;
-}
-async function exportSelectedTrack(format){
- const choice=exportChoice,generation=exportSourceGeneration,isCurrent=()=>choice===exportChoice&&generation===exportSourceGeneration;let resolved=false;
- exportButtons(true);try{
-  const model=await XM.resolveSource(choice,()=>layout(),DL.get);if(!isCurrent())return;
-  showExportTrack(model);resolved=true;if(!model.pieces.length)throw Error('Add pieces to this track before exporting.');
-  exportButtons(true);if(format==='pdf')openPdfReport(model.layout);else if(format==='slotforge')downloadTrack(model.layout);else if(format==='png')await exportPNG(model.layout);else if(format==='csv')exportCSV(model.layout);else if(format==='cad')cadUI.open(model.layout);
- }catch(e){if(isCurrent()){if(!resolved)exportTrackAvailable=false;$('export-source-error').textContent=e.message;say(e.message,true);}}
- finally{if(isCurrent())exportButtons(false);}
-}
+  function timingOffset(id) {
+    return I.offsets(network, integrationState.startFinish).find(s => s.routeId === id)?.offsetMm || 0;
+  }
+  function renderTimingLine() {
+    const layer = $('timing-line');
+    layer.replaceChildren();
+    const ref = integrationState.startFinish,
+      p = items.find(p => p.id === ref?.pieceId);
+    if (!p) return;
+    const d = defOf(p),
+      q = d.parameters;
+    if (!d.geometry.lanePaths.length) return;
+    const local =
+      q.type === 'freeform'
+        ? F.FreeForm.crossSection(d, ref.fraction)
+        : q.type === 'routed-spline'
+          ? F.Routed.Spline.crossSection(q, d.geometry, ref.fraction)
+          : q.type === 'straight'
+            ? [
+                [q.lengthMm * ref.fraction, 0],
+                [q.lengthMm * ref.fraction, q.widthMm],
+              ]
+            : [
+                G.pt(q.innerRadiusMm, F.rad(q.angleDeg * ref.fraction)),
+                G.pt(q.innerRadiusMm + q.widthMm, F.rad(q.angleDeg * ref.fraction)),
+              ];
+    if (!local) return;
+    const [a, b] = local.map(v => F.point(v, p));
+    svg('line', { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: '#fff', 'stroke-width': 10 }, layer);
+    svg(
+      'line',
+      { x1: a[0], y1: a[1], x2: b[0], y2: b[1], stroke: '#20242b', 'stroke-width': 10, 'stroke-dasharray': '10 10' },
+      layer
+    );
+    const label = svg('text', { x: a[0], y: a[1] - 18, fill: '#fff', 'font-size': 20 }, layer);
+    label.textContent = 'START / FINISH';
+  }
+  function updateTimingControls() {
+    const ref = integrationState.startFinish,
+      p = items.find(p => p.id === ref?.pieceId);
+    $('timing-section').textContent = p
+      ? defOf(p).name + ' · ' + (ref.fraction * 100).toFixed(1) + '%'
+      : ref
+        ? 'Timing section removed — choose another.'
+        : 'Select a road piece, then set the timing line.';
+    $('timing-badge').textContent = p ? 'Set' : ref ? 'Choose piece' : 'Not set';
+    $('timing-badge').classList.toggle('has-issues', !!ref && !p);
+    $('timing-position').disabled = !p;
+    $('timing-position').value = ref ? ref.fraction * 100 : 50;
+    $('travel-direction').value = integrationState.direction;
+    $('timing-lanes').replaceChildren();
+    for (const [r, i] of network.routes.map((r, i) => [r, i])) {
+      const label = document.createElement('label');
+      label.className = 'field';
+      label.textContent = 'Lane ' + (i + 1) + ' display name';
+      const input = document.createElement('input');
+      input.maxLength = 100;
+      input.value = integrationState.routeLabels[r.id] || 'Lane ' + (i + 1);
+      input.onchange = () => {
+        checkpoint();
+        integrationState.routeLabels[r.id] = input.value.trim() || 'Lane ' + (i + 1);
+        updateInspector();
+        persist();
+      };
+      label.append(input);
+      $('timing-lanes').append(label);
+    }
+    const messages = I.compatibility(items, defs, network, ref).issues.map(i => i.message);
+    if (integrationState.requiresLaneRemap)
+      messages.unshift('Route topology has changed. Reconfirm lane mapping in SlotForge Timing.');
+    if (document.body.dataset.section !== 'export') $('timing-compatibility').textContent = messages.join(' ');
+  }
+  function editTiming(fn) {
+    checkpoint();
+    stop();
+    fn();
+    carDistances = [0, 0];
+    refresh();
+  }
+  async function exportPNG(raw = layout(false)) {
+    try {
+      const picture = I.picture(raw, { borders: $('picture-borders').checked }),
+        url = URL.createObjectURL(new Blob([picture.svg], { type: 'image/svg+xml' }));
+      let blob;
+      try {
+        const image = new Image();
+        image.src = url;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = picture.width;
+        canvas.height = picture.height;
+        canvas.getContext('2d').drawImage(image, 0, 0);
+        blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+      if (!blob || blob.size > 5 * 1024 * 1024) throw Error('Picture exceeds the 5 MiB limit.');
+      download(XM.filename(raw.title) + '.png', blob, 'image/png');
+      say('Transparent track picture exported.');
+    } catch (e) {
+      say(e.message, true);
+    }
+  }
+  function download(name, text, type = 'application/json') {
+    const a = document.createElement('a'),
+      url = URL.createObjectURL(new Blob([text], { type }));
+    a.href = url;
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  function downloadTrack(raw) {
+    const file = XM.portableJSON(raw);
+    download(XM.filename(raw.title) + '.slotforge.json', file.text);
+    say(
+      '“' +
+        raw.title +
+        '” exported as a track file (.slotforge.json). Use Import track JSON to open it in Circuit.' +
+        (file.geometryIncluded ? '' : ' Compact file: slot geometry regenerates from the embedded definitions.')
+    );
+  }
+  function save() {
+    try {
+      downloadTrack(layout());
+    } catch (e) {
+      say(e.message, true);
+    }
+  }
+  function confirmReplace(fn) {
+    if (!items.length) {
+      fn();
+      return;
+    }
+    confirmAction = fn;
+    $('confirm-dialog').showModal();
+  }
+  function applyImport(raw, source = null) {
+    const result = I.importLayout(raw);
+    const merged = F.mergeDefinitions(result.definitions, result.pieces, defs);
+    Object.assign(defs, merged.definitions);
+    checkpoint();
+    librarySource = source;
+    items = merged.pieces;
+    planning = F.Planning.validate(result.workspace?.planning);
+    previewCar = F.PreviewCar.settings(result.workspace?.previewCar);
+    routedState = F.Routed.workspace(result.workspace?.routed);
+    syncRoutedPack();
+    if (items.length && items.every(p => defOf(p).parameters.routed)) $('pack').value = F.Routed.ID;
+    spaceGuide = result.workspace?.spaceGuide || null;
+    title = result.title;
+    profile = result.profile;
+    integrationState = result.state;
+    setSelection([]);
+    $('track-name').value = title;
+    stop();
+    updateSliders();
+    updateCarControls();
+    refresh();
+    fit();
+    location.hash = 'builder';
+    routeSection();
+    say(source ? 'Saved track opened.' : 'Track imported. Choose Save to Library to keep a named copy.');
+  }
+  const drawBody = (d, print = false) =>
+    d.parameters.routed
+      ? F.Routed.draw(d, print, routedState.display)
+      : window.TrackDrawing.body(
+          !print && colourByPiece && pieceColourModel.colour(d) ? { ...d, color: pieceColourModel.colour(d) } : d,
+          print
+        );
+  // The colour model and its legend only change when the pieces, packs or setting change.
+  let colourInputs = [],
+    colourLegendKey = null;
+  function updatePieceColours() {
+    const inputs = [...allPacks().flatMap(p => p.pieces), ...items.map(defOf)];
+    if (inputs.length !== colourInputs.length || inputs.some((d, i) => d !== colourInputs[i])) {
+      pieceColourModel = window.PieceColours.build(inputs);
+      colourInputs = inputs;
+      colourLegendKey = null;
+    }
+    const legendKey = colourByPiece + '|' + $('pack').value;
+    if (legendKey === colourLegendKey) return;
+    colourLegendKey = legendKey;
+    $('piece-colours').setAttribute('aria-pressed', String(colourByPiece));
+    $('piece-colours').textContent = 'Colour by piece: ' + (colourByPiece ? 'On' : 'Off');
+    $('piece-colour-key').hidden = !colourByPiece;
+    const pack = allPacks().find(p => p.id === $('pack').value);
+    $('piece-colour-legend').replaceChildren();
+    if (colourByPiece) {
+      for (const entry of pieceColourModel.legend(pack?.pieces || [])) {
+        const row = document.createElement('div');
+        row.className = 'piece-colour-row';
+        const swatch = document.createElement('i');
+        swatch.style.background = entry.color;
+        row.append(swatch, document.createTextNode(entry.label));
+        $('piece-colour-legend').append(row);
+      }
+      if (!$('piece-colour-legend').children.length)
+        $('piece-colour-legend').textContent = 'No straight or circular road sizes in this pack.';
+    }
+  }
+  $('piece-colours').onclick = () => {
+    colourByPiece = !colourByPiece;
+    try {
+      localStorage.setItem('slotforge.piece-colours.v1', String(colourByPiece));
+    } catch {}
+    catalogue();
+    renderCanvas();
+  };
+  function transform(p) {
+    return `translate(${p.x} ${p.y}) rotate(${p.angle}) scale(1 ${p.flip ? -1 : 1})`;
+  }
+  function guideSize(g) {
+    return Number(g.lengthMm.toFixed(1)) + ' × ' + Number(g.widthMm.toFixed(1)) + ' mm';
+  }
+  function renderSpaceGuide() {
+    const layer = $('space-guide-layer');
+    layer.replaceChildren();
+    $('space-guide-lock').hidden = !spaceGuide;
+    $('space-guide-edit').textContent = spaceGuide
+      ? spaceGuide.kind === 'table'
+        ? 'Table…'
+        : 'Space guide…'
+      : '＋ Space guide';
+    if (!spaceGuide) return;
+    const g = spaceGuide,
+      u = view.w / Math.max(1, $('canvas').clientWidth);
+    layer.setAttribute('pointer-events', g.locked ? 'none' : 'auto');
+    layer.classList.toggle('locked', g.locked);
+    $('space-guide-lock').textContent = g.locked ? 'Unlock guide' : 'Lock guide';
+    $('space-guide-lock').setAttribute('aria-pressed', String(g.locked));
+    svg(
+      'path',
+      {
+        d: F.Routed.Table.path(g),
+        class: 'space-guide-area' + (g.kind === 'table' ? ' space-guide-table' : ''),
+        'data-guide': 'move',
+      },
+      layer
+    );
+    if (g.shape?.type === 'boards')
+      svg(
+        'path',
+        {
+          d: F.Routed.Table.boardPath(g),
+          fill: 'none',
+          stroke: '#a38c66',
+          'stroke-width': 1,
+          'stroke-dasharray': '5 4',
+          'vector-effect': 'non-scaling-stroke',
+          'pointer-events': 'none',
+        },
+        layer
+      );
+    const label = svg(
+      'text',
+      { x: g.x + 10 * u, y: g.y + 22 * u, 'font-size': 12 * u, 'pointer-events': 'none', class: 'space-guide-label' },
+      layer
+    );
+    label.textContent =
+      (g.kind === 'table' ? 'Table · ' : 'Available space · ') +
+      guideSize(g) +
+      (g.shape?.type === 'boards' ? ' · ' + g.shape.boards.length + ' boards' : g.shape ? ' · L shape' : '') +
+      (g.locked ? ' · Locked' : '');
+    if (!g.locked && g.shape?.type !== 'boards')
+      svg(
+        'rect',
+        {
+          x: g.x + g.lengthMm - 7 * u,
+          y: g.y + g.widthMm - 7 * u,
+          width: 14 * u,
+          height: 14 * u,
+          class: 'space-guide-handle',
+          'data-guide': 'resize',
+        },
+        layer
+      );
+  }
+  function openSpaceGuide() {
+    finishDrag(true);
+    const g = spaceGuide || { lengthMm: 3000, widthMm: 1500, locked: false };
+    guideOrigin = {
+      x: spaceGuide?.x ?? view.x + view.w / 2 - g.lengthMm / 2,
+      y: spaceGuide?.y ?? view.y + view.h / 2 - g.widthMm / 2,
+    };
+    $('guide-length').value = g.lengthMm;
+    $('guide-width').value = g.widthMm;
+    $('guide-lock').checked = g.locked;
+    $('guide-kind').value = g.kind || 'guide';
+    $('guide-scale').value = 100;
+    $('guide-error').textContent = '';
+    $('guide-remove').hidden = !spaceGuide;
+    guideShape.fill(g);
+    $('space-guide-dialog').showModal();
+  }
+  const guideShapeHost = document.createElement('div');
+  $('guide-scale').closest('.guide-scale-row').before(guideShapeHost);
+  const guideShape = window.TableShapeEditor.init(
+    'guide-base',
+    guideShapeHost,
+    () => ({ lengthMm: Number($('guide-length').value), widthMm: Number($('guide-width').value) }),
+    {
+      setSize: s => {
+        $('guide-length').value = s.lengthMm;
+        $('guide-width').value = s.widthMm;
+        $('guide-kind').value = 'table';
+      },
+      boardMode: active => {
+        for (const id of ['guide-length', 'guide-width']) $(id).readOnly = active;
+      },
+      track: () =>
+        '<g transform="translate(' +
+        -(guideOrigin?.x ?? 0) +
+        ' ' +
+        -(guideOrigin?.y ?? 0) +
+        ')">' +
+        items.map(p => '<g transform="' + transform(p) + '">' + drawBody(defOf(p)) + '</g>').join('') +
+        '</g>',
+    }
+  );
+  for (const id of ['guide-length', 'guide-width']) $(id).addEventListener('input', guideShape.render);
+  $('space-guide-edit').onclick = openSpaceGuide;
+  $('space-guide-lock').onclick = () => {
+    if (!spaceGuide) return;
+    finishDrag(true);
+    checkpoint();
+    spaceGuide = { ...spaceGuide, locked: !spaceGuide.locked };
+    refresh();
+    say(
+      spaceGuide.locked
+        ? 'Space guide locked. Build freely over it.'
+        : 'Space guide unlocked. Drag its area or resize handle.'
+    );
+  };
+  $('guide-apply-scale').onclick = () => {
+    const before = [$('guide-length').value, $('guide-width').value];
+    try {
+      const factor = Number($('guide-scale').value) / 100;
+      if (!Number.isFinite(factor) || factor <= 0) throw Error('Enter a positive scale percentage.');
+      const g = F.validateSpaceGuide({
+        x: 0,
+        y: 0,
+        lengthMm: Number($('guide-length').value) * factor,
+        widthMm: Number($('guide-width').value) * factor,
+        locked: false,
+      });
+      $('guide-length').value = g.lengthMm;
+      $('guide-width').value = g.widthMm;
+      guideShape.scale(factor);
+      $('guide-scale').value = 100;
+      $('guide-error').textContent = '';
+    } catch (e) {
+      [$('guide-length').value, $('guide-width').value] = before;
+      guideShape.render();
+      $('guide-error').textContent = e.message;
+    }
+  };
+  $('space-guide-form').onsubmit = e => {
+    e.preventDefault();
+    try {
+      const lengthMm = Number($('guide-length').value),
+        widthMm = Number($('guide-width').value),
+        g = F.validateSpaceGuide({
+          x: guideOrigin?.x ?? 0,
+          y: guideOrigin?.y ?? 0,
+          lengthMm,
+          widthMm,
+          kind: $('guide-kind').value,
+          locked: $('guide-lock').checked,
+          ...(guideShape.read() ? { shape: guideShape.read() } : {}),
+        });
+      checkpoint();
+      spaceGuide = g;
+      refresh();
+      fit();
+      $('space-guide-dialog').close();
+      say('Available space: ' + guideSize(g) + (g.locked ? ' · Locked' : ''));
+    } catch (error) {
+      $('guide-error').textContent = error.message;
+    }
+  };
+  $('guide-remove').onclick = () => {
+    checkpoint();
+    spaceGuide = null;
+    refresh();
+    $('space-guide-dialog').close();
+    say('Space guide removed. Undo restores it.');
+  };
+  function renderSnapGuide(guide) {
+    const layer = $('snap-guide');
+    layer.replaceChildren();
+    if (guide)
+      svg(
+        'path',
+        {
+          d: guide.d,
+          transform: transform(guide.pose),
+          fill: 'none',
+          stroke: '#76d9f2',
+          'stroke-width': 3,
+          'stroke-dasharray': '8 5',
+          'vector-effect': 'non-scaling-stroke',
+        },
+        layer
+      );
+  }
+  // Pieces keep their SVG between redraws. A piece is drawn again only when its definition or
+  // look changes; a move just updates its transform, and selection adds or removes the outline.
+  const pieceNodes = new Map();
+  function renderPieces() {
+    const routedLook = JSON.stringify(routedState?.display ?? null),
+      nodes = [],
+      seen = new Set();
+    for (const p of items) {
+      const d = defOf(p),
+        tf = transform(p),
+        selected = selectedIds.has(p.id),
+        look = (colourByPiece ? pieceColourModel.colour(d) || '' : '') + '|' + (d.parameters.routed ? routedLook : '');
+      let n = pieceNodes.get(p.id);
+      if (!n || n.def !== d || n.look !== look) {
+        const group = svg('g', { 'data-id': p.id, class: 'piece', transform: tf });
+        group.innerHTML = drawBody(d);
+        const tip = svg('title', {}, group);
+        tip.textContent = d.name;
+        n = { group, def: d, look, tf, selected: false };
+        pieceNodes.set(p.id, n);
+      } else if (n.tf !== tf) {
+        n.group.setAttribute('transform', tf);
+        n.tf = tf;
+      }
+      if (n.selected !== selected) {
+        if (selected)
+          n.group.insertBefore(
+            svg('path', { d: d.geometry.outlineSvgPath, class: 'selected-outline' }),
+            n.group.querySelector(':scope > title')
+          );
+        else n.group.querySelector(':scope > .selected-outline')?.remove();
+        n.selected = selected;
+      }
+      nodes.push(n.group);
+      seen.add(p.id);
+    }
+    for (const id of pieceNodes.keys()) if (!seen.has(id)) pieceNodes.delete(id);
+    const layer = $('roads'),
+      current = layer.children;
+    if (current.length !== nodes.length || nodes.some((g, i) => current[i] !== g)) layer.replaceChildren(...nodes);
+  }
+  function renderCanvas(guide = null) {
+    updatePieceColours();
+    renderSnapGuide(guide);
+    renderSpaceGuide();
+    renderPieces();
+    renderTimingLine();
+    const con = F.connections(items, defs),
+      portFragment = document.createDocumentFragment(),
+      radius = portRadius();
+    for (const port of con.open) {
+      const c = svg('circle', {
+        cx: port.position[0],
+        cy: port.position[1],
+        r: radius,
+        fill: selectedIds.has(port.pieceId) ? '#f0bd6b' : '#83919d',
+        stroke: '#171b21',
+        'stroke-width': 1,
+        class: 'port',
+      });
+      portFragment.append(c);
+    }
+    $('ports').replaceChildren(portFragment);
+    $('canvas-empty').hidden = items.length > 0 || !!spaceGuide;
+    if (designToolsUI) designToolsUI.render();
+  }
+  // Connector dots keep the same size on screen at every zoom level.
+  const portRadius = () => (4 * view.w) / Math.max(1, $('canvas').clientWidth);
+  // Zooming and panning only move the view: the pieces themselves are not redrawn.
+  function updateView() {
+    const r = $('canvas').getBoundingClientRect();
+    view.h = (view.w * (r.height || 650)) / (r.width || 1000);
+    $('canvas').setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+    const radius = portRadius();
+    for (const dot of $('ports').children) dot.setAttribute('r', radius);
+    for (const [k, v] of Object.entries({ x: view.x, y: view.y, width: view.w, height: view.h }))
+      $('grid-bg').setAttribute(k, v);
+    $('zoom-level').textContent = Math.round((100 * 1000) / view.w) + '%';
+    renderSpaceGuide();
+  }
+  let fitPending = false;
+  function fit() {
+    // While the builder is hidden the canvas has no size; fit again once it is shown.
+    const size = $('canvas').getBoundingClientRect();
+    fitPending = !size.width || !size.height;
+    let b = F.bounds(items, defs);
+    if (spaceGuide) {
+      const g = spaceGuide,
+        minX = items.length ? Math.min(b[0], g.x) : g.x,
+        minY = items.length ? Math.min(b[1], g.y) : g.y,
+        maxX = items.length ? Math.max(b[0] + b[2], g.x + g.lengthMm) : g.x + g.lengthMm,
+        maxY = items.length ? Math.max(b[1] + b[3], g.y + g.widthMm) : g.y + g.widthMm;
+      b = [minX, minY, maxX - minX, maxY - minY];
+    }
+    const r = $('canvas').getBoundingClientRect(),
+      ratio = (r.width || 1000) / (r.height || 650);
+    view.w = Math.max(b[2] + 300, (b[3] + 340) * ratio, 500);
+    view.h = view.w / ratio;
+    view.x = b[0] + b[2] / 2 - view.w / 2;
+    view.y = b[1] + b[3] / 2 - view.h / 2;
+    updateView();
+    renderCanvas();
+  }
+  function zoom(factor, atPoint) {
+    const center = atPoint || [view.x + view.w / 2, view.y + view.h / 2],
+      u = (center[0] - view.x) / view.w,
+      v = (center[1] - view.y) / view.h,
+      ratio = view.h / view.w;
+    view.w = Math.max(250, Math.min(50000, view.w * factor));
+    view.h = view.w * ratio;
+    view.x = center[0] - view.w * u;
+    view.y = center[1] - view.h * v;
+    updateView();
+  }
+  function world(event) {
+    const r = $('canvas').getBoundingClientRect();
+    return [
+      view.x + ((event.clientX - r.left) / r.width) * view.w,
+      view.y + ((event.clientY - r.top) / r.height) * view.h,
+    ];
+  }
+  function inventory() {
+    const map = new Map();
+    for (const p of items) {
+      const d = defOf(p);
+      if (!map.has(d.id)) map.set(d.id, { d, count: 0 });
+      map.get(d.id).count++;
+    }
+    return [...map.values()];
+  }
+  function routedCatalogueDefinition(d) {
+    const clone = F.validateDefinition({ ...d, id: 'routed:' + F.uid() }),
+      signature = v => JSON.stringify({ ...exportDefinition(v), id: '' }),
+      key = signature(clone),
+      existing = Object.values(defs).find(v => v.parameters.routed && signature(v) === key);
+    if (existing) return existing;
+    defs[clone.id] = clone;
+    return clone;
+  }
+  function summary() {
+    const roads = items.filter(p => defOf(p).geometry.lanePaths.length && !defOf(p).parameters.foldOverride),
+      length = roads.reduce((sum, p) => sum + defOf(p).geometry.centrelineLengthMm, 0);
+    return {
+      planning: items.filter(p => !!defOf(p).parameters.planning || defOf(p).parameters.foldOverride).length,
+      roads: roads.length,
+      borders: items.filter(p => defOf(p).parameters.type.endsWith('border')).length,
+      references: items.filter(p => defOf(p).parameters.type === 'reference' || defOf(p).parameters.foldOverride)
+        .length,
+      length,
+      bounds: F.bounds(items, defs),
+    };
+  }
+  function updateInspector() {
+    $('builder-cad').hidden = !items.some(p => defOf(p).parameters.routed);
+    const s = summary();
+    const ff = items.find(p => defOf(p).parameters.type === 'freeform'),
+      invalidFreeform = ff && !defOf(ff).geometry.valid;
+    $('length-total').nextElementSibling.textContent = ff ? 'Reference slot' : 'Track centreline';
+    $('piece-total').textContent = ff ? 1 : s.roads + s.planning;
+    $('road-total-label').textContent = ff
+      ? 'FreeForm circuit'
+      : s.planning
+        ? 'Road pieces · includes estimates'
+        : 'Road pieces';
+    $('border-total').textContent = s.borders;
+    $('reference-total').textContent = s.references - s.planning;
+    $('length-total').classList.toggle('unknown-length', !!s.planning);
+    $('length-total').textContent = invalidFreeform
+      ? 'Not calculated'
+      : s.planning
+        ? s.roads
+          ? meters(s.length) + ' + unknown'
+          : 'Not calculated'
+        : meters(s.length);
+    $('footprint').textContent = items.length
+      ? `${Math.ceil(s.bounds[2] - 1e-6)} × ${Math.ceil(s.bounds[3] - 1e-6)} mm`
+      : '—';
+    $('lane-lengths').replaceChildren();
+    if (network.closed)
+      for (const [r, i] of network.routes.map((r, i) => [r, i])) {
+        const row = document.createElement('div');
+        row.className = 'lane-row';
+        row.innerHTML = `<span><i class="lane-dot"></i>${E(integrationState.routeLabels[r.id] || 'Lane ' + (i + 1))}</span><strong>${meters(r.lengthMm)}</strong>`;
+        $('lane-lengths').append(row);
+      }
+    else {
+      const p = document.createElement('p');
+      p.className = 'fine';
+      p.textContent = s.planning
+        ? 'Visual planning uses approximate connection points. Guide slots and lap lengths are not calculated for these pieces.'
+        : 'Per-lane circuit lengths appear when the track is connected into one loop.';
+      $('lane-lengths').append(p);
+    }
+    const group = selection(),
+      p = current();
+    $('adjust-plastic-lanes').hidden = group.length !== 1 || !F.PlasticLanes.supported(p && defOf(p).parameters);
+    $('layer-order').disabled = !group.length || group.length === items.length;
+    $('selection-empty').hidden = !!p;
+    $('selection').hidden = !p;
+    for (const id of ['rotate', 'mirror', 'duplicate', 'delete']) $(id).disabled = !p;
+    if (p) {
+      const d = defOf(p);
+      $('selection-name').textContent = d.name;
+      $('selection-code').textContent = `${d.pack} · ${d.sku || 'Custom piece'}`;
+      for (const [k, id] of [
+        ['x', 'pos-x'],
+        ['y', 'pos-y'],
+        ['angle', 'pos-angle'],
+      ])
+        if (document.activeElement !== $(id)) $(id).value = Number(p[k].toFixed(2));
+      const q = d.parameters;
+      $('selection-details').textContent =
+        `${q.foldOverride ? 'Planning-only fold override' : q.planning ? 'Visual planning · approximate magnetic ends' : q.type === 'reference' ? 'Reference picture · approximate display size' : d.status === 'user-defined' ? 'User-defined' : 'Nominal'} · ${q.type === 'reference' ? q.lengthMm + ' × ' + q.widthMm + ' mm display box' : q.widthMm + ' mm wide'}${q.laneCount ? ' · ' + q.laneCount + ' lanes' : ''}${q.laneSpacingMm ? ' · ' + q.laneSpacingMm + ' mm slot spacing' : ''}${p.flip ? ' · reflected' : ''}${q.laneChange ? ' · lane changer · straight-through preview' : ''}`;
+      $('mirror').disabled = group.some(p => !defOf(p).mirror);
+      if (group.length > 1) {
+        $('selection-name').textContent = group.length + ' pieces selected';
+        $('selection-code').textContent = 'Drag any selected piece to move the whole selection.';
+        $('selection-details').textContent = 'Rotate, mirror, duplicate and delete apply to all selected pieces.';
+      }
+      $('add-borders').hidden = $('add-borders').disabled = !group.some(p =>
+        ['straight', 'curve'].includes(defOf(p).parameters.type)
+      );
+      document.querySelector('.position-grid').hidden = group.length > 1;
+      $('custom-from').hidden = group.length > 1 || d.parameters.type === 'reference';
+      $('reference-resize').hidden = group.length > 1 || d.parameters.type !== 'reference';
+    }
+    const locked = group.some(p => p.locked);
+    $('selection-badge').textContent = group.length ? group.length + ' selected' + (locked ? ' · Locked' : '') : 'None';
+    for (const id of ['rotate', 'mirror', 'delete', 'pos-x', 'pos-y', 'pos-angle', 'layer-order'])
+      if (locked) $(id).disabled = true;
+    for (const id of ['pos-x', 'pos-y', 'pos-angle']) if (!locked) $(id).disabled = false;
+    $('inspector-selection').classList.toggle('has-selection', !!p);
+    $('position-folder').hidden = group.length > 1;
+    $('parts-badge').textContent = String(items.length);
+    $('inventory').replaceChildren();
+    for (const { d, count } of inventory()) {
+      const row = document.createElement('div');
+      row.className = 'inventory-row';
+      const name = document.createElement('span');
+      name.textContent = d.name;
+      const code = document.createElement('small');
+      code.textContent =
+        (d.sku || d.pack) +
+        (d.parameters.foldOverride
+          ? ' · Planning-only fold override'
+          : d.parameters.planning
+            ? ' · Visual estimate'
+            : d.parameters.type === 'reference'
+              ? ' · Reference'
+              : '');
+      name.append(code);
+      const n = document.createElement('b');
+      n.textContent = count;
+      row.append(name, n);
+      row.tabIndex = 0;
+      row.setAttribute('role', 'button');
+      row.title = 'Find these pieces on the track';
+      const locate = () => focusIssue({ pieceIds: items.filter(p => p.definitionId === d.id).map(p => p.id) });
+      row.onclick = locate;
+      row.onkeydown = e => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          locate();
+        }
+      };
+      $('inventory').append(row);
+    }
+    if (!items.length) $('inventory').textContent = 'Your parts will appear here.';
+    if (routedUI) routedUI.render();
+    if (freeformUI) freeformUI.render();
+    if (elevationUI) elevationUI.render();
+    $('undo').disabled = !history.length;
+    $('redo').disabled = !future.length;
+  }
+  function refresh(saveLocal = true) {
+    network = I.network(items, defs);
+    integrationState = I.reconcile(integrationState, network);
+    if (!network.closed) stop();
+    const visual = items.some(p => defOf(p).parameters.planning || defOf(p).parameters.foldOverride),
+      known = items.some(p => defOf(p).geometry.lanePaths.length),
+      visualEnds = visual
+        ? F.connections(
+            items.filter(p => defOf(p).parameters.planning),
+            defs
+          ).open.length
+        : 0;
+    $('connection-state').textContent = items.some(p => defOf(p).parameters.foldOverride)
+      ? 'Planning-only fold override'
+      : visual && !known
+        ? 'Visual layout · ' + (visualEnds ? visualEnds + ' open ends' : 'ends aligned')
+        : network.closed
+          ? '● Closed circuit'
+          : network.openEnds
+            ? `${network.openEnds} open ends`
+            : items.length
+              ? 'Separate circuits'
+              : 'Start a circuit';
+    $('connection-state').classList.toggle('open', !network.closed);
+    $('measurement-basis').textContent = visual
+      ? 'Approximate planning · mm'
+      : items.some(p => defOf(p).parameters.routed)
+        ? 'Routed dimensions · mm'
+        : 'Nominal dimensions · mm';
+    $('play').disabled = !network.closed;
+    $('play').title = network.reason;
+    $('preview-message').textContent =
+      visual && !known
+        ? 'Approximate visual layout · PDF and parts list available · no slot simulation'
+        : network.closed
+          ? items.some(p => defOf(p).parameters.laneChange)
+            ? 'Straight-through preview · lane switching not simulated'
+            : 'Two cars · slot-following demonstration'
+          : network.reason;
+    renderCanvas();
+    updateInspector();
+    updateTimingControls();
+    if (playing) rebuildMotion();
+    renderLapTimes();
+    renderElevationProfile();
+    if (saveLocal) persist();
+  }
+  // Lap time per lane from the Tune profile (same speed plan as Live Preview).
+  let lapTimer = null;
+  function renderLapTimes() {
+    clearTimeout(lapTimer);
+    lapTimer = setTimeout(() => {
+      const box = $('lap-times');
+      if (!box) return;
+      box.replaceChildren();
+      const note = text => {
+        const p = document.createElement('p');
+        p.className = 'fine';
+        p.textContent = text;
+        box.append(p);
+      };
+      if (!network.closed || !network.routes.length) return note('Close the circuit to see lap times.');
+      const laps = network.routes.map((r, i) => ({
+        label: integrationState.routeLabels?.[r.id] || 'Lane ' + (i + 1),
+        lap: F.lapTime(I.travelPlan(r, profile, timingOffset(r.id), integrationState.direction), r.lengthMm),
+      }));
+      if (laps.some(l => !l.lap)) return note('Lap times are not available for this layout.');
+      const fastest = Math.min(...laps.map(l => l.lap.seconds));
+      const table = document.createElement('div');
+      table.className = 'lap-table';
+      for (const { label, lap } of laps) {
+        const row = document.createElement('div');
+        row.className = 'lap-row' + (lap.seconds === fastest && laps.length > 1 ? ' fastest' : '');
+        const diff = lap.seconds - fastest;
+        row.innerHTML = `<span class="lap-lane"></span><strong>${lap.seconds.toFixed(2)} s</strong><span class="lap-diff">${
+          diff > 0.005 ? '+' + diff.toFixed(2) + ' s' : laps.length > 1 ? 'fastest' : ''
+        }</span><span class="lap-speed">avg ${(lap.averageMmS / 1000).toFixed(2)} m/s</span>`;
+        row.querySelector('.lap-lane').textContent = label;
+        table.append(row);
+      }
+      box.append(table);
+    }, 60);
+  }
+  // Side view of lane 1: height against distance, inside Heights & bridges.
+  function renderElevationProfile() {
+    let box = $('elevation-profile');
+    if (!box) {
+      const body = $('height-folder')?.querySelector('.inspector-folder-body');
+      if (!body) return;
+      box = document.createElement('div');
+      box.id = 'elevation-profile';
+      box.className = 'elevation-profile';
+      body.append(box);
+    }
+    const route = network.closed ? network.routes[0] : null,
+      profileData = route && window.ElevationProfile.build(route, items, defs);
+    if (!profileData?.hasHeights) {
+      box.innerHTML = `<p class="fine">${
+        route
+          ? 'All track is at table level. Set heights on pieces to see a side view of the lap.'
+          : 'Close the circuit to see a side view of its heights.'
+      }</p>`;
+      return;
+    }
+    const steep = profileData.steepestPct > 10;
+    box.innerHTML = `<h3>Side view · lane 1</h3>${window.ElevationProfile.svg(profileData)}<p class="fine">Highest ${Math.round(
+      profileData.maxMm
+    )} mm · steepest ${profileData.steepestPct.toFixed(1)}%${
+      steep ? ' — steeper than 10% can be hard for some cars to climb.' : ''
+    }</p>`;
+    box.classList.toggle('steep', steep);
+  }
+  function select(id) {
+    setSelection(id ? [id] : []);
+    renderCanvas();
+    updateInspector();
+  }
+  function add(def, reflected = CP.preferredFlip(def, mirrorNew)) {
+    if (items.some(p => defOf(p).parameters.type === 'freeform')) {
+      say('FreeForm is one complete circuit. Use New track to begin a piece-based design.', true);
+      return false;
+    }
+    if (items.length >= 500) {
+      say('This first iteration supports up to 500 placed pieces.', true);
+      return false;
+    }
+    checkpoint();
+    stop();
+    let p = F.pose(def, view.x + view.w / 2, view.y + view.h / 2),
+      net = F.connections(items, defs);
+    p.flip = !!def.mirror && reflected;
+    const preferred = net.open.filter(c => c.pieceId === selected).sort((a, b) => b.index - a.index),
+      rest = net.open.filter(c => c.pieceId !== selected).reverse();
+    const candidate = F.ports(p, defs)[0];
+    let attached = false;
+    if (candidate && snapEnabled) {
+      for (const target of [...preferred, ...rest]) {
+        if (!F.compatible(candidate, target) || Math.abs(candidate.heightMm - target.heightMm) >= 0.15) continue;
+        const targetPiece = items.find(item => item.id === target.pieceId),
+          joined = window.RoutedChecks.joinStraight(
+            p,
+            def,
+            0,
+            { ...target, placement: targetPiece, definitionId: targetPiece?.definitionId },
+            defs
+          ),
+          jp = F.ports(joined, defs)[0];
+        if (!F.slotsMatch(jp, target, 0.1)) continue;
+        p = joined;
+        attached = true;
+        break;
+      }
+    }
+    if (!attached) {
+      const b = def.geometry.boundsMm;
+      p.x -= b[0] + b[2] / 2;
+      p.y -= (b[1] + b[3] / 2) * (p.flip ? -1 : 1);
+    }
+    items.push(p);
+    setSelection([p.id]);
+    refresh();
+    say(
+      attached
+        ? 'Piece connected. Drag to reposition, or add the next piece.'
+        : def.parameters.type.endsWith('border')
+          ? 'Border added. Position it beside the road; borders move freely.'
+          : 'Piece added at the centre of the view.'
+    );
+    return true;
+  }
+  function populatePacks() {
+    const prev = $('pack').value;
+    $('pack').replaceChildren();
+    for (const p of allPacks()) {
+      const o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.name + (p.inLibrary === false ? ' (draft)' : '');
+      $('pack').append(o);
+    }
+    $('pack').value = allPacks().some(p => p.id === prev) ? prev : packs[0].id;
+    const family = $('custom-family').value;
+    $('custom-family').replaceChildren();
+    for (const p of [{ id: 'custom', name: 'Custom / unbranded' }, ...packs]) {
+      const o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.name;
+      $('custom-family').append(o);
+    }
+    $('custom-family').value = family || 'custom';
+  }
 
-function routeSection(){
- if(location.hash==='#plugins')window.history.replaceState(null,'',location.pathname+location.search+'#packs');
- const section=['custom','packs','export','library','settings','routed','freeform'].includes(location.hash.slice(1))?location.hash.slice(1):'builder';
- finishDrag(true);stop();document.body.dataset.section=section;
- $('builder-view').hidden=section!=='builder';document.querySelector('.projectbar').hidden=section!=='builder';$('custom-view').hidden=section!=='custom';$('export-view').hidden=section!=='export';$('packs-view').hidden=section!=='packs';$('library-view').hidden=section!=='library';
- $('settings-view').hidden=section!=='settings';$('routed-view').hidden=section!=='routed';$('freeform-view').hidden=section!=='freeform';if(section==='freeform'&&freeformUI)freeformUI.enter();
- document.querySelectorAll('.sf-nav-link').forEach(a=>{if(a.dataset.section===section)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current');});
- if(section==='library')renderDesignLibrary();else{++libraryRender;clearTimeout(designSearchTimer);}if(section==='custom'){renderPackControls();renderCustomLibrary();}if(section==='packs')renderTrackPacks();
- if(section==='export'){renderPackControls();populateExportTracks();}
- if(section==='builder')requestAnimationFrame(()=>{updateView();renderCanvas();});
-}
-document.querySelectorAll('.sf-header a').forEach(a=>{a.onclick=e=>{e.preventDefault();location.hash=a.dataset.section||'builder';};});
-$('reference-dialog').addEventListener('cancel',()=>referenceRequests.cancel());$('reference-dialog').addEventListener('close',()=>{if(!$('reference-dialog').open)referenceRequests.cancel();});
-$('reference-place').onclick=()=>placeReference();$('reference-snap').onchange=updateReferenceForm;$('reference-shape').onchange=updateReferenceForm;
-$('reference-resize').onclick=()=>{const p=current();if(p&&defOf(p).parameters.type==='reference')openReference(defOf(p),p);};
-$('custom-create').onclick=()=>{const pack=activePack();if(pack.pieces.length&&pack.pieces.every(d=>d.parameters.routed))routedUI.createInPack(pack);else openCustom();};$('custom-import').onclick=()=>$('pack-file').click();$('custom-export').onclick=exportPack;
-$('export-timing').onclick=()=>exportSelectedTrack('slotforge');
-$('export-import').onclick=()=>$('layout-file').click();
-$('transfer-pack-import').onclick=()=>$('pack-file').click();
-document.querySelectorAll('[data-transfer-kind]').forEach(button=>button.onclick=()=>setTransferKind(button.dataset.transferKind));
-$('export-png').onclick=()=>exportSelectedTrack('png');$('export-cad').onclick=()=>exportSelectedTrack('cad');
-$('export-track-select').onchange=()=>{exportChoice=$('export-track-select').value;loadExportTrack();};
-$('set-timing-line').onclick=()=>{const p=current();if(!p||!defOf(p).geometry.lanePaths.length){say('Select one road piece in the builder first.',true);return;}editTiming(()=>integrationState.startFinish={pieceId:p.id,fraction:.5});};
-$('timing-position').onchange=()=>{const value=Number($('timing-position').value);if(!Number.isFinite(value)||value<0||value>100)return;editTiming(()=>integrationState.startFinish.fraction=value/100);};
-$('travel-direction').onchange=()=>editTiming(()=>integrationState.direction=Number($('travel-direction').value));
-$('export-csv').onclick=()=>exportSelectedTrack('csv');$('export-custom').onclick=()=>downloadPack($('export-pack-select').value);
-$('custom-pack-select').onchange=()=>{customLibrary.activePackId=$('custom-pack-select').value;persistCustom();};
-$('save-custom-pack').onclick=saveToLibrary;
-$('custom-select-all').onchange=()=>{customPieceSelection=new Set($('custom-select-all').checked?activePack().pieces.map(d=>d.id):[]);renderCustomLibrary();};
-$('custom-delete-selected').onclick=()=>askDeletePackPieces([...customPieceSelection]);
-$('delete-pack-pieces-confirm').onclick=confirmDeletePackPieces;
-$('delete-pack-pieces-dialog').addEventListener('cancel',e=>{if(deletePackBusy)e.preventDefault();});
-$('delete-pack-pieces-dialog').addEventListener('close',()=>{if(!deletePackBusy)deletePackPieces=null;});
-$('new-custom-pack').onclick=()=>{$('new-pack-form').reset();$('new-pack-dialog').showModal();};
-$('new-pack-form').onsubmit=async e=>{e.preventDefault();try{if(customLibrary.packs.length>=100)throw Error('The custom library supports up to 100 packs.');const p={id:'custom-pack-'+F.uid(),name:CP.name($('new-pack-name').value),inLibrary:false,pieces:[]};customLibrary.packs.push(p);customLibrary.activePackId=p.id;const saving=persistCustom();$('new-pack-dialog').close();location.hash='custom';routeSection();if(await saving)say('Pack created. Add pieces, then save it to the library.');}catch(e){say(e.message,true);}};
-$('packs-import').onclick=()=>$('pack-file').click();
-$('packs-create').onclick=()=>$('new-custom-pack').click();
-$('packs-search').oninput=renderTrackPacks;
-$('packs-filter').querySelectorAll('[data-pack-filter]').forEach(button=>button.onclick=()=>{$('packs-filter').querySelectorAll('[data-pack-filter]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));renderTrackPacks();});
-$('packs-clear-search').onclick=()=>{$('packs-search').value='';$('packs-filter').querySelector('[data-pack-filter=all]').click();};
-$('export-pack-select').onchange=()=>updateExportNote('export-pack-select','export-pack-note','export-custom');
-$('pack-export-choice').onchange=()=>updateExportNote('pack-export-choice','pack-export-note','pack-export-download');
-$('pack-export-download').onclick=()=>downloadPack($('pack-export-choice').value);
-$('save-design').onclick=openDesignSave;$('library-save-current').onclick=openDesignSave;$('library-open-file').onclick=()=>$('layout-file').click();let designSearchTimer;$('design-search').oninput=()=>{libraryOffset=0;++libraryRender;clearTimeout(designSearchTimer);designSearchTimer=setTimeout(renderDesignLibrary,150);};$('save-design-form').onsubmit=saveDesign;$('save-design-dialog').addEventListener('cancel',e=>{if(designSaveBusy)e.preventDefault();});$('design-copy').onchange=()=>{$('design-save-submit').textContent=$('design-copy').checked?'Save new copy':'Update saved design';};
-$('delete-design-confirm').onclick=async()=>{if(!deleteDesignId)return;const id=deleteDesignId;$('delete-design-confirm').disabled=true;try{await DL.remove(id,deleteDesignRevision);deleteDesignId=null;$('delete-design-dialog').close();renderDesignLibrary();say('Saved design deleted.');}catch(e){say(e.message,true);}finally{$('delete-design-confirm').disabled=false;}};
-window.addEventListener('hashchange',routeSection);window.addEventListener('beforeunload',e=>{if(DS.unsaved||!storageAvailable||browserPackUnsaved){e.preventDefault();e.returnValue='';}});routeSection();
+  function showPackInfo() {
+    const p = allPacks().find(p => p.id === $('pack').value);
+    if (!p) return;
+    if (p.trackSystem === 'routed') {
+      $('pack-info').textContent = 'Routed wood · editable slot dimensions · mm';
+      return;
+    }
+    const nominal = p.pieces.filter(d => d.geometry).length;
+    const text = [
+      p.modelScale ? 'Model scale ' + p.modelScale : '',
+      p.trackSystem === 'slotless'
+        ? 'Slotless · approximate visual planning'
+        : nominal
+          ? 'Physical sizes in mm · nominal geometry'
+          : 'Reference artwork only',
+      p.id === 'slotforge.fleischmann-auto-rallye'
+        ? '90 mm slot spacing assumed'
+        : p.id === 'slotforge.afx-racing'
+          ? 'Modern Tomy connectors'
+          : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    $('pack-info').textContent = text;
+    $('pack-info').title = p.planningNote || '';
+  }
+  function catalogue() {
+    updatePieceColours();
+    if (routedUI) routedUI.render();
+    showPackInfo();
+    const pack = allPacks().find(p => p.id === $('pack').value) || packs[0],
+      query = $('search').value.trim().toLowerCase(),
+      only = $('buildable').checked;
+    const list = pack.pieces.filter(
+      d => (!only || d.geometry || d.referencePlan) && (!query || (d.name + ' ' + d.sku).toLowerCase().includes(query))
+    );
+    $('catalogue-count').textContent = list.length + ' pieces';
+    $('catalogue').replaceChildren();
+    for (const folder of CF.group(list)) {
+      if (query && !folder.pieces.length) continue;
+      const details = document.createElement('details');
+      details.className = 'catalogue-folder';
+      const key = pack.id + ':' + folder.name;
+      details.open = query ? !!folder.pieces.length : (folderState[key] ?? folder.name === 'Straights');
+      const heading = document.createElement('summary');
+      heading.textContent = folder.name;
+      const count = document.createElement('span');
+      count.textContent = folder.pieces.length;
+      heading.append(count);
+      details.append(heading);
+      details.ontoggle = () => {
+        if (query || !details.isConnected) return;
+        folderState[key] = details.open;
+        try {
+          localStorage.setItem('slotforge.catalogue-folders.v1', JSON.stringify(folderState));
+        } catch {}
+      };
+      const contents = document.createElement('div');
+      contents.className = 'folder-pieces';
+      details.append(contents);
+      $('catalogue').append(details);
+      if (!folder.pieces.length) {
+        const empty = document.createElement('p');
+        empty.className = 'fine';
+        empty.textContent = only
+          ? 'No buildable pieces here. Turn off Buildable only to see reference items.'
+          : 'No pieces in this folder.';
+        contents.append(empty);
+      }
+      for (const d of folder.pieces) {
+        const button = document.createElement('button');
+        button.className = 'piece-card';
+        button.title = d.geometry
+          ? 'Add ' + d.name
+          : d.referencePlan
+            ? 'Add visual planning piece · approximate'
+            : 'Plan with reference artwork';
+        if (d.asset && !(colourByPiece && window.PieceColours.eligible(d))) {
+          const img = document.createElement('img');
+          img.src = d.asset;
+          img.alt = '';
+          img.loading = 'lazy';
+          button.append(img);
+        } else {
+          const image = svg('svg', {
+            viewBox: paletteBounds(d)
+              .map((v, i) => (i < 2 ? v - 15 : v + 30))
+              .join(' '),
+          });
+          image.innerHTML = paletteBody(d);
+          button.append(image);
+        }
+        const words = document.createElement('span'),
+          name = document.createElement('strong'),
+          small = document.createElement('small');
+        name.textContent = d.name;
+        small.textContent =
+          (d.sku ? d.sku + ' · ' : '') +
+          (d.geometry
+            ? d.parameters.foldOverride
+              ? 'Planning-only fold override'
+              : d.status === 'user-defined'
+                ? 'Your dimensions'
+                : 'Nominal'
+            : d.referencePlan
+              ? 'Visual planning · approximate'
+              : 'Reference · planning options');
+        if (!d.geometry) small.className = 'reference';
+        words.append(name, small);
+        button.append(words);
+        button.onclick = () => {
+          if (d.geometry) {
+            if (d.parameters.routed && pack.id === F.Routed.ID) {
+              if (items.length >= 500) {
+                say('This first iteration supports up to 500 placed pieces.', true);
+                return;
+              }
+              add(routedCatalogueDefinition(d), CP.preferredFlip(d, mirrorNew));
+            } else add(d);
+          } else if (d.referencePlan) {
+            const intendedDesign = integrationState.designId;
+            referenceQueue = referenceQueue.then(() =>
+              integrationState.designId === intendedDesign ? placeReference(d, { automatic: true }) : undefined
+            );
+          } else openReference(d);
+        };
+        contents.append(button);
+      }
+    }
+    if (!list.length) {
+      const n = document.createElement('div');
+      n.className = 'no-results';
+      n.textContent = customLibrary.packs.some(p => p.id === $('pack').value)
+        ? 'This pack is empty. Choose “＋ Custom” to add its first piece.'
+        : only
+          ? 'No buildable pieces match. Turn off “Buildable only” to see reference artwork.'
+          : 'No matching pieces.';
+      $('catalogue').append(n);
+    }
+  }
+  function openReference(source, piece = null) {
+    referenceRequests.cancel();
+    const preset = source.parameters
+      ? packs
+          .flatMap(p => p.pieces)
+          .find(d => d.family === source.family && d.sku === source.sku && d.name === source.name)
+      : null;
+    if (!source.referencePlan && preset?.referencePlan) source = { ...source, referencePlan: preset.referencePlan };
+    referenceChoice = source;
+    referenceEditingId = piece?.id || null;
+    const q = source.parameters?.planning || source.referencePlan,
+      display = source.parameters || {},
+      measure = source.referenceDimensions || {};
+    $('reference-name').textContent = source.name;
+    const preview = $('reference-image'),
+      imageSource = source.referenceImage || source.asset;
+    preview.onload = null;
+    preview.hidden = !imageSource;
+    if (imageSource) preview.src = imageSource;
+    else preview.removeAttribute('src');
+    $('reference-notes').textContent = (source.notes || []).join(' ');
+    $('reference-error').textContent = '';
+    $('reference-place').disabled = false;
+    $('reference-place').textContent = piece ? 'Apply planning settings' : 'Place in layout';
+    $('reference-width').value = display.lengthMm || 350;
+    $('reference-height').value = display.widthMm || 200;
+    $('reference-snap').checked =
+      !!q ||
+      (!source.parameters &&
+        /straight|curve|chicane|crossover|narrow/i.test(source.name) &&
+        !/support|guardrail|pillar|controller/i.test(source.name));
+    $('reference-shape').value = q?.type || (/curve|bend|hairpin/i.test(source.name) ? 'curve' : 'straight');
+    $('reference-road-width').value = q?.widthMm || measure.widthMm || measure.roadWidthMm || 200;
+    $('reference-length').value = q?.lengthMm || measure.lengthMm || measure.roadLengthMm || display.lengthMm || 350;
+    $('reference-radius').value = q?.innerRadiusMm || measure.innerRadiusMm || 300;
+    $('reference-angle').value = q?.angleDeg || measure.angleDeg || 45;
+    $('reference-image').onload = () => {
+      const image = $('reference-image');
+      if (!display.lengthMm && image.naturalWidth && image.naturalHeight)
+        $('reference-height').value = +((350 * image.naturalHeight) / image.naturalWidth).toFixed(1);
+    };
+    updateReferenceForm();
+    $('reference-dialog').showModal();
+  }
+  function updateReferenceForm() {
+    const active = $('reference-snap').checked,
+      curve = $('reference-shape').value === 'curve';
+    $('reference-display-fields').hidden = active;
+    $('reference-planning-fields').hidden = !active;
+    $('reference-length-field').hidden = curve;
+    $('reference-radius-field').hidden = !curve;
+    $('reference-angle-field').hidden = !curve;
+  }
+  function referenceFormPlan(source) {
+    if (!$('reference-snap').checked) return null;
+    const previous = source.parameters?.planning || source.referencePlan;
+    return F.validatePlanning({
+      type: $('reference-shape').value,
+      widthMm: Number($('reference-road-width').value),
+      lengthMm: Number($('reference-length').value),
+      innerRadiusMm: Number($('reference-radius').value),
+      angleDeg: Number($('reference-angle').value),
+      reflectX: previous?.reflectX || false,
+      artworkPaddingMm: previous?.artworkPaddingMm || 0,
+    });
+  }
+  function referenceCanvas(image) {
+    const canvas = document.createElement('canvas'),
+      ratio = Math.min(1, 512 / Math.max(image.naturalWidth, image.naturalHeight));
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * ratio));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * ratio));
+    canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+  const referenceImageAdapter = {
+    load: async source => {
+      const image = new Image();
+      image.src = source;
+      await image.decode();
+      return image;
+    },
+    capture: image => referenceCanvas(image).toDataURL('image/png'),
+    pixels: image => {
+      const canvas = referenceCanvas(image);
+      return canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+    },
+    encode: image => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const ctx = canvas.getContext('2d'),
+        pixels = ctx.createImageData(image.width, image.height);
+      pixels.data.set(image.data);
+      ctx.putImageData(pixels, 0, 0);
+      return canvas.toDataURL('image/png');
+    },
+  };
+  async function placeReference(source = referenceChoice, { automatic = false } = {}) {
+    if (!source) return;
+    const editingId = automatic ? null : referenceEditingId,
+      designId = integrationState.designId,
+      button = $('reference-place'),
+      token = automatic ? null : referenceRequests.begin();
+    const active = () =>
+      integrationState.designId === designId &&
+      (automatic || (referenceRequests.current(token) && $('reference-dialog').open));
+    if (!automatic) button.disabled = true;
+    try {
+      const planning = automatic ? F.validatePlanning(source.referencePlan) : referenceFormPlan(source),
+        size = planning
+          ? F.planningSize(planning)
+          : { lengthMm: Number($('reference-width').value), widthMm: Number($('reference-height').value) },
+        mirror = source.parameters ? source.mirror : source.referenceMirror;
+      let d = F.validateDefinition({
+        id: 'reference:' + F.uid(),
+        name: source.name,
+        sku: source.sku,
+        pack: source.pack,
+        family: source.family,
+        color: source.color,
+        parameters: { type: 'reference', ...size, ...(planning ? { planning } : {}) },
+        mirror: mirror !== false,
+      });
+      const referenceImage = await RA.prepare(source, planning, referenceImageAdapter, active);
+      if (!active()) return;
+      d = F.validateDefinition({ ...d, ...(referenceImage ? { referenceImage } : {}) });
+      d =
+        Object.values(defs).find(
+          existing =>
+            existing.parameters.type === 'reference' &&
+            existing.name === d.name &&
+            existing.sku === d.sku &&
+            existing.family === d.family &&
+            existing.pack === d.pack &&
+            existing.mirror === d.mirror &&
+            I.canonical(existing.parameters) === I.canonical(d.parameters) &&
+            existing.referenceImage === d.referenceImage
+        ) || d;
+      if (editingId) {
+        const placed = items.find(p => p.id === editingId);
+        if (!placed) throw Error('This piece was removed.');
+        if (placed.locked) throw Error('Unlock this piece before editing it.');
+        checkpoint();
+        defs[d.id] = d;
+        placed.definitionId = d.id;
+        stop();
+        refresh();
+      } else {
+        defs[d.id] = d;
+        add(d);
+      }
+      if (!automatic) $('reference-dialog').close();
+      say(
+        planning
+          ? 'Visual planning piece ' +
+              (editingId ? 'updated.' : 'added.') +
+              ' Approximate ends snap; PDF includes its quantity. Slot lengths are not calculated.'
+          : 'Reference picture placed. Edit its planning settings to enable approximate snapping.'
+      );
+    } catch (e) {
+      if (!active()) return;
+      if (!automatic) $('reference-error').textContent = e.message;
+      say('Could not place reference: ' + e.message, true);
+    } finally {
+      if (!automatic && referenceRequests.current(token) && $('reference-dialog').open) button.disabled = false;
+    }
+  }
+  function selectionLocked() {
+    if (selection().some(p => p.locked)) {
+      say('Unlock the selected pieces before editing them.', true);
+      return true;
+    }
+    return false;
+  }
+  function modify(fn) {
+    const p = current();
+    if (!p || selectionLocked()) return;
+    checkpoint();
+    stop();
+    fn(p);
+    refresh();
+  }
+  function replaceGroup(group) {
+    const changed = new Map(group.map(p => [p.id, p]));
+    items = items.map(p => changed.get(p.id) || p);
+  }
+  function arrangeSelection(position) {
+    if (!selectedIds.size || !['front', 'back'].includes(position) || selectionLocked()) return;
+    const ordered = F.arrange(items, selectedIds, position);
+    if (ordered.every((p, i) => p === items[i])) {
+      say(position === 'front' ? 'Selection is already at the front.' : 'Selection is already at the back.');
+      return;
+    }
+    checkpoint();
+    items = ordered;
+    refresh();
+    say(position === 'front' ? 'Selection brought to front.' : 'Selection sent to back.');
+  }
+  function rotate(sign = 1) {
+    const group = selection();
+    if (!group.length || selectionLocked()) return;
+    checkpoint();
+    stop();
+    const b = F.bounds(group, defs),
+      center = [b[0] + b[2] / 2, b[1] + b[3] / 2];
+    replaceGroup(
+      F.repositionGroup(
+        group,
+        { x: center[0], y: center[1], angle: 0, flip: false },
+        { x: center[0], y: center[1], angle: 15 * sign, flip: false }
+      )
+    );
+    refresh();
+  }
+  function mirror() {
+    const p = current(),
+      group = selection();
+    if (selectionLocked() || !p || group.some(p => !defOf(p).mirror)) return;
+    checkpoint();
+    stop();
+    const d = defOf(p),
+      anchor = d.geometry.connectors[0]?.position || [
+        d.geometry.boundsMm[0] + d.geometry.boundsMm[2] / 2,
+        d.geometry.boundsMm[1] + d.geometry.boundsMm[3] / 2,
+      ],
+      before = F.point(anchor, p),
+      target = { ...p, flip: !p.flip },
+      after = F.point(anchor, target);
+    target.x += before[0] - after[0];
+    target.y += before[1] - after[1];
+    replaceGroup(F.repositionGroup(group, p, target));
+    rememberMirror(target.flip !== !!d.catalogueFlip);
+    refresh();
+  }
+  function duplicate() {
+    if (items.some(p => defOf(p).parameters.type === 'freeform')) {
+      say('Use Save to Library as a new copy to duplicate a FreeForm design.');
+      return;
+    }
+    const group = selection();
+    if (!group.length) return;
+    if (items.length + group.length > 500) {
+      say('The layout limit is 500 pieces.', true);
+      return;
+    }
+    checkpoint();
+    stop();
+    const groups = new Map();
+    const copies = group.map(p => {
+      if (p.groupId && !groups.has(p.groupId)) groups.set(p.groupId, F.uid());
+      return {
+        ...p,
+        id: F.uid(),
+        locked: false,
+        ...(p.groupId ? { groupId: groups.get(p.groupId) } : {}),
+        x: p.x + 120,
+        y: p.y + 120,
+      };
+    });
+    items.push(...copies);
+    setSelection(copies.map(p => p.id));
+    refresh();
+  }
+  function remove() {
+    if (!selectedIds.size || selectionLocked()) return;
+    checkpoint();
+    stop();
+    items = items.filter(p => !selectedIds.has(p.id));
+    setSelection([]);
+    refresh();
+  }
+  function example() {
+    checkpoint();
+    stop();
+    librarySource = null;
+    integrationState = I.newState();
+    planning = F.Planning.validate();
+    spaceGuide = null;
+    routedState = F.Routed.workspace();
+    syncRoutedPack();
+    items = [];
+    const seq = [
+      ...Array(3).fill('carrera:20509'),
+      ...Array(6).fill('carrera:20572'),
+      ...Array(3).fill('carrera:20509'),
+      ...Array(6).fill('carrera:20572'),
+    ];
+    let last;
+    for (const id of seq) {
+      const d = defs[id];
+      let p = F.pose(d, 0, 0);
+      if (last) p = F.join(p, d, 0, F.ports(last, defs)[1]);
+      items.push(p);
+      last = p;
+    }
+    title = 'Club circuit';
+    $('track-name').value = title;
+    setSelection([]);
+    profile = { ...F.presets.Balanced };
+    updateSliders();
+    updateCarControls();
+    refresh();
+    fit();
+  }
+  function newTrack() {
+    checkpoint();
+    stop();
+    librarySource = null;
+    integrationState = I.newState();
+    planning = F.Planning.validate();
+    spaceGuide = null;
+    routedState = F.Routed.workspace();
+    syncRoutedPack();
+    items = [];
+    setSelection([]);
+    title = 'Untitled circuit';
+    $('track-name').value = title;
+    refresh();
+    fit();
+  }
+  // ---------------------------------------------------------------- templates
+  function loadTemplate(template, pack) {
+    newTrack();
+    items = window.TrackTemplates.place(template.definitionIds, defs, F);
+    title = template.name + ' · ' + pack.name;
+    $('track-name').value = title;
+    refresh();
+    fit();
+    say(`${template.name} loaded from ${pack.name}. Change it as you like, then Save to Library.`);
+  }
+  function templatePreview(definitionIds) {
+    const placed = window.TrackTemplates.place(definitionIds, defs, F),
+      b = F.bounds(placed, defs),
+      pad = Math.max(b[2], b[3]) * 0.06;
+    const body = placed
+      .map(
+        p =>
+          `<g transform="translate(${p.x} ${p.y}) rotate(${p.angle}) scale(1 ${p.flip ? -1 : 1})">${F.drawBody(defOf(p), true)}</g>`
+      )
+      .join('');
+    return `<svg viewBox="${b[0] - pad} ${b[1] - pad} ${b[2] + pad * 2} ${b[3] + pad * 2}" aria-hidden="true">${body}</svg>`;
+  }
+  function openTemplates() {
+    const dialog = $('template-dialog'),
+      select = $('template-pack'),
+      grid = $('template-grid');
+    const plastic = packs.filter(p => p.id !== F.Routed.ID);
+    select.replaceChildren(...plastic.map(p => new Option(p.name, p.id)));
+    select.value = plastic.some(p => p.id === $('pack').value) ? $('pack').value : plastic[0].id;
+    const render = () => {
+      const pack = plastic.find(p => p.id === select.value),
+        list = window.TrackTemplates.forPack(pack, defs);
+      grid.replaceChildren();
+      if (!list.length) {
+        const p = document.createElement('p');
+        p.className = 'fine';
+        p.textContent = `${pack.name} has reference artwork only, so it has no ready-made layouts. Choose another pack.`;
+        grid.append(p);
+      }
+      for (const template of list) {
+        const card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'template-card';
+        card.innerHTML = `<span class="template-art">${templatePreview(template.definitionIds)}</span><strong></strong><span></span>`;
+        card.querySelector('strong').textContent = template.name;
+        card.querySelector('span:last-child').textContent = `${template.text} ${template.definitionIds.length} pieces.`;
+        card.onclick = () => {
+          dialog.close();
+          confirmReplace(() => loadTemplate(template, pack));
+        };
+        grid.append(card);
+      }
+      const eight = document.createElement('button');
+      eight.type = 'button';
+      eight.className = 'template-card';
+      eight.innerHTML =
+        '<span class="template-art template-art-text" aria-hidden="true">∞</span><strong>Figure eight with bridge</strong><span>A FreeForm drawing for routed wood: one crossing passes over the other.</span>';
+      eight.onclick = () => {
+        dialog.close();
+        // Open FreeForm first (it restores its saved draft), then start the figure eight.
+        location.hash = 'freeform';
+        routeSection();
+        $('ff-eight').click();
+      };
+      grid.append(eight);
+    };
+    select.onchange = render;
+    render();
+    dialog.showModal();
+  }
+  $('open-template').hidden = false;
+  $('open-template').onclick = openTemplates;
 
+  function rebuildMotion() {
+    speedPlans = network.routes
+      .slice(0, 2)
+      .map(r => I.travelPlan(r, profile, timingOffset(r.id), integrationState.direction));
+  }
+  const motion = F.animationLoop(requestAnimationFrame, cancelAnimationFrame, frame);
+  function stop() {
+    motion.stop();
+    playing = false;
+    $('play').textContent = '▶ Live preview';
+    $('cars').replaceChildren();
+    lastTime = 0;
+  }
+  function togglePlay() {
+    if (playing) {
+      stop();
+      return;
+    }
+    if (!network.closed) return;
+    playing = true;
+    rebuildMotion();
+    $('play').textContent = 'Ⅱ Pause preview';
+    lastTime = 0;
+    motion.start();
+  }
+  function frame(t) {
+    if (!playing) return;
+    const dt = lastTime ? Math.min(0.05, (t - lastTime) / 1000) : 0;
+    lastTime = t;
+    const factor = Number($('playback').value);
+    const body = [];
+    for (const [r, i] of network.routes.slice(0, 2).map((r, i) => [r, i])) {
+      carDistances[i] = (carDistances[i] + speedPlans[i](carDistances[i]) * dt * factor) % r.lengthMm;
+      const q = I.atTravel(r, carDistances[i], timingOffset(r.id), integrationState.direction),
+        drift = Math.sign(q.curvature) * profile.drift * Math.min(1, Math.abs(q.curvature) * 350);
+      body.push(
+        `<g class="car" transform="translate(${q.x} ${q.y}) rotate(${q.heading})"><g transform="rotate(${drift})">${F.PreviewCar.draw(previewCar, i ? '#66b4e7' : '#ec6167')}</g><circle r="2" fill="white"/></g>`
+      );
+    }
+    $('cars').innerHTML = body.join('');
+  }
+  const sliderSpecs = [
+    ['speed', 'Top speed', 200, 3000, 50, v => (v / 1000).toFixed(2) + ' m/s'],
+    ['acceleration', 'Acceleration', 100, 4000, 100, v => (v / 1000).toFixed(1) + ' m/s²'],
+    ['brake', 'Braking', 100, 5000, 100, v => (v / 1000).toFixed(1) + ' m/s²'],
+    ['corner', 'Cornering speed', 0.2, 0.95, 0.01, v => Math.round(v * 100) + '%'],
+    ['drift', 'Visual drift', 0, 30, 1, v => v + '°'],
+  ];
+  function updateCarControls() {
+    const s = previewCar,
+      d = F.PreviewCar.dimensions(s),
+      custom = s.scale === 'custom';
+    $('preview-car-scale').value = s.scale;
+    for (const [key, id] of [
+      ['lengthMm', 'preview-car-length'],
+      ['widthMm', 'preview-car-width'],
+    ]) {
+      $(id).value = Number(d[key].toFixed(6));
+      $(id).disabled = !custom;
+    }
+    $('preview-car-apply').hidden = !custom;
+    $('preview-car-error').textContent = '';
+    $('preview-car-size').textContent = d.lengthMm.toFixed(2) + ' × ' + d.widthMm.toFixed(2) + ' mm · length × width';
+  }
+  function setCarSize(raw) {
+    try {
+      const next = F.PreviewCar.settings(raw);
+      if (JSON.stringify(next) !== JSON.stringify(previewCar)) {
+        checkpoint();
+        previewCar = next;
+        updateInspector();
+        persist();
+      }
+      updateCarControls();
+    } catch (e) {
+      $('preview-car-error').textContent = e.message;
+    }
+  }
+  $('preview-car-scale').onchange = () => {
+    const scale = $('preview-car-scale').value;
+    setCarSize(
+      scale === 'custom' ? { version: 1, scale, ...F.PreviewCar.dimensions(previewCar) } : { version: 1, scale }
+    );
+  };
+  $('preview-car-apply').onclick = () =>
+    setCarSize({
+      version: 1,
+      scale: 'custom',
+      lengthMm: $('preview-car-length').value.trim() === '' ? NaN : Number($('preview-car-length').value),
+      widthMm: $('preview-car-width').value.trim() === '' ? NaN : Number($('preview-car-width').value),
+    });
+  for (const id of ['preview-car-length', 'preview-car-width'])
+    $(id).addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        $('preview-car-apply').click();
+      }
+    });
 
-function storageDetails(){
- $('storage-mode').textContent=DS.mode==='disk'?'Disk storage is active. Layouts, autosave and custom packs are stored outside the browser.':DS.error||'Browser storage is active. Use an installed local launcher for automatic disk saving.';
- $('storage-directory').textContent=DS.directory||'No disk workspace connected';$('storage-previous').hidden=!DS.disk;$('storage-previous').disabled=DS.mode==='unavailable';$('storage-copy-browser').hidden=!DS.disk;$('storage-stop').hidden=!DS.disk;$('storage-import').disabled=!DS.disk||DS.mode==='unavailable';$('storage-copy-browser').disabled=DS.mode==='unavailable';$('storage-error').textContent='';$('storage-dialog').showModal();
-}
-$('storage-open').textContent=DS.mode==='disk'?'Storage: disk':DS.disk?'Storage: unavailable':'Storage: browser';$('storage-open').onclick=storageDetails;
-if(DS.mode==='disk')$('library-storage-note').textContent='Saved as files on this computer, independently of browser data. Updates preserve the data folder. Use Storage to download a complete workspace backup or transfer old browser saves.';
-async function browserBundle(){const raw=localStorage.getItem(STORAGE),saved=localStorage.getItem(CP.STORAGE),legacy=localStorage.getItem(CUSTOM);return{format:'slotforge.workspace-transfer',version:1,createdAt:new Date().toISOString(),current:raw?JSON.parse(raw):null,customLibrary:CP.serialize(CP.read(saved?JSON.parse(saved):legacy?JSON.parse(legacy):null)),designs:(await DL.browserList()).map(r=>r.layout)};}
-$('storage-previous').onclick=async()=>{try{await DS.flush();download('SlotForge-previous-save.json',JSON.stringify(await DS.previousBundle()));$('storage-error').textContent='Previous save downloaded. Import it to recover missing tracks as library copies; your current drawing is kept.';}catch(e){$('storage-error').textContent=e.message;}};
-$('storage-export').onclick=async()=>{try{const bundle=DS.disk?await DS.exportBundle():{...await browserBundle(),current:layout(false),customLibrary:CP.serialize(customLibrary)};bundle.current=layout(false);bundle.customLibrary=CP.serialize(customLibrary);download('SlotForge-workspace-backup.json',JSON.stringify(bundle));say('Complete workspace backup downloaded.');}catch(e){$('storage-error').textContent=e.message;}};
-async function importWorkspace(value){$('storage-error').textContent='';const controls=[...$('storage-dialog').querySelectorAll('button')];controls.forEach(b=>b.disabled=true);try{const result=await DS.importBundle(value);$('storage-error').textContent=result.tracksAdded+' tracks and '+result.packsAdded+' packs imported. Existing tracks were kept. Reload to see the imported library and packs.';$('storage-reload').hidden=false;}catch(e){$('storage-error').textContent=e.message;}finally{controls.forEach(b=>b.disabled=false);}}
-$('storage-import').onclick=()=>$('workspace-file').click();$('workspace-file').onchange=async()=>{const file=$('workspace-file').files[0];$('workspace-file').value='';if(!file)return;try{if(file.size>256*1024*1024)throw Error('Workspace transfer files support up to 256 MiB.');await importWorkspace(JSON.parse(await file.text()));}catch(e){$('storage-error').textContent=e.message;}};
-$('storage-copy-browser').onclick=async()=>{try{await importWorkspace(await browserBundle());}catch(e){$('storage-error').textContent=e.message;}};
-$('storage-reload').onclick=()=>location.reload();
-$('storage-stop').onclick=async()=>{try{await DS.quit();$('storage-error').textContent='Local app stopped. You can close this tab. Use the launcher to start it again.';$('storage-open').textContent='Storage: stopped';}catch(e){$('storage-error').textContent=e.message;}};
-function syncRoutedPack(){Object.assign(routedPack,F.Routed.pack(routedState.settings));populatePacks();catalogue();}
-if(items.length&&items.every(p=>defOf(p).parameters.routed)){$('pack').value=F.Routed.ID;catalogue();}
-routedUI=window.RoutedEditor.init({
- get:()=>({items,defs,routed:routedState,spaceGuide,selected,selectedIds,network,interacting:!!drag,packId:$('pack').value}),focus:focusIssue,
- message:say,
- choosePack:(id=F.Routed.ID)=>{$('pack').value=id;$('search').value='';catalogue();},
- packs:()=>customLibrary.packs,
- saveDefinition:saveRoutedDefinition,
- showSavedPack:id=>{customLibrary.activePackId=id;persistCustom();$('pack').value=id;catalogue();location.hash='custom';routeSection();},
- table:()=>{openSpaceGuide();$('guide-kind').value='table';},
- add:(d,flip)=>{if(items.length>=500)return false;defs[d.id]=d;return add(d,flip);},
- commit:next=>{
-  const ni=next.items||items,nd=next.definitions||defs,nr=F.Routed.workspace(next.routed||routedState);
-  assertLockedUnchanged(ni,nd);F.validateLayout({format:'slotforge.layout',version:1,title,pieces:ni,definitions:[...new Set(ni.map(p=>p.definitionId))].map(id=>nd[id]),profile,workspace:{routed:nr,...(spaceGuide?{spaceGuide}:{})}});
-  checkpoint();stop();Object.assign(defs,nd);items=ni;if(next.selectId)setSelection([next.selectId]);routedState=nr;syncRoutedPack();routedUI.fill();refresh();
- },
- newLayout:exampleTrack=>{const config=structuredClone(routedState);confirmReplace(()=>{
-  checkpoint();stop();librarySource=null;integrationState=I.newState();routedState=config;planning=F.Planning.validate();items=[];setSelection([]);syncRoutedPack();
-  if(exampleTrack){const straight=F.validateDefinition(F.Routed.definition(config.settings,exampleTrack==='flowing'?{type:'routed-spline',controlPointsMm:F.Routed.Spline.preset('s-bend',config.settings)}:{type:'straight',lengthMm:1000},'routed:'+F.uid())),corner=F.validateDefinition(F.Routed.definition(config.settings,{type:'curve',slotRadiusMm:Math.max(300,config.settings.innerClearanceMm+50),angleDeg:90},'routed:'+F.uid()));defs[straight.id]=straight;defs[corner.id]=corner;let last;for(const d of[straight,corner,corner,straight,corner,corner]){let p=F.pose(d);if(last)p=F.join(p,d,0,F.ports(last,defs)[1]);items.push(p);last=p;}}
-  const b=F.bounds(items,defs),lengthMm=exampleTrack?Math.ceil(b[2]+400-1e-6):3000,widthMm=exampleTrack?Math.ceil(b[3]+400-1e-6):1600;spaceGuide={x:0,y:0,lengthMm,widthMm,kind:'table',locked:true};
-  if(exampleTrack)items=items.map(p=>({...p,x:p.x+200-b[0],y:p.y+200-b[1]}));
-  title=exampleTrack==='flowing'?'Flowing routed example':exampleTrack?'Routed wood example':'My routed track';$('track-name').value=title;$('pack').value=F.Routed.ID;catalogue();routedUI.fill();refresh();location.hash='builder';routeSection();fit();say(exampleTrack?'Routed example loaded. Select a section to edit its dimensions.':'Routed layout ready. Add a section from the catalogue or create your own.');
- });}
-});
+  function updateSliders() {
+    for (const [k, , min, max, step, label] of sliderSpecs) {
+      if ($('tune-' + k)) {
+        $('tune-' + k).value = profile[k];
+        $('value-' + k).textContent = label(profile[k]);
+      }
+    }
+    $('preset').value =
+      Object.keys(F.presets).find(k => JSON.stringify(F.presets[k]) === JSON.stringify(profile)) || 'Custom';
+    renderLapTimes();
+  }
+  function initSliders() {
+    for (const [k, name, min, max, step, label] of sliderSpecs) {
+      const lab = document.createElement('label');
+      lab.className = 'slider-label';
+      lab.htmlFor = 'tune-' + k;
+      lab.append(document.createTextNode(name));
+      const output = document.createElement('output');
+      output.id = 'value-' + k;
+      lab.append(output);
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = min;
+      input.max = max;
+      input.step = step;
+      input.id = 'tune-' + k;
+      input.setAttribute('aria-label', name);
+      input.oninput = () => {
+        profile[k] = Number(input.value);
+        updateSliders();
+        if (playing) rebuildMotion();
+        persist();
+      };
+      $('sliders').append(lab, input);
+    }
+    updateSliders();
+  }
+  let customDraft = null,
+    customToBuilder = false,
+    customSlotOffsets = null;
+  const plasticCustomHost = document.createElement('div');
+  $('piece-form').querySelector('[name=family]').closest('label').after(plasticCustomHost);
+  const plasticCustomFields = window.PlasticLanesUI.fields(plasticCustomHost, updateCustom);
+  const plasticUI = window.PlasticLanesUI.init({
+    packs: () => customLibrary.packs,
+    apply: async (draft, packId, token) => {
+      const placement = items.find(p => p.id === token.pieceId);
+      window.DesignTools.editable(items, [token.pieceId]);
+      if (integrationState.designId !== token.designId || placement?.definitionId !== token.definitionId)
+        throw Error('The selected piece has changed. Reopen Lane spacing.');
+      let d = F.validateDefinition({ ...draft, id: 'custom:' + F.uid() });
+      if (packId) {
+        const next = CP.read(CP.serialize(customLibrary)),
+          pack = next.packs.find(p => p.id === packId);
+        if (!pack) throw Error('Choose an existing custom pack.');
+        if (next.packs.reduce((n, p) => n + p.pieces.length, 0) >= 500)
+          throw Error('The custom library supports up to 500 pieces.');
+        d = { ...d, pack: pack.name };
+        pack.pieces.push(d);
+        pack.inLibrary = true;
+        next.activePackId = pack.id;
+        const data = CP.serialize(next);
+        if (DS.disk) await DS.putPacks(data);
+        else writeBrowserPacks(data);
+        customLibrary = next;
+        customs = next.packs.flatMap(p => p.pieces);
+        populatePacks();
+        renderPackControls();
+        renderCustomLibrary();
+        renderTrackPacks();
+      }
+      if (
+        integrationState.designId !== token.designId ||
+        !items.includes(placement) ||
+        placement.definitionId !== token.definitionId
+      )
+        throw Error('The layout changed while saving. The pack variant was kept; reopen Lane spacing to apply it.');
+      checkpoint();
+      stop();
+      defs[d.id] = d;
+      placement.definitionId = d.id;
+      refresh();
+      catalogue();
+      say(
+        'Lane spacing updated. Road outline and connections kept in place.' + (packId ? ' Variant saved to pack.' : '')
+      );
+    },
+  });
+  $('adjust-plastic-lanes').onclick = () => {
+    const p = current();
+    if (p && selection().length === 1 && F.PlasticLanes.supported(defOf(p).parameters))
+      plasticUI.open(defOf(p), { pieceId: p.id, definitionId: p.definitionId, designId: integrationState.designId });
+  };
+  function familyDraft() {
+    const f = $('piece-form').elements;
+    return CP.curveParameters({
+      innerRadiusMm: Number(f.baseRadiusMm.value),
+      widthMm: Number(f.widthMm.value),
+      angleDeg: Number(f.angleDeg.value),
+      laneCount: Number(f.laneCount.value),
+      laneSpacingMm: Number(f.laneSpacingMm.value),
+    });
+  }
+  function matchingCurve() {
+    const f = $('piece-form').elements;
+    return !customSlotOffsets && f.type.value === 'curve' && f.curveMode.value === 'family';
+  }
+  function updateCurveHelper() {
+    const f = $('piece-form').elements,
+      matching = matchingCurve();
+    $('curve-helper').hidden = f.type.value !== 'curve';
+    $('curve-family-fields').hidden = !matching;
+    f.baseRadiusMm.disabled = !matching;
+    f.radiusNumber.disabled = !matching;
+    f.innerRadiusMm.readOnly = matching;
+    f.curveMode.disabled = !!customSlotOffsets;
+    $('curve-family-preview').hidden = !matching;
+    if (!matching) return;
+    const base = familyDraft(),
+      selected = Number(f.radiusNumber.value),
+      p = CP.curveParameters(base, selected);
+    f.innerRadiusMm.value = p.innerRadiusMm;
+    if (/^My (straight|curve)$/.test(f.name.value) || /^R[1-8] curve ·/.test(f.name.value))
+      f.name.value = 'R' + selected + ' curve · ' + p.angleDeg + '°';
+    const count = Math.max(4, selected),
+      rows = [],
+      paths = [],
+      extent = base.innerRadiusMm + count * base.widthMm;
+    for (let n = 1; n <= count; n++) {
+      const r = base.innerRadiusMm + (n - 1) * base.widthMm,
+        shape = G.derive({ ...base, innerRadiusMm: r, angleDeg: 90 });
+      paths.push(G.path(shape.outlineSvgPath, n === selected ? '#e5484d' : '#303a46', '#9da9b8', 2));
+      paths.push(
+        `<text x="${(r + base.widthMm / 2) * 0.707}" y="${-(r + base.widthMm / 2) * 0.707}" fill="white" text-anchor="middle" font-size="${extent / 28}">R${n}</text>`
+      );
+      rows.push(
+        `<tr${n === selected ? ' class="active"' : ''}><td>R${n}</td><td>${+r.toFixed(2)}</td><td>${+(r + base.widthMm).toFixed(2)}</td></tr>`
+      );
+    }
+    $('curve-family-diagram').setAttribute('viewBox', `-20 ${-extent - 20} ${extent + 40} ${extent + 40}`);
+    $('curve-family-diagram').innerHTML = paths.join('');
+    $('curve-family-table').innerHTML =
+      '<table><thead><tr><th>Radius</th><th>Inner edge · mm</th><th>Outer edge · mm</th></tr></thead><tbody>' +
+      rows.join('') +
+      '</tbody></table>';
+    const gap = base.widthMm - (base.laneCount - 1) * base.laneSpacingMm,
+      whole = 360 / base.angleDeg;
+    $('curve-family-note').textContent =
+      `Nesting diagram shows 90° for clarity. Selected piece: ${base.angleDeg}°; ${Number.isInteger(whole) ? whole + ' pieces make a full circle' : 'this angle does not divide a full circle evenly'}. Slots across the join between radii: ${+gap.toFixed(2)} mm${Math.abs(gap - base.laneSpacingMm) > 0.01 ? ' (different from the ' + base.laneSpacingMm + ' mm spacing within a piece)' : ''}. Settings are remembered for this pack. Existing pieces keep their dimensions.`;
+  }
+  function formDraft() {
+    const f = $('piece-form').elements,
+      isSwitch = f.type.value.startsWith('lane-'),
+      p = { type: isSwitch ? 'straight' : f.type.value, widthMm: Number(f.widthMm.value) };
+    if (isSwitch) {
+      p.laneChange = f.type.value.slice(5);
+      p.switchStartMm = Number(f.switchStartMm.value);
+      p.switchEndMm = Number(f.switchEndMm.value);
+    }
+    if (p.type.startsWith('straight')) p.lengthMm = Number(f.lengthMm.value);
+    else {
+      p.innerRadiusMm = Number(f.innerRadiusMm.value);
+      p.angleDeg = Number(f.angleDeg.value);
+    }
+    if (p.type.endsWith('border')) p.side = f.side.value;
+    else if (customSlotOffsets) p.laneOffsetsMm = [...customSlotOffsets];
+    else {
+      p.laneCount = isSwitch ? 2 : Number(f.laneCount.value);
+      p.laneSpacingMm = Number(f.laneSpacingMm.value);
+    }
+    const laneAdjustment = plasticCustomFields.read(p);
+    if (laneAdjustment) p.laneAdjustment = laneAdjustment;
+    return F.validateDefinition({
+      id: 'custom:preview',
+      name: f.name.value,
+      pack: activePack().name,
+      family: f.family.value,
+      parameters: p,
+      color: f.color.value,
+      status: 'user-defined',
+    });
+  }
+  function updateCustom() {
+    const f = $('piece-form').elements,
+      curve = f.type.value.startsWith('curve'),
+      border = f.type.value.endsWith('border'),
+      isSwitch = f.type.value.startsWith('lane-');
+    if (isSwitch) f.laneCount.value = 2;
+    for (const [field, show] of [
+      ['length', !curve],
+      ['radius', curve],
+      ['angle', curve],
+      ['lanes', !border && !isSwitch && !customSlotOffsets],
+      ['spacing', !border && !customSlotOffsets],
+      ['side', border],
+      ['switch-start', isSwitch],
+      ['switch-end', isSwitch],
+    ]) {
+      const el = document.querySelector(`[data-field="${field}"]`);
+      el.hidden = !show;
+      for (const input of el.querySelectorAll('input,select')) input.disabled = !show;
+    }
+    $('measured-slots').hidden = !customSlotOffsets || border;
+    $('measured-slots-note').textContent = customSlotOffsets
+      ? 'Preserved slot positions from the road edge: ' + customSlotOffsets.join(' / ') + ' mm.'
+      : '';
+    try {
+      updateCurveHelper();
+      customDraft = formDraft();
+      const b = customDraft.geometry.boundsMm;
+      $('custom-preview').setAttribute('viewBox', `${b[0] - 25} ${b[1] - 25} ${b[2] + 50} ${b[3] + 50}`);
+      $('custom-preview').innerHTML = window.TrackDrawing.body(customDraft);
+      $('custom-summary').textContent = customDraft.geometry.lanePaths.length
+        ? 'Slot lengths: ' + customDraft.geometry.lanePaths.map(l => l.lengthMm.toFixed(1) + ' mm').join(' / ')
+        : 'Border footprint only. Adds no road or lane length.';
+      if (customDraft.geometry.alternateLanePaths) {
+        $('custom-summary').textContent +=
+          ' · Change routes: ' +
+          customDraft.geometry.alternateLanePaths.map(r => r.lengthMm.toFixed(1) + ' mm').join(' / ') +
+          '. Preview and circuit totals use the straight-through lanes. These curves approximate your measured switch.';
+      }
+      $('custom-error').textContent = '';
+      $('create-piece').disabled = false;
+    } catch (e) {
+      customDraft = null;
+      $('custom-error').textContent = e.message;
+      $('custom-summary').textContent = 'Adjust the measurements to create a valid piece.';
+      $('custom-preview').replaceChildren();
+      $('create-piece').disabled = true;
+    }
+  }
+  function openCustom(from) {
+    customSlotOffsets = from?.parameters.laneOffsetsMm ? [...from.parameters.laneOffsetsMm] : null;
+    customToBuilder = document.body.dataset.section === 'builder';
+    $('create-piece').textContent = customToBuilder ? 'Create & add to track' : 'Add piece to pack';
+    $('piece-pack-name').textContent = 'Adding to ' + activePack().name;
+    const form = $('piece-form');
+    form.reset();
+    plasticCustomFields.set(from?.parameters.laneAdjustment);
+    const f = form.elements;
+    if (!from && activePack().curveFamily) {
+      const base = activePack().curveFamily;
+      for (const key of ['widthMm', 'angleDeg', 'laneCount', 'laneSpacingMm']) f[key].value = base[key];
+      f.baseRadiusMm.value = base.innerRadiusMm;
+    }
+    if (from) {
+      f.curveMode.value = 'independent';
+      f.name.value = from.name.slice(0, 91) + ' — custom';
+      for (const [k, v] of Object.entries(from.parameters)) if (f[k]) f[k].value = v;
+      if (from.parameters.laneChange) f.type.value = 'lane-' + from.parameters.laneChange;
+      if (customSlotOffsets) {
+        f.laneCount.value = customSlotOffsets.length;
+        f.laneSpacingMm.value =
+          customSlotOffsets.length > 1
+            ? (customSlotOffsets.at(-1) - customSlotOffsets[0]) / (customSlotOffsets.length - 1)
+            : 100;
+      }
+      if (![...f.family.options].some(o => o.value === from.family)) {
+        const o = document.createElement('option');
+        o.value = from.family;
+        o.textContent = 'Imported connectors: ' + from.family;
+        f.family.append(o);
+      }
+      f.family.value = from.family;
+      f.color.value = from.color;
+    } else f.family.value = 'custom';
+    $('piece-dialog').showModal();
+    updateCustom();
+  }
+  function createCustom(e) {
+    e.preventDefault();
+    updateCustom();
+    if (!customDraft) return;
+    if (customs.length >= 500) {
+      say('The custom library supports up to 500 pieces.', true);
+      return;
+    }
+    const d = { ...customDraft, id: 'custom:' + F.uid() };
+    if (matchingCurve()) activePack().curveFamily = familyDraft();
+    activePack().pieces.push(d);
+    defs[d.id] = d;
+    persistCustom();
+    $('piece-dialog').close();
+    if (customToBuilder) {
+      $('pack').value = activePack().id;
+      $('search').value = '';
+      catalogue();
+      location.hash = 'builder';
+      routeSection();
+      updateView();
+      add(d);
+    } else {
+      renderCustomLibrary();
+      say(d.name + ' added to ' + activePack().name + '.');
+    }
+  }
+  async function importPack(raw) {
+    if (raw?.format === 'slotforge.layout')
+      throw Error('This is a complete track. Use Import track JSON under Import & Export → Tracks.');
+    const p = CP.importPack(raw, customLibrary);
+    if (document.body.dataset.section === 'packs') {
+      $('packs-search').value = '';
+      $('packs-filter')
+        .querySelectorAll('[data-pack-filter]')
+        .forEach(b => b.setAttribute('aria-pressed', String(b.dataset.packFilter === 'own')));
+    }
+    customLibrary.packs.push(p);
+    customLibrary.activePackId = p.id;
+    for (const d of p.pieces) defs[d.id] = d;
+    const saving = persistCustom();
+    $('pack').value = p.id;
+    $('search').value = '';
+    catalogue();
+    if (document.body.dataset.section === 'export') {
+      $('export-pack-select').value = p.id;
+      updateExportNote('export-pack-select', 'export-pack-note', 'export-custom');
+    }
+    if (await saving)
+      say(
+        p.name + ' imported as one pack with ' + p.pieces.length + ' ' + (p.pieces.length === 1 ? 'piece.' : 'pieces.')
+      );
+  }
+  function populateExportSelect(id, preferred) {
+    const el = $(id),
+      old = preferred || el.value || activePack().id;
+    el.replaceChildren();
+    for (const p of allPacks()) {
+      const n = p.pieces.filter(d => d.parameters).length,
+        o = document.createElement('option');
+      o.value = p.id;
+      o.textContent =
+        p.name +
+        ' · ' +
+        n +
+        ' ' +
+        (n === 1 ? 'piece' : 'pieces') +
+        (n < p.pieces.length ? ' (supported definitions only)' : '');
+      o.disabled = !n;
+      el.append(o);
+    }
+    el.value = allPacks().some(p => p.id === old) ? old : activePack().id;
+  }
+  function updateExportNote(id, note, button) {
+    const p = allPacks().find(p => p.id === $(id).value),
+      count = p?.pieces.filter(d => d.parameters).length || 0,
+      excluded = (p?.pieces.length || 0) - count;
+    $(note).textContent =
+      count +
+      ' ' +
+      (count === 1 ? 'piece definition will be exported.' : 'piece definitions will be exported together.') +
+      (excluded ? ' ' + excluded + ' reference-only items have no parametric geometry and are excluded.' : '');
+    $(button).disabled = !count;
+  }
+  function exportPack(preferred) {
+    const id =
+      typeof preferred === 'string'
+        ? preferred
+        : document.body.dataset.section === 'builder'
+          ? $('pack').value
+          : activePack().id;
+    populateExportSelect('pack-export-choice', id);
+    updateExportNote('pack-export-choice', 'pack-export-note', 'pack-export-download');
+    $('pack-export-dialog').showModal();
+  }
+  function downloadPack(id) {
+    try {
+      const p = allPacks().find(p => p.id === id);
+      if (!p) throw Error('Choose a pack to export.');
+      const out = CP.exportPack(p);
+      if (!out.pieces.length) throw Error('Add a piece to this pack before exporting.');
+      const safe = p.name.replace(/[<>:"/\\|?*\x00-\x1f]/g, '-').slice(0, 90) || 'Track-pack';
+      const text = JSON.stringify(out, null, 2);
+      if (new TextEncoder().encode(text).length > 5 * 1024 * 1024)
+        throw Error(
+          'This pack exceeds the 5 MiB import limit. Split its pieces into smaller packs before sharing. Use Storage to download a full workspace backup.'
+        );
+      download(safe + '.track-pack.json', text);
+      say(p.name + ' exported with ' + out.pieces.length + ' ' + (out.pieces.length === 1 ? 'piece.' : 'pieces.'));
+    } catch (e) {
+      say(e.message, true);
+    }
+  }
 
-freeformUI=window.FreeFormEditor.init({
- get:()=>({items,defs,planning,car:previewCar,table:spaceGuide,settings:routedState.settings,title,state:integrationState}),message:say,
- start:fn=>confirmReplace(fn),reference:access=>designToolsUI.referenceFor(access),
- apply:(model,settings,table,name,source,mark,offset=[0,0],newPlanning=planning)=>{if(source?.locked)throw Error('Unlock this circuit before applying edits.');const d=F.validateDefinition(F.FreeForm.definition(model,settings,'freeform:'+F.uid(),name)),p=source?{...source,definitionId:d.id,x:offset[0],y:offset[1],angle:0,flip:false}:{...F.pose(d),x:offset[0],y:offset[1]};checkpoint();stop();if(!source){librarySource=null;integrationState=I.newState();}defs[d.id]=d;items=[p];planning=F.Planning.validate(newPlanning);spaceGuide=F.validateSpaceGuide(table);routedState=F.Routed.workspace({settings:d.parameters.routed});title=name;$('track-name').value=title;setSelection([p.id]);if(mark){const fraction=F.FreeForm.fraction(d,mark);integrationState.startFinish=fraction===null?null:{pieceId:p.id,fraction};}else if(source&&integrationState.startFinish)integrationState.startFinish=null;syncRoutedPack();$('pack').value=F.Routed.ID;catalogue();refresh();location.hash='builder';routeSection();fit();say(d.geometry.closed?'FreeForm circuit saved to the builder. Save to Track Library to keep a named design.':'FreeForm draft saved to the builder. Open Edit FreeForm to continue.');}
-});
-if(location.hash==='#freeform')freeformUI.enter();
-elevationUI=window.ElevationEditor.init({get:()=>({pieces:items,defs,selected:selectedIds}),focus:focusIssue,apply:e=>{if(!selection().length||selectionLocked())return;finishDrag(true);checkpoint();stop();items=items.map(p=>{if(!selectedIds.has(p.id)||defOf(p).parameters.type==='freeform')return p;const next={...p};if(e)next.elevation={...e};else delete next.elevation;return next;});refresh();say('Track heights updated. Check adjoining heights and bridge clearance.');}});
+  function readFile(input, fn) {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      say('Choose a JSON file smaller than 5 MB.', true);
+      return;
+    }
+    file
+      .text()
+      .then(t => fn(JSON.parse(t)))
+      .catch(e => say('Could not import: ' + e.message, true));
+  }
+  function exportCSV(raw = layout(false)) {
+    const model = XM.build(raw);
+    download(XM.filename(model.title) + '-parts.csv', XM.csv(model), 'text/csv;charset=utf-8');
+  }
+  let pdfSnapshot = null,
+    pdfBusy = false;
+  const pdfDiagram = window.TrackDrawing.pdfDiagram;
+  function openPdfReport(raw = layout()) {
+    try {
+      stop();
+      const model = XM.build(raw);
+      if (!model.pieces.length) throw Error('Add pieces before exporting a PDF.');
+      pdfSnapshot = model.layout;
+      $('pdf-track-name').textContent = model.title;
+      $('pdf-track-details').textContent =
+        model.pieces.length +
+        ' placed pieces · ' +
+        (model.summary.invalidFreeform
+          ? 'Draft needs attention · lengths not calculated'
+          : model.summary.planning
+            ? 'approximate visual layout'
+            : meters(model.summary.length) + (model.summary.freeform ? ' reference slot' : ' track centreline'));
+      $('pdf-preview').innerHTML = pdfDiagram(model.layout).svg;
+      $('pdf-error').textContent = '';
+      $('pdf-dialog').showModal();
+    } catch (e) {
+      say(e.message, true);
+    }
+  }
+  async function downloadPDF() {
+    if (pdfBusy || !pdfSnapshot) return;
+    pdfBusy = true;
+    const buttons = [...$('pdf-dialog').querySelectorAll('button')];
+    buttons.forEach(b => (b.disabled = true));
+    $('pdf-orientation').disabled = true;
+    $('pdf-error').textContent = '';
+    $('pdf-download').textContent = 'Generating PDF…';
+    try {
+      const picture = pdfDiagram(pdfSnapshot),
+        url = URL.createObjectURL(new Blob([picture.svg], { type: 'image/svg+xml' }));
+      let data;
+      try {
+        const image = new Image();
+        image.src = url;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = picture.width;
+        canvas.height = picture.height;
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0);
+        data = canvas.toDataURL('image/jpeg', 0.95);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+      await window.PdfLibrary.load();
+      const result = window.TrackPDF.create(
+        pdfSnapshot,
+        { data, width: picture.width, height: picture.height },
+        { orientation: $('pdf-orientation').value }
+      );
+      download(XM.filename(result.title) + '.pdf', result.bytes, 'application/pdf');
+      $('pdf-dialog').close();
+      say('PDF downloaded: ' + result.title + ' · ' + result.pages + ' ' + (result.pages === 1 ? 'page' : 'pages'));
+    } catch (e) {
+      $('pdf-error').textContent = 'Could not generate the PDF: ' + e.message;
+    } finally {
+      pdfBusy = false;
+      buttons.forEach(b => (b.disabled = false));
+      $('pdf-orientation').disabled = false;
+      $('pdf-download').textContent = 'Download PDF';
+    }
+  }
+  $('pdf-download').onclick = downloadPDF;
+  $('pdf-dialog').addEventListener('cancel', e => {
+    if (pdfBusy) e.preventDefault();
+  });
+  // Empty canvas draws a selection marquee. Space or middle-button drag pans.
+  // Right-click menu: piece actions on a piece, view actions on empty canvas.
+  $('canvas').addEventListener('contextmenu', e => {
+    e.preventDefault();
+    if (drag) return;
+    const mod = /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl',
+      id = e.target.closest('[data-id]')?.getAttribute('data-id');
+    const openFolder = folderId => {
+      $('tab-layout').click();
+      const folder = $(folderId);
+      if (!folder) return;
+      folder.open = true;
+      folder.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      folder.querySelector('summary')?.focus({ preventScroll: true });
+    };
+    if (id && items.some(p => p.id === id)) {
+      if (!selectedIds.has(id)) select(id);
+      const chosen = selection(),
+        many = chosen.length > 1,
+        locked = chosen.every(p => p.locked);
+      Menus.context(
+        e.clientX,
+        e.clientY,
+        [
+          { label: many ? `Rotate ${chosen.length} pieces` : 'Rotate', shortcut: 'R', action: () => rotate(1) },
+          { label: 'Rotate back', shortcut: 'Shift R', action: () => rotate(-1) },
+          { label: 'Mirror', shortcut: 'M', action: mirror },
+          { label: 'Duplicate', shortcut: mod + ' D', action: duplicate },
+          'separator',
+          {
+            label: 'Add borders…',
+            disabled: $('add-borders').hidden || $('add-borders').disabled,
+            action: () => $('add-borders').click(),
+          },
+          { label: 'Heights & bridges…', disabled: !$('height-folder'), action: () => openFolder('height-folder') },
+          {
+            label: locked ? 'Unlock' : 'Lock in place',
+            disabled: !$('lock-pieces'),
+            action: () => $('lock-pieces').click(),
+          },
+          'separator',
+          { label: many ? `Delete ${chosen.length} pieces` : 'Delete', shortcut: 'Del', danger: true, action: remove },
+        ],
+        'Piece actions'
+      );
+    } else {
+      Menus.context(
+        e.clientX,
+        e.clientY,
+        [
+          { label: 'Fit track to view', action: fit },
+          {
+            label: 'Select all pieces',
+            shortcut: mod + ' A',
+            disabled: !items.length,
+            action: () => {
+              setSelection(items.map(p => p.id));
+              renderCanvas();
+              updateInspector();
+            },
+          },
+          { label: 'Zoom in', action: () => zoom(0.8) },
+          { label: 'Zoom out', action: () => zoom(1.25) },
+          'separator',
+          { label: spaceGuide ? 'Edit space guide…' : 'Add a space guide…', action: openSpaceGuide },
+          { label: 'Keyboard shortcuts', shortcut: '?', action: () => CircuitHelp.shortcuts() },
+        ],
+        'Canvas actions'
+      );
+    }
+  });
+  $('canvas').addEventListener('pointerdown', e => {
+    if (drag || (e.button !== 0 && e.button !== 1)) return;
+    $('canvas').focus({ preventScroll: true });
+    if (e.target.closest('.car')) return;
+    const pos = world(e),
+      id = e.target.closest('[data-id]')?.getAttribute('data-id');
+    if (space || e.button === 1) {
+      drag = { type: 'pan', startClient: [e.clientX, e.clientY], view: { ...view } };
+    } else if (!spaceGuide?.locked && e.target.closest('[data-guide]')) {
+      stop();
+      drag = {
+        type: 'guide',
+        resize: e.target.closest('[data-guide]').dataset.guide === 'resize',
+        start: pos,
+        original: { ...spaceGuide },
+        snapshot: snapshot(),
+        moved: false,
+      };
+    } else if (id) {
+      if (e.shiftKey) {
+        const ids = new Set(selectedIds);
+        const related = window.DesignTools.expanded(items, [id]);
+        if (ids.has(id)) related.forEach(k => ids.delete(k));
+        else related.forEach(k => ids.add(k));
+        setSelection(ids, id);
+        renderCanvas();
+        updateInspector();
+        return;
+      }
+      if (!selectedIds.has(id)) select(id);
+      else {
+        selected = id;
+        updateInspector();
+      }
+      if (selectionLocked()) return;
+      stop();
+      drag = {
+        type: 'piece',
+        id,
+        start: pos,
+        originals: selection().map(p => ({ ...p })),
+        snapshot: snapshot(),
+        moved: false,
+      };
+    } else {
+      const previous = [...selectedIds],
+        previousPrimary = selected;
+      if (!e.shiftKey) select(null);
+      drag = {
+        type: 'select',
+        start: pos,
+        startClient: [e.clientX, e.clientY],
+        base: e.shiftKey ? previous : [],
+        previous,
+        previousPrimary,
+        moved: false,
+      };
+    }
+    drag.pointerId = e.pointerId;
+    $('canvas').setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  // Pointer moves are handled at most once per screen frame; the latest position wins.
+  let pendingMove = null,
+    moveFrame = 0;
+  $('canvas').addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    pendingMove = e;
+    if (!moveFrame) moveFrame = requestAnimationFrame(flushMove);
+  });
+  function flushMove() {
+    cancelAnimationFrame(moveFrame);
+    moveFrame = 0;
+    const e = pendingMove;
+    pendingMove = null;
+    if (e && drag && e.pointerId === drag.pointerId) dragMove(e);
+  }
+  // While pieces are dragged only they are redrawn; the connector dots show the open ends of
+  // the pieces standing still plus those of the moving selection. Drop redraws everything.
+  function renderDragFrame(guide, openPorts) {
+    renderSnapGuide(guide);
+    renderPieces();
+    renderTimingLine();
+    const radius = portRadius(),
+      fragment = document.createDocumentFragment();
+    for (const port of openPorts)
+      svg(
+        'circle',
+        {
+          cx: port.position[0],
+          cy: port.position[1],
+          r: radius,
+          fill: selectedIds.has(port.pieceId) ? '#f0bd6b' : '#83919d',
+          stroke: '#171b21',
+          'stroke-width': 1,
+          class: 'port',
+        },
+        fragment
+      );
+    $('ports').replaceChildren(fragment);
+  }
+  function dragMove(e) {
+    if (drag.type === 'pan') {
+      const r = $('canvas').getBoundingClientRect();
+      view.x = drag.view.x - ((e.clientX - drag.startClient[0]) / r.width) * view.w;
+      view.y = drag.view.y - ((e.clientY - drag.startClient[1]) / r.height) * view.h;
+      updateView();
+      return;
+    }
+    const pos = world(e);
+    if (drag.type === 'guide') {
+      const dx = pos[0] - drag.start[0],
+        dy = pos[1] - drag.start[1];
+      if (!drag.moved && Math.hypot(dx, dy) < 1) return;
+      spaceGuide = drag.resize
+        ? F.resizeSpaceGuide(drag.original, dx, dy, e.shiftKey)
+        : F.moveSpaceGuide(drag.original, dx, dy);
+      drag.moved = true;
+      renderSpaceGuide();
+      $('status').textContent = 'Available space: ' + guideSize(spaceGuide);
+      return;
+    }
+    if (drag.type === 'select') {
+      if (!drag.moved && Math.hypot(e.clientX - drag.startClient[0], e.clientY - drag.startClient[1]) < 3) return;
+      drag.moved = true;
+      const hits = items.filter(p => F.inSelectionBox(p, defOf(p), drag.start, pos)).map(p => p.id);
+      setSelection([...drag.base, ...hits]);
+      renderCanvas();
+      updateInspector();
+      const box = $('selection-box');
+      box.hidden = false;
+      box.style.display = 'block';
+      for (const [k, v] of Object.entries({
+        x: Math.min(pos[0], drag.start[0]),
+        y: Math.min(pos[1], drag.start[1]),
+        width: Math.abs(pos[0] - drag.start[0]),
+        height: Math.abs(pos[1] - drag.start[1]),
+      }))
+        box.setAttribute(k, v);
+      $('status').textContent = selectedIds.size + ' pieces selected';
+      return;
+    }
+    const dx = pos[0] - drag.start[0],
+      dy = pos[1] - drag.start[1];
+    if (Math.hypot(dx, dy) < 1 && !drag.moved) return;
+    drag.moved = true;
+    let moved = drag.originals.map(p => ({ ...p, x: p.x + dx, y: p.y + dy })),
+      snapped = null;
+    if (snapEnabled && !e.shiftKey) {
+      const remaining = items.filter(p => !selectedIds.has(p.id)),
+        open = F.connections(moved, defs).open,
+        targets = F.connections(remaining, defs).open;
+      for (const candidate of moved) {
+        const allowed = open.filter(p => p.pieceId === candidate.id).map(p => p.index);
+        const result = F.snap(
+          candidate,
+          remaining,
+          defs,
+          Math.min(100, (view.w / $('canvas').clientWidth) * 22),
+          allowed,
+          targets
+        );
+        if (
+          result &&
+          (!snapped || result.score < snapped.score) &&
+          (result.kind === 'side' ||
+            allowed.some(i => F.dist(F.ports(result.pose, defs)[i].position, result.target.position) < 0.15))
+        )
+          snapped = { ...result, original: candidate };
+      }
+    }
+    if (snapped) moved = F.repositionGroup(moved, snapped.original, snapped.pose);
+    replaceGroup(moved);
+    const movedIds = new Set(moved.map(p => p.id));
+    drag.targets ??= F.connections(
+      items.filter(p => !movedIds.has(p.id)),
+      defs
+    ).open;
+    renderDragFrame(snapped?.guide, [...drag.targets, ...F.connections(moved, defs).open]);
+    $('status').textContent = snapped
+      ? snapped.kind === 'side'
+        ? 'Road sides aligned · release to place'
+        : 'Connector aligned · release to place'
+      : 'Moving selection · hold Shift to disable snapping';
+  }
+  function finishDrag(cancel = false) {
+    if (!drag) return;
+    if (cancel) {
+      cancelAnimationFrame(moveFrame);
+      moveFrame = 0;
+      pendingMove = null;
+    } else flushMove();
+    if (drag.type === 'guide' && drag.moved) {
+      if (cancel) spaceGuide = drag.original;
+      else {
+        history.push(drag.snapshot);
+        if (history.length > 80) history.shift();
+        future = [];
+      }
+      refresh();
+      $('status').textContent = cancel ? 'Guide change cancelled' : 'Space guide updated';
+    }
+    if (drag.type === 'piece' && drag.moved) {
+      if (cancel) replaceGroup(drag.originals);
+      else {
+        history.push(drag.snapshot);
+        if (history.length > 80) history.shift();
+        future = [];
+      }
+      refresh();
+      $('status').textContent = cancel ? 'Move cancelled' : selectedIds.size + ' pieces placed';
+    }
+    if (drag.type === 'select') {
+      $('selection-box').style.display = 'none';
+      if (cancel) {
+        setSelection(drag.previous, drag.previousPrimary);
+        renderCanvas();
+        updateInspector();
+      } else $('status').textContent = selectedIds.size ? selectedIds.size + ' pieces selected' : 'Ready';
+    }
+    const pointerId = drag.pointerId;
+    drag = null;
+    if ($('canvas').hasPointerCapture(pointerId)) $('canvas').releasePointerCapture(pointerId);
+    if (routedUI) routedUI.render();
+  }
+  $('canvas').addEventListener('pointerup', e => {
+    if (e.pointerId === drag?.pointerId) finishDrag();
+  });
+  $('canvas').addEventListener('pointercancel', e => {
+    if (e.pointerId === drag?.pointerId) finishDrag(true);
+  });
+  $('canvas').addEventListener(
+    'wheel',
+    e => {
+      e.preventDefault();
+      if (drag) return;
+      zoom(Math.exp(Math.sign(e.deltaY) * 0.12), world(e));
+    },
+    { passive: false }
+  );
+  document.addEventListener('keydown', e => {
+    if (
+      document.body.dataset.section !== 'builder' ||
+      document.querySelector('dialog[open]') ||
+      Menus.isOpen() ||
+      e.target.closest('input,select,textarea,[contenteditable="true"]')
+    )
+      return;
+    if (e.code === 'Space' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      space = true;
+      e.preventDefault();
+      return;
+    }
+    const action = F.shortcut(e);
+    if (!action) return;
+    e.preventDefault();
+    if (drag) {
+      if (action === 'escape') finishDrag(true);
+      return;
+    }
+    const actions = {
+      selectAll: () => {
+        setSelection(items.map(p => p.id));
+        renderCanvas();
+        updateInspector();
+      },
+      undo,
+      redo,
+      duplicate,
+      save,
+      rotate,
+      rotateBack: () => rotate(-1),
+      mirror,
+      remove,
+      escape: () => select(null),
+      open: openTrackFile,
+      newTrack: () => confirmReplace(newTrack),
+    };
+    actions[action]();
+  });
+  document.addEventListener('keyup', e => {
+    if (e.code === 'Space') space = false;
+  });
+  window.addEventListener('blur', () => {
+    space = false;
+    finishDrag(true);
+  });
+  $('layer-order').onchange = () => {
+    const position = $('layer-order').value;
+    $('layer-order').value = '';
+    arrangeSelection(position);
+  };
+  $('undo').onclick = undo;
+  $('redo').onclick = redo;
+  $('rotate').onclick = e => rotate(e.shiftKey ? -1 : 1);
+  $('mirror').onclick = mirror;
+  $('duplicate').onclick = duplicate;
+  $('delete').onclick = remove;
+  $('snap').onclick = () => {
+    snapEnabled = !snapEnabled;
+    $('snap').setAttribute('aria-pressed', snapEnabled);
+    $('snap').textContent = snapEnabled ? 'Snap on' : 'Snap off';
+  };
+  $('zoom-in').onclick = () => zoom(0.8);
+  $('zoom-out').onclick = () => zoom(1.25);
+  $('fit').onclick = fit;
+  // Follow canvas size changes (window resize, panels opening, first layout):
+  // keep the view centred, and re-fit when the track is no longer on screen.
+  let canvasSize = null;
+  new ResizeObserver(() => {
+    const r = $('canvas').getBoundingClientRect();
+    if (!r.width || !r.height) {
+      canvasSize = null; // Hidden: treat the next time it is shown as a first layout.
+      return;
+    }
+    if (fitPending) {
+      canvasSize = [r.width, r.height];
+      return fit();
+    }
+    const firstLayout = !canvasSize;
+    if (canvasSize && Math.abs(canvasSize[0] - r.width) < 1 && Math.abs(canvasSize[1] - r.height) < 1) return;
+    canvasSize = [r.width, r.height];
+    const cx = view.x + view.w / 2,
+      cy = view.y + view.h / 2;
+    updateView();
+    view.x = cx - view.w / 2;
+    view.y = cy - view.h / 2;
+    updateView();
+    if (!items.length) return;
+    const b = F.bounds(items, defs),
+      visible = b[0] + b[2] > view.x && b[0] < view.x + view.w && b[1] + b[3] > view.y && b[1] < view.y + view.h,
+      fits = b[0] >= view.x && b[1] >= view.y && b[0] + b[2] <= view.x + view.w && b[1] + b[3] <= view.y + view.h;
+    if (!visible || (firstLayout && !fits)) fit();
+  }).observe($('canvas'));
+  $('save').onclick = save;
+  $('builder-pdf').onclick = () => openPdfReport(layout());
+  $('builder-cad').onclick = () => cadUI.open(layout());
+  $('print').onclick = () => exportSelectedTrack('pdf');
+  $('csv').onclick = () => exportCSV();
+  $('new').onclick = () => confirmReplace(newTrack);
+  $('demo').onclick = () => confirmReplace(example);
+  $('empty-demo').onclick = example;
+  $('play').onclick = togglePlay;
+  $('restart').onclick = () => {
+    carDistances = [0, 0];
+    if (!playing && network.closed) togglePlay();
+  };
+  $('mirror-new').onchange = () => rememberMirror($('mirror-new').checked);
+  $('pack').onchange = () => {
+    const chosen = allPacks().find(p => p.id === $('pack').value);
+    if (chosen && !chosen.pieces.some(d => d.geometry || d.referencePlan)) $('buildable').checked = false;
+    if (customLibrary.packs.some(p => p.id === $('pack').value)) {
+      customLibrary.activePackId = $('pack').value;
+      persistCustom();
+    }
+    catalogue();
+  };
+  $('search').oninput = catalogue;
+  $('buildable').onchange = catalogue;
+  $('custom').onclick = () => {
+    if (
+      $('pack').value === F.Routed.ID ||
+      customLibrary.packs.some(
+        p => p.id === $('pack').value && p.pieces.length && p.pieces.every(d => d.parameters.routed)
+      )
+    ) {
+      $('routed-new-section').click();
+      return;
+    }
+    if (customLibrary.packs.some(p => p.id === $('pack').value)) customLibrary.activePackId = $('pack').value;
+    openCustom();
+  };
+  $('custom-from').onclick = () => current() && openCustom(defOf(current()));
+  $('piece-form').oninput = updateCustom;
+  $('piece-form').onchange = e => {
+    if (e.target.name === 'type' && e.target.value.startsWith('lane-')) {
+      const f = $('piece-form').elements;
+      f.switchStartMm.value = Number(f.lengthMm.value) * 0.2;
+      f.switchEndMm.value = Number(f.lengthMm.value) * 0.8;
+      if (f.name.value === 'My straight') f.name.value = 'My lane changer';
+    }
+    updateCustom();
+  };
+  $('piece-form').onsubmit = createCustom;
+  $('uniform-slots').onclick = () => {
+    customSlotOffsets = null;
+    updateCustom();
+  };
+  Menus.attach($('file-menu-button'), $('file-menu'));
+  $('pack-file').onchange = () => readFile($('pack-file'), importPack);
+  // ---------------------------------------------------------------- opening track files
+  // One path for every way a track file arrives: Open buttons, Ctrl+O, recent files,
+  // and (desktop) files double-clicked in the operating system.
+  function importTrack(raw) {
+    if (raw?.format === 'slotforge.custom-pack')
+      throw Error('This is a track pack. Use Import pack JSON under Import & Export → Track Packs.');
+    I.importLayout(raw);
+    confirmReplace(() => {
+      try {
+        applyImport(raw);
+      } catch (e) {
+        say(e.message, true);
+      }
+    });
+  }
+  function importTrackFile(file) {
+    if (!file) return;
+    if (file.error) return say(file.error, true);
+    try {
+      importTrack(JSON.parse(file.text));
+      location.hash = 'builder';
+    } catch (e) {
+      say('Could not open ' + (file.name || 'this file') + ': ' + e.message, true);
+    }
+  }
+  const desktop = window.slotforgeDesktop;
+  async function openTrackFile() {
+    if (desktop?.openTrackDialog) importTrackFile(await desktop.openTrackDialog());
+    else $('layout-file').click();
+  }
+  async function renderRecentFiles() {
+    const box = $('recent-files');
+    if (!desktop?.recentFiles) return;
+    const list = await desktop.recentFiles();
+    box.replaceChildren();
+    box.hidden = !list.length;
+    if (!list.length) return;
+    const label = document.createElement('div');
+    label.className = 'menu-label';
+    label.textContent = 'Recent';
+    box.append(label);
+    for (const file of list.slice(0, 6)) {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.setAttribute('role', 'menuitem');
+      item.textContent = file.name;
+      item.title = file.path;
+      item.onclick = async () => importTrackFile(await desktop.openRecent(file.path));
+      box.append(item);
+    }
+    const clear = document.createElement('button');
+    clear.type = 'button';
+    clear.setAttribute('role', 'menuitem');
+    clear.className = 'menu-quiet';
+    clear.textContent = 'Clear recent files';
+    clear.onclick = () => desktop.clearRecent();
+    box.append(clear, document.createElement('hr'));
+  }
+  $('open').onclick = openTrackFile;
+  $('file-menu-button').addEventListener('click', renderRecentFiles);
+  desktop?.onOpenFile?.(importTrackFile);
+  $('layout-file').onchange = () => readFile($('layout-file'), importTrack);
+  $('track-name').onchange = () => {
+    checkpoint();
+    title = $('track-name').value.trim() || 'Untitled circuit';
+    $('track-name').value = title;
+    updateInspector();
+    persist();
+  };
+  for (const [k, id] of [
+    ['x', 'pos-x'],
+    ['y', 'pos-y'],
+    ['angle', 'pos-angle'],
+  ])
+    $(id).onchange = () => {
+      const v = $(id).value.trim() === '' ? NaN : Number($(id).value);
+      if (!Number.isFinite(v) || Math.abs(v) > 1000000) {
+        say('Enter a finite coordinate within ±1,000,000.', true);
+        if (current()) $(id).value = current()[k];
+        updateInspector();
+        return;
+      }
+      modify(p => (p[k] = k === 'angle' ? F.wrap(v) : v));
+    };
+  for (const id of ['layout', 'tune'])
+    $('tab-' + id).onclick = () => {
+      for (const n of ['layout', 'tune']) {
+        $('tab-' + n).setAttribute('aria-selected', id === n);
+        $('tab-' + n).tabIndex = id === n ? 0 : -1;
+        $(n + '-panel').hidden = id !== n;
+      }
+    };
+  document.querySelector('.inspector-tabs').addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    const id =
+      e.key === 'Home'
+        ? 'layout'
+        : e.key === 'End'
+          ? 'tune'
+          : document.activeElement.id === 'tab-layout'
+            ? 'tune'
+            : 'layout';
+    $('tab-' + id).click();
+    $('tab-' + id).focus();
+  });
+  $('preset').onchange = () => {
+    if (F.presets[$('preset').value]) {
+      profile = { ...F.presets[$('preset').value] };
+      updateSliders();
+      if (playing) rebuildMotion();
+      persist();
+    }
+  };
+  document.querySelectorAll('[data-close]').forEach(b => (b.onclick = () => $(b.dataset.close).close()));
+  $('confirm-cancel').onclick = () => $('confirm-dialog').close();
+  $('confirm-save').onclick = save;
+  $('confirm-go').onclick = () => {
+    $('confirm-dialog').close();
+    confirmAction?.();
+    confirmAction = null;
+  };
+  new ResizeObserver(() => updateView()).observe($('canvas'));
+  try {
+    rememberMirror(JSON.parse(localStorage.getItem('slotforge.mirror-new.v1')) === true);
+  } catch {
+    rememberMirror(false);
+  }
+  populatePacks();
+  initSliders();
+  updateCarControls();
+  try {
+    const saved = localStorage.getItem(CP.STORAGE),
+      legacy = localStorage.getItem(CUSTOM);
+    browserPackBaseline = saved;
+    customLibrary = CP.read(
+      DS.disk ? DS.packs : saved !== null ? JSON.parse(saved) : legacy !== null ? JSON.parse(legacy) : null
+    );
+    customs = customLibrary.packs.flatMap(p => p.pieces);
+    if (customs.some(d => defs[d.id])) throw Error('Saved piece IDs collide with installed packs.');
+    for (const d of customs) defs[d.id] = d;
+    const requested = new URLSearchParams(location.search).get('pack');
+    if (customLibrary.packs.some(p => p.id === requested)) customLibrary.activePackId = requested;
+    if (requested) {
+      const url = new URL(location.href);
+      url.searchParams.delete('pack');
+      window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+      if (DS.disk) await DS.putPacks(CP.serialize(customLibrary));
+      else writeBrowserPacks(CP.serialize(customLibrary));
+    }
+  } catch {
+    backupStorage(CP.STORAGE);
+    backupStorage(CUSTOM);
+    customLibrary = CP.empty();
+    customs = [];
+    say('Saved pack library could not be loaded. Original data was retained for recovery.', true);
+  }
+  populatePacks();
+  renderPackControls();
+  let loaded = false;
+  try {
+    const raw = DS.disk ? DS.current : localStorage.getItem(STORAGE);
+    if (raw) {
+      const input = DS.disk ? raw : JSON.parse(raw),
+        saved = I.importLayout(input);
+      try {
+        librarySource = DL.validateSource(
+          DS.disk ? DS.currentSource : input.editorState?.librarySource,
+          saved.state.designId
+        );
+      } catch {
+        librarySource = null;
+      }
+      const merged = F.mergeDefinitions(saved.definitions, saved.pieces, defs);
+      Object.assign(defs, merged.definitions);
+      items = merged.pieces;
+      planning = F.Planning.validate(saved.workspace?.planning);
+      previewCar = F.PreviewCar.settings(saved.workspace?.previewCar);
+      routedState = F.Routed.workspace(saved.workspace?.routed);
+      syncRoutedPack();
+      spaceGuide = saved.workspace?.spaceGuide || null;
+      title = saved.title;
+      profile = saved.profile;
+      integrationState = saved.state;
+      $('track-name').value = title;
+      loaded = true;
+    }
+  } catch {
+    backupStorage(STORAGE);
+    say('Saved layout could not be restored. Starting with the example.', true);
+  }
+  catalogue();
+  updateSliders();
+  updateCarControls();
+  updateView();
+  if (loaded) {
+    // Just read from storage: nothing to save until something changes.
+    refresh(false);
+    $('save-state').textContent = DS.disk ? 'Saved to disk' : 'Saved in browser';
+    fit();
+  } else {
+    example();
+    history = [];
+    future = [];
+    updateInspector();
+  }
 
+  let borderPlan = null;
+  function previewBorders() {
+    const roads = selection().filter(p => ['straight', 'curve'].includes(defOf(p).parameters.type)),
+      side = $('border-sides').value;
+    borderPlan = F.planBorders(roads, items, defs, side === 'both' ? ['inner', 'outer'] : [side]);
+    $('borders-selection').textContent = roads.length + ' selected road pieces';
+    $('border-side-help').textContent =
+      borderPlan.sideMode === 'circuit'
+        ? 'Inside and outside follow the connected circuit, including straights, bends and mirrored pieces.'
+        : 'Open or unsupported circuits have no unique inside. Sides follow a connected bend; isolated straights use local right as inside and local left as outside. Use Both sides when unsure.';
+    $('borders-summary').textContent = borderPlan.overflow
+      ? 'These borders would exceed the 500-piece layout limit. Select fewer road pieces.'
+      : borderPlan.added.length +
+        ' border pieces will be added.' +
+        (borderPlan.duplicates ? ' ' + borderPlan.duplicates + ' already placed sections skipped.' : '');
+    $('borders-missing').replaceChildren();
+    for (const missing of borderPlan.missing.slice(0, 10)) {
+      const li = document.createElement('li');
+      li.textContent =
+        missing.name + ' — no matching ' + (missing.side === 'inner' ? 'inside' : 'outside') + ' border geometry';
+      $('borders-missing').append(li);
+    }
+    if (borderPlan.missing.length > 10) {
+      const li = document.createElement('li');
+      li.textContent = 'And ' + (borderPlan.missing.length - 10) + ' more unmatched edges.';
+      $('borders-missing').append(li);
+    }
+    $('place-borders').disabled = borderPlan.overflow || !borderPlan.added.length;
+  }
+  $('add-borders').onclick = () => {
+    previewBorders();
+    $('borders-dialog').showModal();
+  };
+  $('border-sides').onchange = previewBorders;
+  $('place-borders').onclick = () => {
+    previewBorders();
+    if (borderPlan.overflow || !borderPlan.added.length) return;
+    checkpoint();
+    stop();
+    const count = borderPlan.added.length,
+      ids = [...selectedIds, ...borderPlan.added.map(p => p.id)];
+    items.push(...borderPlan.added);
+    setSelection(ids, selected);
+    $('borders-dialog').close();
+    refresh();
+    say(count + ' borders added. Road and borders are selected together.');
+  };
 
-function convertRoutedToFreeform(){const token=toolsToken(),converted=window.FreeFormTools.convert(items,defs),dialog=document.createElement('dialog');dialog.className='design-tool-dialog';const title=document.createElement('h2');title.textContent='Convert routed sections to FreeForm';const note=document.createElement('p');note.textContent=converted.model.nodes.length+' editable anchors. Sampled fit deviation up to '+converted.maxErrorMm.toFixed(3)+' mm. Circular slots become cubic approximations. This replaces the sections with one tabletop drawing; Undo restores them. Set the timing line again after conversion.';const picture=document.createElementNS(NS,'svg'),b=converted.definition.geometry.boundsMm;picture.classList.add('tool-preview');picture.setAttribute('viewBox',[b[0]-50,b[1]-50,b[2]+100,b[3]+100].join(' '));picture.innerHTML=F.FreeForm.draw(converted.definition);const checks=document.createElement('p');checks.textContent=converted.definition.geometry.issues.map(i=>i.message).join(' ');const cancel=document.createElement('button');cancel.className='btn';cancel.textContent='Cancel';cancel.onclick=()=>dialog.close();const apply=document.createElement('button');apply.className='btn primary';apply.textContent='Convert & edit FreeForm';apply.disabled=!converted.definition.geometry.valid;apply.onclick=()=>{try{if(toolsToken()!==token)throw Error('The layout changed. Preview again.');checkpoint();stop();const d=F.validateDefinition({...converted.definition,id:'freeform:'+F.uid(),name:titleText()});defs[d.id]=d;items=[F.pose(d)];integrationState.startFinish=null;integrationState.requiresLaneRemap=true;routedState=F.Routed.workspace({settings:converted.profile});syncRoutedPack();setSelection([items[0].id]);refresh();dialog.close();freeformUI.open();}catch(e){checks.textContent=e.message;}};function titleText(){return $('track-name').value||'Converted circuit';}dialog.append(title,note,picture,checks,cancel,apply);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();}
+  function renderPackControls() {
+    const select = $('custom-pack-select');
+    select.replaceChildren();
+    for (const p of customLibrary.packs) {
+      const o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.name + (p.inLibrary ? '' : ' (draft)');
+      select.append(o);
+    }
+    select.value = activePack().id;
+    $('custom-pack-name').value = activePack().name;
+    $('editing-pack-name').textContent = activePack().name;
+    $('pack-contents-title').textContent = 'Pieces in ' + activePack().name;
+    $('custom-pack-status').textContent =
+      activePack().pieces.length +
+      ' pieces · ' +
+      (activePack().inLibrary ? 'Saved to Track Pack Library' : 'Draft pack');
+    populateExportSelect('export-pack-select');
+    updateExportNote('export-pack-select', 'export-pack-note', 'export-custom');
+  }
+  async function saveToLibrary() {
+    try {
+      const p = activePack();
+      p.name = CP.name($('custom-pack-name').value);
+      p.pieces = p.pieces.map(d => ({ ...d, pack: p.name }));
+      for (const d of p.pieces) defs[d.id] = d;
+      p.inLibrary = true;
+      if (await persistCustom()) say(p.name + ' saved to Track Pack Library with ' + p.pieces.length + ' pieces.');
+    } catch (e) {
+      say(e.message, true);
+    }
+  }
+  function renderTrackPacks() {
+    const query = $('packs-search').value.trim().toLowerCase(),
+      filter = $('packs-filter').querySelector('[aria-pressed="true"]')?.dataset.packFilter || 'all';
+    const own = customLibrary.packs,
+      built = packs,
+      groups = [
+        {
+          id: 'builtin',
+          title: 'Built-in packs',
+          description: 'Manufacturer catalogues and routed wood templates, ready to use.',
+          packs: built,
+        },
+        {
+          id: 'own',
+          title: 'Your packs',
+          description: 'Imported collections and pieces you create. Drafts stay here while you work.',
+          packs: own,
+        },
+      ];
+    const host = $('pack-library');
+    host.replaceChildren();
+    let shown = 0;
+    $('packs-count').textContent = built.length + ' built-in · ' + own.length + ' of your own';
+    for (const group of groups) {
+      if (filter !== 'all' && filter !== group.id) continue;
+      const matches = group.packs.filter(p =>
+        (p.name + ' ' + (p.modelScale || '') + ' ' + (p.trackSystem || '')).toLowerCase().includes(query)
+      );
+      if (!matches.length) continue;
+      const section = document.createElement('section');
+      section.className = 'pack-hub-group';
+      const heading = document.createElement('h2');
+      heading.textContent = group.title + ' · ' + matches.length;
+      const description = document.createElement('p');
+      description.className = 'fine';
+      description.textContent = group.description;
+      const grid = document.createElement('div');
+      grid.className = 'pack-hub-grid';
+      section.append(heading, description, grid);
+      host.append(section);
+      for (const p of matches) {
+        shown++;
+        const custom = group.id === 'own',
+          routed = p.id === F.Routed.ID,
+          card = document.createElement('article');
+        card.className = 'pack-hub-card';
+        card.dataset.packId = p.id;
+        const art = document.createElement('div');
+        art.className = 'pack-hub-art';
+        art.setAttribute('aria-hidden', 'true');
+        const curve = p.pieces.find(d => (d.parameters || d.geometry?.parameters)?.type === 'curve'),
+          straight = p.pieces.find(d => (d.parameters || d.geometry?.parameters)?.type === 'straight'),
+          samples = [...new Set([curve, straight, ...p.pieces].filter(Boolean))].slice(0, 2);
+        for (const d of samples) {
+          try {
+            if (d.asset && !custom) {
+              const img = document.createElement('img');
+              img.src = d.asset;
+              img.alt = '';
+              img.loading = 'lazy';
+              art.append(img);
+            } else {
+              const definition = d.geometry ? d : { ...d, geometry: G.derive(d.parameters) },
+                preview = svg('svg', {
+                  viewBox: paletteBounds(definition)
+                    .map((v, i) => (i < 2 ? v - 15 : v + 30))
+                    .join(' '),
+                });
+              preview.innerHTML = paletteBody(definition);
+              art.append(preview);
+            }
+          } catch {
+            /* A missing preview must not hide the pack's management controls. */
+          }
+        }
+        if (!art.children.length) {
+          const empty = document.createElement('span');
+          empty.className = 'pack-hub-placeholder';
+          empty.textContent = '＋';
+          art.append(empty);
+        }
+        const body = document.createElement('div');
+        body.className = 'pack-hub-body';
+        const badge = document.createElement('span');
+        badge.className = 'pack-hub-badge';
+        badge.textContent = custom
+          ? p.inLibrary
+            ? 'Saved pack'
+            : 'Draft pack'
+          : routed
+            ? 'Routed wood'
+            : p.modelScale || 'Manufacturer pack';
+        const title = document.createElement('h3');
+        title.textContent = p.name;
+        const info = document.createElement('p');
+        info.className = 'pack-hub-info';
+        info.textContent =
+          p.pieces.length +
+          ' ' +
+          (p.pieces.length === 1 ? 'piece' : 'pieces') +
+          (p.trackSystem === 'slotless'
+            ? ' · Slotless planning'
+            : routed
+              ? ' · Editable slots and surfaces'
+              : custom
+                ? ' · Your piece collection'
+                : ' · Roads, borders and accessories');
+        const actions = document.createElement('div');
+        actions.className = 'pack-hub-actions';
+        const use = document.createElement('button');
+        use.className = 'btn primary';
+        use.textContent = 'Use in builder';
+        use.disabled = !p.pieces.length;
+        use.onclick = () => {
+          $('pack').value = p.id;
+          $('search').value = '';
+          if (!p.pieces.some(d => d.geometry || d.referencePlan)) $('buildable').checked = false;
+          catalogue();
+          location.hash = 'builder';
+          routeSection();
+          say(p.name + ' selected. Choose a piece to add to your track.');
+        };
+        const open = document.createElement('button');
+        open.className = custom && !p.pieces.length ? 'btn primary' : 'btn';
+        open.textContent = custom
+          ? p.pieces.length
+            ? 'Edit pack'
+            : 'Add pieces'
+          : routed
+            ? 'Configure'
+            : 'Browse pieces';
+        open.onclick = () => {
+          if (custom) {
+            customLibrary.activePackId = p.id;
+            persistCustom();
+            location.hash = 'custom';
+            routeSection();
+          } else location.href = p.gallery;
+        };
+        const output = document.createElement('button');
+        output.className = 'btn quiet';
+        output.textContent = 'Export pack';
+        output.disabled = !p.pieces.some(d => d.parameters);
+        if (output.disabled)
+          output.title = 'This pack has reference artwork only. There are no supported piece definitions to export.';
+        output.onclick = () => exportPack(p.id);
+        if (p.pieces.length) actions.append(use, open, output);
+        else actions.append(open);
+        body.append(badge, title, info, actions);
+        card.append(art, body);
+        grid.append(card);
+      }
+    }
+    $('packs-empty').hidden = shown !== 0;
+    $('packs-result').textContent = shown + ' ' + (shown === 1 ? 'pack' : 'packs') + ' shown';
+  }
 
-function toolsToken(){return I.canonical([integrationState.designId,items,items.map(p=>defOf(p).parameters)]);}
-function assertLockedUnchanged(next,nextDefs=defs){for(const p of items.filter(p=>p.locked)){const q=next.find(q=>q.id===p.id);if(!q||I.canonical(p)!==I.canonical(q)||I.canonical(defOf(p).parameters)!==I.canonical(nextDefs[q.definitionId]?.parameters))throw Error('A locked piece would change. Unlock it first.');}}
-function focusIssue(issue){const chosen=items.filter(p=>(issue.pieceIds||[]).includes(p.id));if(chosen.length)setSelection(chosen.map(p=>p.id));const b=chosen.length?F.bounds(chosen,defs):null;if(issue.point){view.w=800;view.x=issue.point[0]-400;view.y=issue.point[1]-300;}else if(b){view.w=Math.max(500,b[2]+200);view.x=b[0]-100;view.y=b[1]-100;}updateView();renderCanvas();updateInspector();}
-designToolsUI=window.DesignToolsUI.init({get:()=>({items,defs,selected:[...selectedIds],planning,table:spaceGuide,car:previewCar,packs:allPacks(),token:toolsToken()}),world,focus:focusIssue,message:say,render:renderCanvas,download,convert:()=>convertRoutedToFreeform(),commit:(next,token)=>{if(token&&token!==toolsToken())throw Error('The layout changed. Reopen this tool and preview again.');const ni=next.items||items,nd=next.definitions||defs;if(!next.allowLocks)assertLockedUnchanged(ni,nd);const checked=F.validateLayout({format:'slotforge.layout',version:1,title,pieces:ni,definitions:[...new Set(ni.map(p=>p.definitionId))].map(id=>nd[id]),workspace:{planning:next.planning||planning}});checkpoint();stop();items=checked.pieces;Object.assign(defs,checked.definitions);planning=checked.workspace.planning;refresh();}});
-designToolsUI.render();
+  function updateCustomSelection() {
+    const members = activePack().pieces;
+    const count = customPieceSelection.size;
+    $('custom-select-all').checked = !!members.length && count === members.length;
+    $('custom-select-all').indeterminate = count > 0 && count < members.length;
+    $('custom-select-all').disabled = !members.length;
+    $('custom-selection-count').textContent = count + ' selected';
+    $('custom-delete-selected').disabled = !count;
+    $('custom-delete-selected').textContent = count ? 'Delete selected (' + count + ')' : 'Delete selected';
+  }
+  function askDeletePackPieces(ids) {
+    const pack = activePack(),
+      chosen = new Set(ids),
+      pieces = pack.pieces.filter(d => chosen.has(d.id));
+    if (!pieces.length || deletePackBusy) return;
+    deletePackPieces = { packId: pack.id, ids: pieces.map(d => d.id) };
+    $('delete-pack-pieces-summary').textContent =
+      pieces.length === 1
+        ? 'Delete “' + pieces[0].name + '” from “' + pack.name + '”?'
+        : 'Delete ' + pieces.length + ' pieces from “' + pack.name + '”?';
+    $('delete-pack-pieces-error').textContent = '';
+    $('delete-pack-pieces-dialog').showModal();
+  }
+  async function confirmDeletePackPieces() {
+    if (!deletePackPieces || deletePackBusy) return;
+    deletePackBusy = true;
+    let committed = false;
+    const request = deletePackPieces;
+    $('delete-pack-pieces-confirm').disabled = $('delete-pack-pieces-cancel').disabled = true;
+    try {
+      if (!DS.disk && (browserPackBaseline === undefined || localStorage.getItem(CP.STORAGE) !== browserPackBaseline))
+        throw Error(
+          'Another browser tab changed the saved packs. Reload before deleting, or export your current pack to keep unsaved changes.'
+        );
+      const next = CP.removePieces(customLibrary, request.packId, request.ids),
+        data = CP.serialize(next);
+      if (DS.disk) await DS.putPacks(data);
+      else writeBrowserPacks(data);
+      committed = true;
+      customLibrary = next;
+      customs = next.packs.flatMap(p => p.pieces);
+      browserPackUnsaved = false;
+      customPieceSelection.clear();
+      deletePackPieces = null;
+      $('delete-pack-pieces-dialog').close();
+      // Keep definitions for placed pieces and the builder's undo/redo history.
+      // Saved designs already embed their own definitions independently of packs.
+      populatePacks();
+      renderPackControls();
+      renderCustomLibrary();
+      renderTrackPacks();
+      catalogue();
+      $('save-state').textContent = DS.disk ? 'Saved to disk' : 'Saved in browser';
+      say(
+        request.ids.length +
+          ' ' +
+          (request.ids.length === 1 ? 'piece deleted' : 'pieces deleted') +
+          ' from the pack. Existing tracks are kept.'
+      );
+    } catch (e) {
+      if (committed)
+        say(
+          'Pieces were deleted and saved, but the display could not refresh. Reload to update the view. ' + e.message,
+          true
+        );
+      else $('delete-pack-pieces-error').textContent = 'Pieces were not deleted: ' + e.message;
+    } finally {
+      deletePackBusy = false;
+      $('delete-pack-pieces-confirm').disabled = $('delete-pack-pieces-cancel').disabled = false;
+    }
+  }
+  let customPage = 0;
+  function renderCustomLibrary() {
+    const host = $('custom-library');
+    host.replaceChildren();
+    $('custom-pages').hidden = true;
+    const pack = activePack(),
+      members = pack.pieces;
+    if (customSelectionPack !== pack.id) {
+      customPieceSelection.clear();
+      customSelectionPack = pack.id;
+      customPage = 0;
+    }
+    customPieceSelection = new Set([...customPieceSelection].filter(id => members.some(d => d.id === id)));
+    updateCustomSelection();
+    if (!members.length) {
+      const empty = document.createElement('div');
+      empty.className = 'custom-empty';
+      empty.innerHTML =
+        '<h2>This pack has no pieces yet</h2><p>Choose “Add track piece to this pack” to add straights, curves, borders or lane changers to this set.</p>';
+      host.append(empty);
+      return;
+    }
+    customPage = Math.min(customPage, Math.max(0, Math.floor((members.length - 1) / 24) * 24));
+    pageControls($('custom-pages'), customPage, members.length, 24, value => {
+      customPage = value;
+      renderCustomLibrary();
+    });
+    for (const d of members.slice(customPage, customPage + 24)) {
+      const card = document.createElement('article');
+      card.className = 'export-card custom-piece';
+      card.dataset.pieceId = d.id;
+      const pick = document.createElement('label');
+      pick.className = 'check';
+      const box = document.createElement('input');
+      box.type = 'checkbox';
+      box.checked = customPieceSelection.has(d.id);
+      box.setAttribute('aria-label', 'Select ' + d.name);
+      box.onchange = () => {
+        if (box.checked) customPieceSelection.add(d.id);
+        else customPieceSelection.delete(d.id);
+        updateCustomSelection();
+      };
+      pick.append(box, document.createTextNode(' Select piece'));
+      card.append(pick);
+      const preview = svg('svg', {
+        viewBox: paletteBounds(d)
+          .map((v, i) => (i < 2 ? v - 15 : v + 30))
+          .join(' '),
+        'aria-label': d.name,
+      });
+      preview.innerHTML = paletteBody(d);
+      const name = document.createElement('h2');
+      name.textContent = d.name;
+      const info = document.createElement('p');
+      info.textContent =
+        (d.parameters.foldOverride ? 'Planning-only fold override · ' : '') +
+        d.parameters.widthMm +
+        ' mm wide · ' +
+        (d.parameters.laneChange
+          ? 'Lane changer · ' + d.parameters.laneChange
+          : d.parameters.type === 'reference'
+            ? 'Reference picture'
+            : d.parameters.type.endsWith('border')
+              ? 'Border'
+              : d.geometry.lanePaths.length + ' lanes');
+      const actions = document.createElement('div');
+      actions.className = 'view-actions';
+      const addButton = document.createElement('button');
+      addButton.className = 'btn primary';
+      addButton.textContent = 'Use in builder';
+      addButton.onclick = () => {
+        location.hash = 'builder';
+        routeSection();
+        updateView();
+        add(d);
+      };
+      const copy = document.createElement('button');
+      copy.className = 'btn';
+      copy.textContent = 'Copy & adjust';
+      copy.onclick = () => (d.parameters.routed ? routedUI.createFrom(d, activePack().id) : openCustom(d));
+      copy.hidden = d.parameters.type === 'reference';
+      const removeButton = document.createElement('button');
+      removeButton.className = 'btn';
+      removeButton.textContent = 'Delete from pack';
+      removeButton.setAttribute('aria-label', 'Delete ' + d.name + ' from pack');
+      removeButton.onclick = () => askDeletePackPieces([d.id]);
+      actions.append(addButton, copy, removeButton);
+      card.append(preview, name, info, actions);
+      host.append(card);
+    }
+  }
+  async function openDesignSave() {
+    const generation = ++designSaveGeneration;
+    stop();
+    $('save-design-form').reset();
+    $('design-name').value = title;
+    $('design-save-error').textContent = '';
+    $('design-save-submit').disabled = true;
+    $('save-design-dialog').showModal();
+    try {
+      const records = await DL.summaries();
+      if (generation !== designSaveGeneration || !$('save-design-dialog').open) return;
+      const existing = records.find(r => r.id === integrationState.designId);
+      if (existing && !librarySource && existing.designRevision === layout(false).design.revision)
+        librarySource = DL.source(existing);
+      const unknown = !!existing && librarySource?.id !== existing.id;
+      $('design-copy').checked = unknown;
+      $('design-copy').disabled = unknown;
+      $('design-save-note').textContent = unknown
+        ? 'This drawing has no saved-version baseline. Save a new copy, or open the saved design to update it.'
+        : existing
+          ? 'Saving updates the version opened in this window. Choose a new copy to keep that version.'
+          : 'This saves a new design in your library.';
+      $('design-copy-label').hidden = !existing;
+      $('design-save-submit').textContent = unknown
+        ? 'Save new copy'
+        : existing
+          ? 'Update saved design'
+          : 'Save design';
+      $('design-save-submit').disabled = false;
+    } catch (e) {
+      if (generation === designSaveGeneration && $('save-design-dialog').open)
+        $('design-save-error').textContent = e.message;
+    }
+  }
+  async function saveDesign(e) {
+    e.preventDefault();
+    if (designSaveBusy) return;
+    designSaveBusy = true;
+    $('design-save-error').textContent = '';
+    const buttons = [...$('save-design-dialog').querySelectorAll('button')];
+    buttons.forEach(b => (b.disabled = true));
+    try {
+      const record = await DL.save(
+          layout(false),
+          $('design-name').value,
+          $('design-copy').checked,
+          librarySource?.id === integrationState.designId ? librarySource.revision : null
+        ),
+        imported = I.importLayout(record.layout);
+      checkpoint();
+      librarySource = DL.source(record);
+      title = imported.title;
+      integrationState = imported.state;
+      $('track-name').value = title;
+      refresh();
+      $('save-design-dialog').close();
+      say('“' + title + '” saved to your Track Library.');
+      if (document.body.dataset.section === 'library') renderDesignLibrary();
+    } catch (error) {
+      $('design-save-error').textContent = error.message;
+    } finally {
+      designSaveBusy = false;
+      buttons.forEach(b => (b.disabled = false));
+    }
+  }
+  function designDownload(record) {
+    downloadTrack(record.layout);
+  }
+  let libraryOffset = 0;
+  function pageControls(host, offset, total, limit, change) {
+    host.replaceChildren();
+    host.hidden = total <= limit;
+    if (host.hidden) return;
+    const previous = document.createElement('button'),
+      next = document.createElement('button'),
+      label = document.createElement('span');
+    previous.className = next.className = 'btn';
+    previous.textContent = 'Previous';
+    next.textContent = 'Next';
+    previous.disabled = offset === 0;
+    next.disabled = offset + limit >= total;
+    previous.onclick = () => change(Math.max(0, offset - limit));
+    next.onclick = () => change(offset + limit);
+    label.textContent = 'Page ' + (Math.floor(offset / limit) + 1) + ' of ' + Math.ceil(total / limit);
+    label.setAttribute('aria-live', 'polite');
+    host.append(previous, label, next);
+  }
+  async function renderDesignLibrary() {
+    const generation = ++libraryRender,
+      host = $('design-library');
+    host.replaceChildren();
+    $('design-library-status').textContent = 'Loading saved designs…';
+    $('design-pages').hidden = true;
+    try {
+      const page = await DL.page({ query: $('design-search').value.trim(), offset: libraryOffset, limit: 24 });
+      if (generation !== libraryRender) return;
+      if (!page.items.length && libraryOffset && page.total) {
+        libraryOffset = Math.max(0, Math.floor((page.total - 1) / 24) * 24);
+        return renderDesignLibrary();
+      }
+      $('design-library-status').textContent = page.total
+        ? libraryOffset +
+          1 +
+          '–' +
+          Math.min(page.total, libraryOffset + 24) +
+          ' of ' +
+          page.total +
+          ' matching saved designs'
+        : $('design-search').value.trim()
+          ? 'No tracks match this search.'
+          : '';
+      $('design-library-empty').hidden = !!(page.total || $('design-search').value.trim());
+      pageControls($('design-pages'), libraryOffset, page.total, 24, value => {
+        libraryOffset = value;
+        renderDesignLibrary();
+      });
+      const previews = [];
+      for (const record of page.items) {
+        const card = document.createElement('article');
+        card.className = 'custom-card design-card';
+        const picture = document.createElement('div');
+        picture.className = 'design-thumbnail';
+        picture.textContent = record.pieceCount ? 'Loading preview…' : 'Empty design';
+        card.append(picture);
+        const name = document.createElement('h2');
+        name.textContent = record.title;
+        card.append(name);
+        const info = document.createElement('p');
+        info.className = 'fine';
+        const date = new Date(record.updatedAt);
+        info.textContent =
+          record.pieceCount +
+          ' placed pieces · ' +
+          (record.laneCount ? record.laneCount + ' lanes · closed circuit' : 'Open / drawing-only layout') +
+          (Number.isNaN(date.getTime()) ? '' : ' · Saved ' + date.toLocaleString());
+        card.append(info);
+        const actions = document.createElement('div');
+        actions.className = 'view-actions';
+        const open = document.createElement('button');
+        open.className = 'btn primary';
+        open.textContent = 'Open in builder';
+        open.onclick = async () => {
+          try {
+            const fresh = await DL.get(record.id);
+            confirmReplace(() => {
+              try {
+                applyImport(fresh.layout, DL.source(fresh));
+              } catch (e) {
+                say(e.message, true);
+              }
+            });
+          } catch (e) {
+            say(e.message, true);
+          }
+        };
+        const downloadButton = document.createElement('button');
+        downloadButton.className = 'btn';
+        downloadButton.textContent = 'Export track JSON';
+        downloadButton.onclick = async () => {
+          try {
+            designDownload(await DL.get(record.id));
+          } catch (e) {
+            say(e.message, true);
+          }
+        };
+        const remove = document.createElement('button');
+        remove.className = 'btn quiet';
+        remove.textContent = 'Delete';
+        remove.onclick = () => {
+          deleteDesignId = record.id;
+          deleteDesignRevision = record.revision;
+          $('delete-design-name').textContent = record.title;
+          $('delete-design-dialog').showModal();
+        };
+        const exportButton = document.createElement('button');
+        exportButton.className = 'btn';
+        exportButton.textContent = 'Export…';
+        exportButton.onclick = () => {
+          setTransferKind('tracks');
+          exportChoice = 'saved:' + record.id;
+          location.hash = 'export';
+          routeSection();
+        };
+        actions.append(open, exportButton, downloadButton, remove);
+        card.append(actions);
+        host.append(card);
+        if (record.pieceCount) previews.push({ record, picture });
+      }
+      // Two bounded requests at a time; abandoned pages cannot populate the new page.
+      async function loadPreviews() {
+        while (previews.length && generation === libraryRender) {
+          const { record, picture } = previews.shift();
+          try {
+            const result = await DL.preview(record.id);
+            if (generation !== libraryRender) return;
+            if (result.revision !== record.revision) {
+              picture.textContent = 'Track updated — reopen this page';
+              continue;
+            }
+            const image = document.createElement('img');
+            image.alt = record.title;
+            image.loading = 'lazy';
+            image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(result.svg);
+            picture.replaceChildren(image);
+          } catch (e) {
+            if (generation === libraryRender) {
+              picture.textContent = 'Preview unavailable';
+              picture.title = e.message;
+            }
+          }
+        }
+      }
+      void loadPreviews();
+      void loadPreviews();
+    } catch (e) {
+      if (generation === libraryRender) $('design-library-status').textContent = e.message;
+    }
+  }
 
-cadUI=window.CADExportUI.init({message:say,download});
-if(DS.error)say(DS.error+' Existing files were retained.',true);
-else if(DS.disk&&(localStorage.getItem(STORAGE)||localStorage.getItem(CP.STORAGE)))say('Previous browser saves are available. Open Storage to copy them to disk.');
-else if(!DS.disk)say('Browser mode. Use the installed launcher for disk saving. Storage can export your existing work.');
+  function setTransferKind(kind) {
+    const packs = kind === 'packs';
+    $('transfer-tracks').hidden = packs;
+    $('transfer-packs').hidden = !packs;
+    document
+      .querySelectorAll('[data-transfer-kind]')
+      .forEach(button =>
+        button.setAttribute('aria-pressed', String(button.dataset.transferKind === (packs ? 'packs' : 'tracks')))
+      );
+  }
+  function exportButtons(disabled) {
+    document
+      .querySelectorAll('[data-track-export]')
+      .forEach(
+        b =>
+          (b.disabled = disabled || !exportTrackAvailable || (b.hasAttribute('data-cad-export') && !exportCadAvailable))
+      );
+  }
+  function showExportTrack(model) {
+    exportTrackAvailable = !!model.pieces.length;
+    exportCadAvailable = model.routed.sections > 0;
+    $('cad-export-note').textContent = exportCadAvailable
+      ? model.routed.sections +
+        ' routed sections available.' +
+        (model.pieces.length > model.routed.sections ? ' Non-routed pieces are excluded.' : '')
+      : 'This track has no routed sections. Use PDF or PNG for a picture of modular track pieces.';
+    $('export-summary').textContent = model.title + ' · ' + model.pieces.length + ' placed pieces';
+    $('export-source-note').textContent =
+      exportChoice === 'current'
+        ? 'Current builder track, including changes not yet saved to the library.'
+        : 'Saved library snapshot. Your current builder track is kept in place.';
+    const preview = $('export-track-preview');
+    preview.replaceChildren();
+    if (model.pieces.length) preview.innerHTML = I.picture(model.layout, { maxDimension: 500 }).svg;
+    else preview.textContent = 'This track is empty.';
+    const notes = model.layout.compatibility.issues.map(issue => issue.message);
+    if (model.layout.timing.requiresLaneRemap) notes.unshift('Reconfirm lane mapping in SlotForge Timing.');
+    $('timing-compatibility').textContent = notes.join(' ');
+    $('export-contract').textContent = 'Integration contract ' + model.layout.integration.contractVersion + '.';
+    exportButtons(!model.pieces.length);
+  }
+  async function loadExportTrack() {
+    const generation = ++exportSourceGeneration;
+    exportTrackAvailable = false;
+    exportCadAvailable = false;
+    exportButtons(true);
+    $('export-source-error').textContent = '';
+    $('export-summary').textContent = 'Loading selected track…';
+    $('export-track-preview').replaceChildren();
+    try {
+      const model = await XM.resolveSource(exportChoice, () => layout(), DL.get);
+      if (generation !== exportSourceGeneration) return;
+      showExportTrack(model);
+    } catch (e) {
+      if (generation !== exportSourceGeneration) return;
+      $('export-summary').textContent = 'Selected track unavailable';
+      $('export-source-note').textContent = 'Choose another track to export.';
+      $('export-source-error').textContent = e.message;
+    }
+  }
+  async function populateExportTracks() {
+    const generation = ++exportMenuGeneration,
+      select = $('export-track-select');
+    ++exportSourceGeneration;
+    exportTrackAvailable = false;
+    select.disabled = true;
+    exportButtons(true);
+    let records = [],
+      libraryError = '';
+    try {
+      records = await DL.summaries();
+    } catch (e) {
+      libraryError = e.message;
+    }
+    if (generation !== exportMenuGeneration) return;
+    select.replaceChildren();
+    const current = document.createElement('option');
+    current.value = 'current';
+    current.textContent = 'Current builder track — ' + title;
+    select.append(current);
+    if (records.length) {
+      const group = document.createElement('optgroup');
+      group.label = 'Saved in Track Library';
+      for (const record of records) {
+        const option = document.createElement('option');
+        option.value = 'saved:' + record.id;
+        option.textContent = String(record.title || 'Unnamed saved track');
+        const date = new Date(record.updatedAt);
+        if (!Number.isNaN(date.getTime())) option.textContent += ' · ' + date.toLocaleString();
+        group.append(option);
+      }
+      select.append(group);
+    }
+    if (exportChoice !== 'current' && !records.some(r => 'saved:' + r.id === exportChoice)) {
+      const missing = document.createElement('option');
+      missing.value = exportChoice;
+      missing.textContent = 'Saved track unavailable — select another';
+      select.append(missing);
+    }
+    select.value = exportChoice;
+    select.disabled = false;
+    await loadExportTrack();
+    if (generation === exportMenuGeneration && libraryError) $('export-source-error').textContent = libraryError;
+  }
+  async function exportSelectedTrack(format) {
+    const choice = exportChoice,
+      generation = exportSourceGeneration,
+      isCurrent = () => choice === exportChoice && generation === exportSourceGeneration;
+    let resolved = false;
+    exportButtons(true);
+    try {
+      const model = await XM.resolveSource(choice, () => layout(), DL.get);
+      if (!isCurrent()) return;
+      showExportTrack(model);
+      resolved = true;
+      if (!model.pieces.length) throw Error('Add pieces to this track before exporting.');
+      exportButtons(true);
+      if (format === 'pdf') openPdfReport(model.layout);
+      else if (format === 'slotforge') downloadTrack(model.layout);
+      else if (format === 'png') await exportPNG(model.layout);
+      else if (format === 'csv') exportCSV(model.layout);
+      else if (format === 'cad') cadUI.open(model.layout);
+    } catch (e) {
+      if (isCurrent()) {
+        if (!resolved) exportTrackAvailable = false;
+        $('export-source-error').textContent = e.message;
+        say(e.message, true);
+      }
+    } finally {
+      if (isCurrent()) exportButtons(false);
+    }
+  }
+
+  function routeSection() {
+    if (location.hash === '#plugins')
+      window.history.replaceState(null, '', location.pathname + location.search + '#packs');
+    const section = ['custom', 'packs', 'export', 'library', 'settings', 'routed', 'freeform'].includes(
+      location.hash.slice(1)
+    )
+      ? location.hash.slice(1)
+      : 'builder';
+    finishDrag(true);
+    stop();
+    document.body.dataset.section = section;
+    $('builder-view').hidden = section !== 'builder';
+    document.querySelector('.projectbar').hidden = section !== 'builder';
+    $('custom-view').hidden = section !== 'custom';
+    $('export-view').hidden = section !== 'export';
+    $('packs-view').hidden = section !== 'packs';
+    $('library-view').hidden = section !== 'library';
+    $('settings-view').hidden = section !== 'settings';
+    $('routed-view').hidden = section !== 'routed';
+    $('freeform-view').hidden = section !== 'freeform';
+    if (section === 'freeform' && freeformUI) freeformUI.enter();
+    document.querySelectorAll('.sf-nav-link').forEach(a => {
+      // Editing a custom pack happens inside Track Packs.
+      if (a.dataset.section === (section === 'custom' ? 'packs' : section)) a.setAttribute('aria-current', 'page');
+      else a.removeAttribute('aria-current');
+    });
+    if (section === 'library') renderDesignLibrary();
+    else {
+      ++libraryRender;
+      clearTimeout(designSearchTimer);
+    }
+    if (section === 'custom') {
+      renderPackControls();
+      renderCustomLibrary();
+    }
+    if (section === 'packs') renderTrackPacks();
+    if (section === 'export') {
+      renderPackControls();
+      populateExportTracks();
+    }
+    if (section === 'builder')
+      requestAnimationFrame(() => {
+        updateView();
+        renderCanvas();
+      });
+  }
+  document.querySelectorAll('.sf-header a').forEach(a => {
+    a.onclick = e => {
+      e.preventDefault();
+      location.hash = a.dataset.section || 'builder';
+    };
+  });
+  $('reference-dialog').addEventListener('cancel', () => referenceRequests.cancel());
+  $('reference-dialog').addEventListener('close', () => {
+    if (!$('reference-dialog').open) referenceRequests.cancel();
+  });
+  $('reference-place').onclick = () => placeReference();
+  $('reference-snap').onchange = updateReferenceForm;
+  $('reference-shape').onchange = updateReferenceForm;
+  $('reference-resize').onclick = () => {
+    const p = current();
+    if (p && defOf(p).parameters.type === 'reference') openReference(defOf(p), p);
+  };
+  $('custom-create').onclick = () => {
+    const pack = activePack();
+    if (pack.pieces.length && pack.pieces.every(d => d.parameters.routed)) routedUI.createInPack(pack);
+    else openCustom();
+  };
+  $('export-timing').onclick = () => exportSelectedTrack('slotforge');
+  $('export-import').onclick = openTrackFile;
+  $('transfer-pack-import').onclick = () => $('pack-file').click();
+  document
+    .querySelectorAll('[data-transfer-kind]')
+    .forEach(button => (button.onclick = () => setTransferKind(button.dataset.transferKind)));
+  $('export-png').onclick = () => exportSelectedTrack('png');
+  $('export-cad').onclick = () => exportSelectedTrack('cad');
+  $('export-track-select').onchange = () => {
+    exportChoice = $('export-track-select').value;
+    loadExportTrack();
+  };
+  $('set-timing-line').onclick = () => {
+    const p = current();
+    if (!p || !defOf(p).geometry.lanePaths.length) {
+      say('Select one road piece in the builder first.', true);
+      return;
+    }
+    editTiming(() => (integrationState.startFinish = { pieceId: p.id, fraction: 0.5 }));
+  };
+  $('timing-position').onchange = () => {
+    const value = Number($('timing-position').value);
+    if (!Number.isFinite(value) || value < 0 || value > 100) return;
+    editTiming(() => (integrationState.startFinish.fraction = value / 100));
+  };
+  $('travel-direction').onchange = () =>
+    editTiming(() => (integrationState.direction = Number($('travel-direction').value)));
+  $('export-csv').onclick = () => exportSelectedTrack('csv');
+  $('export-custom').onclick = () => downloadPack($('export-pack-select').value);
+  $('custom-pack-select').onchange = () => {
+    customLibrary.activePackId = $('custom-pack-select').value;
+    persistCustom();
+  };
+  $('save-custom-pack').onclick = saveToLibrary;
+  $('custom-select-all').onchange = () => {
+    customPieceSelection = new Set($('custom-select-all').checked ? activePack().pieces.map(d => d.id) : []);
+    renderCustomLibrary();
+  };
+  $('custom-delete-selected').onclick = () => askDeletePackPieces([...customPieceSelection]);
+  $('delete-pack-pieces-confirm').onclick = confirmDeletePackPieces;
+  $('delete-pack-pieces-dialog').addEventListener('cancel', e => {
+    if (deletePackBusy) e.preventDefault();
+  });
+  $('delete-pack-pieces-dialog').addEventListener('close', () => {
+    if (!deletePackBusy) deletePackPieces = null;
+  });
+  $('new-custom-pack').onclick = () => {
+    $('new-pack-form').reset();
+    $('new-pack-dialog').showModal();
+  };
+  $('new-pack-form').onsubmit = async e => {
+    e.preventDefault();
+    try {
+      if (customLibrary.packs.length >= 100) throw Error('The custom library supports up to 100 packs.');
+      const p = { id: 'custom-pack-' + F.uid(), name: CP.name($('new-pack-name').value), inLibrary: false, pieces: [] };
+      customLibrary.packs.push(p);
+      customLibrary.activePackId = p.id;
+      const saving = persistCustom();
+      $('new-pack-dialog').close();
+      location.hash = 'custom';
+      routeSection();
+      if (await saving) say('Pack created. Add pieces, then save it to the library.');
+    } catch (e) {
+      say(e.message, true);
+    }
+  };
+  $('packs-import').onclick = () => $('pack-file').click();
+  $('packs-create').onclick = () => $('new-custom-pack').click();
+  $('packs-search').oninput = renderTrackPacks;
+  $('packs-filter')
+    .querySelectorAll('[data-pack-filter]')
+    .forEach(
+      button =>
+        (button.onclick = () => {
+          $('packs-filter')
+            .querySelectorAll('[data-pack-filter]')
+            .forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+          renderTrackPacks();
+        })
+    );
+  $('packs-clear-search').onclick = () => {
+    $('packs-search').value = '';
+    $('packs-filter').querySelector('[data-pack-filter=all]').click();
+  };
+  $('export-pack-select').onchange = () => updateExportNote('export-pack-select', 'export-pack-note', 'export-custom');
+  $('pack-export-choice').onchange = () =>
+    updateExportNote('pack-export-choice', 'pack-export-note', 'pack-export-download');
+  $('pack-export-download').onclick = () => downloadPack($('pack-export-choice').value);
+  $('save-design').onclick = openDesignSave;
+  $('library-save-current').onclick = openDesignSave;
+  $('design-library-empty').onclick = e => {
+    const action = e.target.closest('[data-empty]')?.dataset.empty;
+    if (action === 'save') openDesignSave();
+    else if (action === 'open') openTrackFile();
+    else if (action === 'template') $('open-template').click();
+  };
+  let designSearchTimer;
+  $('design-search').oninput = () => {
+    libraryOffset = 0;
+    ++libraryRender;
+    clearTimeout(designSearchTimer);
+    designSearchTimer = setTimeout(renderDesignLibrary, 150);
+  };
+  $('save-design-form').onsubmit = saveDesign;
+  $('save-design-dialog').addEventListener('cancel', e => {
+    if (designSaveBusy) e.preventDefault();
+  });
+  $('design-copy').onchange = () => {
+    $('design-save-submit').textContent = $('design-copy').checked ? 'Save new copy' : 'Update saved design';
+  };
+  $('delete-design-confirm').onclick = async () => {
+    if (!deleteDesignId) return;
+    const id = deleteDesignId;
+    $('delete-design-confirm').disabled = true;
+    try {
+      await DL.remove(id, deleteDesignRevision);
+      deleteDesignId = null;
+      $('delete-design-dialog').close();
+      renderDesignLibrary();
+      say('Saved design deleted.');
+    } catch (e) {
+      say(e.message, true);
+    } finally {
+      $('delete-design-confirm').disabled = false;
+    }
+  };
+  window.addEventListener('hashchange', routeSection);
+  window.addEventListener('beforeunload', e => {
+    // A change still waiting for its save: start it now (browser storage saves at once).
+    if (saveTimer) persistNow();
+    if (DS.unsaved || !storageAvailable || browserPackUnsaved) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+  routeSection();
+
+  function storageDetails() {
+    $('storage-mode').textContent =
+      DS.mode === 'disk'
+        ? 'Disk storage is active. Layouts, autosave and custom packs are stored outside the browser.'
+        : DS.error || 'Browser storage is active. Use an installed local launcher for automatic disk saving.';
+    $('storage-directory').textContent = DS.directory || 'No disk workspace connected';
+    $('storage-previous').hidden = !DS.disk;
+    $('storage-previous').disabled = DS.mode === 'unavailable';
+    $('storage-copy-browser').hidden = !DS.disk;
+    $('storage-stop').hidden = !DS.disk;
+    $('storage-import').disabled = !DS.disk || DS.mode === 'unavailable';
+    $('storage-copy-browser').disabled = DS.mode === 'unavailable';
+    $('storage-error').textContent = '';
+    $('storage-dialog').showModal();
+  }
+  $('storage-open').textContent =
+    DS.mode === 'disk' ? 'Storage: disk' : DS.disk ? 'Storage: unavailable' : 'Storage: browser';
+  $('storage-open').onclick = storageDetails;
+  if (DS.mode === 'disk')
+    $('library-storage-note').textContent =
+      'Saved as files on this computer, independently of browser data. Updates preserve the data folder. Use Storage to download a complete workspace backup or transfer old browser saves.';
+  async function browserBundle() {
+    const raw = localStorage.getItem(STORAGE),
+      saved = localStorage.getItem(CP.STORAGE),
+      legacy = localStorage.getItem(CUSTOM);
+    return {
+      format: 'slotforge.workspace-transfer',
+      version: 1,
+      createdAt: new Date().toISOString(),
+      current: raw ? JSON.parse(raw) : null,
+      customLibrary: CP.serialize(CP.read(saved ? JSON.parse(saved) : legacy ? JSON.parse(legacy) : null)),
+      designs: (await DL.browserList()).map(r => r.layout),
+    };
+  }
+  $('storage-previous').onclick = async () => {
+    try {
+      await DS.flush();
+      download('SlotForge-previous-save.json', JSON.stringify(await DS.previousBundle()));
+      $('storage-error').textContent =
+        'Previous save downloaded. Import it to recover missing tracks as library copies; your current drawing is kept.';
+    } catch (e) {
+      $('storage-error').textContent = e.message;
+    }
+  };
+  $('storage-export').onclick = async () => {
+    try {
+      const bundle = DS.disk
+        ? await DS.exportBundle()
+        : { ...(await browserBundle()), current: layout(false), customLibrary: CP.serialize(customLibrary) };
+      bundle.current = layout(false);
+      bundle.customLibrary = CP.serialize(customLibrary);
+      download('SlotForge-workspace-backup.json', JSON.stringify(bundle));
+      say('Complete workspace backup downloaded.');
+    } catch (e) {
+      $('storage-error').textContent = e.message;
+    }
+  };
+  async function importWorkspace(value) {
+    $('storage-error').textContent = '';
+    const controls = [...$('storage-dialog').querySelectorAll('button')];
+    controls.forEach(b => (b.disabled = true));
+    try {
+      const result = await DS.importBundle(value);
+      $('storage-error').textContent =
+        result.tracksAdded +
+        ' tracks and ' +
+        result.packsAdded +
+        ' packs imported. Existing tracks were kept. Reload to see the imported library and packs.';
+      $('storage-reload').hidden = false;
+    } catch (e) {
+      $('storage-error').textContent = e.message;
+    } finally {
+      controls.forEach(b => (b.disabled = false));
+    }
+  }
+  $('storage-import').onclick = () => $('workspace-file').click();
+  $('workspace-file').onchange = async () => {
+    const file = $('workspace-file').files[0];
+    $('workspace-file').value = '';
+    if (!file) return;
+    try {
+      if (file.size > 256 * 1024 * 1024) throw Error('Workspace transfer files support up to 256 MiB.');
+      await importWorkspace(JSON.parse(await file.text()));
+    } catch (e) {
+      $('storage-error').textContent = e.message;
+    }
+  };
+  $('storage-copy-browser').onclick = async () => {
+    try {
+      await importWorkspace(await browserBundle());
+    } catch (e) {
+      $('storage-error').textContent = e.message;
+    }
+  };
+  $('storage-reload').onclick = () => location.reload();
+  $('storage-stop').onclick = async () => {
+    try {
+      await DS.quit();
+      $('storage-error').textContent = 'Local app stopped. You can close this tab. Use the launcher to start it again.';
+      $('storage-open').textContent = 'Storage: stopped';
+    } catch (e) {
+      $('storage-error').textContent = e.message;
+    }
+  };
+  function syncRoutedPack() {
+    Object.assign(routedPack, F.Routed.pack(routedState.settings));
+    populatePacks();
+    catalogue();
+  }
+  if (items.length && items.every(p => defOf(p).parameters.routed)) {
+    $('pack').value = F.Routed.ID;
+    catalogue();
+  }
+  routedUI = window.RoutedEditor.init({
+    get: () => ({
+      items,
+      defs,
+      routed: routedState,
+      spaceGuide,
+      selected,
+      selectedIds,
+      network,
+      interacting: !!drag,
+      packId: $('pack').value,
+    }),
+    focus: focusIssue,
+    message: say,
+    choosePack: (id = F.Routed.ID) => {
+      $('pack').value = id;
+      $('search').value = '';
+      catalogue();
+    },
+    packs: () => customLibrary.packs,
+    saveDefinition: saveRoutedDefinition,
+    showSavedPack: id => {
+      customLibrary.activePackId = id;
+      persistCustom();
+      $('pack').value = id;
+      catalogue();
+      location.hash = 'custom';
+      routeSection();
+    },
+    table: () => {
+      openSpaceGuide();
+      $('guide-kind').value = 'table';
+    },
+    add: (d, flip) => {
+      if (items.length >= 500) return false;
+      defs[d.id] = d;
+      return add(d, flip);
+    },
+    commit: next => {
+      const ni = next.items || items,
+        nd = next.definitions || defs,
+        nr = F.Routed.workspace(next.routed || routedState);
+      assertLockedUnchanged(ni, nd);
+      F.validateLayout({
+        format: 'slotforge.layout',
+        version: 1,
+        title,
+        pieces: ni,
+        definitions: [...new Set(ni.map(p => p.definitionId))].map(id => nd[id]),
+        profile,
+        workspace: { routed: nr, ...(spaceGuide ? { spaceGuide } : {}) },
+      });
+      checkpoint();
+      stop();
+      Object.assign(defs, nd);
+      items = ni;
+      if (next.selectId) setSelection([next.selectId]);
+      routedState = nr;
+      syncRoutedPack();
+      routedUI.fill();
+      refresh();
+    },
+    newLayout: exampleTrack => {
+      const config = structuredClone(routedState);
+      confirmReplace(() => {
+        checkpoint();
+        stop();
+        librarySource = null;
+        integrationState = I.newState();
+        routedState = config;
+        planning = F.Planning.validate();
+        items = [];
+        setSelection([]);
+        syncRoutedPack();
+        if (exampleTrack) {
+          const straight = F.validateDefinition(
+              F.Routed.definition(
+                config.settings,
+                exampleTrack === 'flowing'
+                  ? { type: 'routed-spline', controlPointsMm: F.Routed.Spline.preset('s-bend', config.settings) }
+                  : { type: 'straight', lengthMm: 1000 },
+                'routed:' + F.uid()
+              )
+            ),
+            corner = F.validateDefinition(
+              F.Routed.definition(
+                config.settings,
+                { type: 'curve', slotRadiusMm: Math.max(300, config.settings.innerClearanceMm + 50), angleDeg: 90 },
+                'routed:' + F.uid()
+              )
+            );
+          defs[straight.id] = straight;
+          defs[corner.id] = corner;
+          let last;
+          for (const d of [straight, corner, corner, straight, corner, corner]) {
+            let p = F.pose(d);
+            if (last) p = F.join(p, d, 0, F.ports(last, defs)[1]);
+            items.push(p);
+            last = p;
+          }
+        }
+        const b = F.bounds(items, defs),
+          lengthMm = exampleTrack ? Math.ceil(b[2] + 400 - 1e-6) : 3000,
+          widthMm = exampleTrack ? Math.ceil(b[3] + 400 - 1e-6) : 1600;
+        spaceGuide = { x: 0, y: 0, lengthMm, widthMm, kind: 'table', locked: true };
+        if (exampleTrack) items = items.map(p => ({ ...p, x: p.x + 200 - b[0], y: p.y + 200 - b[1] }));
+        title =
+          exampleTrack === 'flowing'
+            ? 'Flowing routed example'
+            : exampleTrack
+              ? 'Routed wood example'
+              : 'My routed track';
+        $('track-name').value = title;
+        $('pack').value = F.Routed.ID;
+        catalogue();
+        routedUI.fill();
+        refresh();
+        location.hash = 'builder';
+        routeSection();
+        fit();
+        say(
+          exampleTrack
+            ? 'Routed example loaded. Select a section to edit its dimensions.'
+            : 'Routed layout ready. Add a section from the catalogue or create your own.'
+        );
+      });
+    },
+  });
+
+  freeformUI = window.FreeFormEditor.init({
+    get: () => ({
+      items,
+      defs,
+      planning,
+      car: previewCar,
+      table: spaceGuide,
+      settings: routedState.settings,
+      title,
+      state: integrationState,
+    }),
+    message: say,
+    start: fn => confirmReplace(fn),
+    reference: access => designToolsUI.referenceFor(access),
+    apply: (model, settings, table, name, source, mark, offset = [0, 0], newPlanning = planning) => {
+      if (source?.locked) throw Error('Unlock this circuit before applying edits.');
+      const d = F.validateDefinition(F.FreeForm.definition(model, settings, 'freeform:' + F.uid(), name)),
+        p = source
+          ? { ...source, definitionId: d.id, x: offset[0], y: offset[1], angle: 0, flip: false }
+          : { ...F.pose(d), x: offset[0], y: offset[1] };
+      checkpoint();
+      stop();
+      if (!source) {
+        librarySource = null;
+        integrationState = I.newState();
+      }
+      defs[d.id] = d;
+      items = [p];
+      planning = F.Planning.validate(newPlanning);
+      spaceGuide = F.validateSpaceGuide(table);
+      routedState = F.Routed.workspace({ settings: d.parameters.routed });
+      title = name;
+      $('track-name').value = title;
+      setSelection([p.id]);
+      if (mark) {
+        const fraction = F.FreeForm.fraction(d, mark);
+        integrationState.startFinish = fraction === null ? null : { pieceId: p.id, fraction };
+      } else if (source && integrationState.startFinish) integrationState.startFinish = null;
+      syncRoutedPack();
+      $('pack').value = F.Routed.ID;
+      catalogue();
+      refresh();
+      location.hash = 'builder';
+      routeSection();
+      fit();
+      say(
+        d.geometry.closed
+          ? 'FreeForm circuit saved to the builder. Save to Track Library to keep a named design.'
+          : 'FreeForm draft saved to the builder. Open Edit FreeForm to continue.'
+      );
+    },
+  });
+  if (location.hash === '#freeform') freeformUI.enter();
+  elevationUI = window.ElevationEditor.init({
+    get: () => ({ pieces: items, defs, selected: selectedIds }),
+    focus: focusIssue,
+    apply: e => {
+      if (!selection().length || selectionLocked()) return;
+      finishDrag(true);
+      checkpoint();
+      stop();
+      items = items.map(p => {
+        if (!selectedIds.has(p.id) || defOf(p).parameters.type === 'freeform') return p;
+        const next = { ...p };
+        if (e) next.elevation = { ...e };
+        else delete next.elevation;
+        return next;
+      });
+      refresh();
+      say('Track heights updated. Check adjoining heights and bridge clearance.');
+    },
+  });
+
+  function convertRoutedToFreeform() {
+    const token = toolsToken(),
+      converted = window.FreeFormTools.convert(items, defs),
+      dialog = document.createElement('dialog');
+    dialog.className = 'design-tool-dialog';
+    const title = document.createElement('h2');
+    title.textContent = 'Convert routed sections to FreeForm';
+    const note = document.createElement('p');
+    note.textContent =
+      converted.model.nodes.length +
+      ' editable anchors. Sampled fit deviation up to ' +
+      converted.maxErrorMm.toFixed(3) +
+      ' mm. Circular slots become cubic approximations. This replaces the sections with one tabletop drawing; Undo restores them. Set the timing line again after conversion.';
+    const picture = document.createElementNS(NS, 'svg'),
+      b = converted.definition.geometry.boundsMm;
+    picture.classList.add('tool-preview');
+    picture.setAttribute('viewBox', [b[0] - 50, b[1] - 50, b[2] + 100, b[3] + 100].join(' '));
+    picture.innerHTML = F.FreeForm.draw(converted.definition);
+    const checks = document.createElement('p');
+    checks.textContent = converted.definition.geometry.issues.map(i => i.message).join(' ');
+    const cancel = document.createElement('button');
+    cancel.className = 'btn';
+    cancel.textContent = 'Cancel';
+    cancel.onclick = () => dialog.close();
+    const apply = document.createElement('button');
+    apply.className = 'btn primary';
+    apply.textContent = 'Convert & edit FreeForm';
+    apply.disabled = !converted.definition.geometry.valid;
+    apply.onclick = () => {
+      try {
+        if (toolsToken() !== token) throw Error('The layout changed. Preview again.');
+        checkpoint();
+        stop();
+        const d = F.validateDefinition({ ...converted.definition, id: 'freeform:' + F.uid(), name: titleText() });
+        defs[d.id] = d;
+        items = [F.pose(d)];
+        integrationState.startFinish = null;
+        integrationState.requiresLaneRemap = true;
+        routedState = F.Routed.workspace({ settings: converted.profile });
+        syncRoutedPack();
+        setSelection([items[0].id]);
+        refresh();
+        dialog.close();
+        freeformUI.open();
+      } catch (e) {
+        checks.textContent = e.message;
+      }
+    };
+    function titleText() {
+      return $('track-name').value || 'Converted circuit';
+    }
+    dialog.append(title, note, picture, checks, cancel, apply);
+    dialog.addEventListener('close', () => dialog.remove());
+    document.body.append(dialog);
+    dialog.showModal();
+  }
+
+  function toolsToken() {
+    return I.canonical([integrationState.designId, items, items.map(p => defOf(p).parameters)]);
+  }
+  function assertLockedUnchanged(next, nextDefs = defs) {
+    for (const p of items.filter(p => p.locked)) {
+      const q = next.find(q => q.id === p.id);
+      if (
+        !q ||
+        I.canonical(p) !== I.canonical(q) ||
+        I.canonical(defOf(p).parameters) !== I.canonical(nextDefs[q.definitionId]?.parameters)
+      )
+        throw Error('A locked piece would change. Unlock it first.');
+    }
+  }
+  function focusIssue(issue) {
+    const chosen = items.filter(p => (issue.pieceIds || []).includes(p.id));
+    if (chosen.length) setSelection(chosen.map(p => p.id));
+    const b = chosen.length ? F.bounds(chosen, defs) : null;
+    if (issue.point) {
+      view.w = 800;
+      view.x = issue.point[0] - 400;
+      view.y = issue.point[1] - 300;
+    } else if (b) {
+      view.w = Math.max(500, b[2] + 200);
+      view.x = b[0] - 100;
+      view.y = b[1] - 100;
+    }
+    updateView();
+    renderCanvas();
+    updateInspector();
+  }
+  designToolsUI = window.DesignToolsUI.init({
+    // get(true) is for drawing only: it skips the change token, which hashes the whole design.
+    get: (drawing = false) => ({
+      items,
+      defs,
+      selected: [...selectedIds],
+      planning,
+      table: spaceGuide,
+      car: previewCar,
+      packs: allPacks(),
+      ...(drawing ? {} : { token: toolsToken() }),
+    }),
+    world,
+    focus: focusIssue,
+    message: say,
+    render: renderCanvas,
+    download,
+    convert: () => convertRoutedToFreeform(),
+    commit: (next, token) => {
+      if (token && token !== toolsToken()) throw Error('The layout changed. Reopen this tool and preview again.');
+      const ni = next.items || items,
+        nd = next.definitions || defs;
+      if (!next.allowLocks) assertLockedUnchanged(ni, nd);
+      const checked = F.validateLayout({
+        format: 'slotforge.layout',
+        version: 1,
+        title,
+        pieces: ni,
+        definitions: [...new Set(ni.map(p => p.definitionId))].map(id => nd[id]),
+        workspace: { planning: next.planning || planning },
+      });
+      checkpoint();
+      stop();
+      items = checked.pieces;
+      Object.assign(defs, checked.definitions);
+      planning = checked.workspace.planning;
+      refresh();
+    },
+  });
+  designToolsUI.render();
+
+  cadUI = window.CADExportUI.init({ message: say, download });
+  if (DS.error) say(DS.error + ' Existing files were retained.', true);
+  else if (DS.disk && (localStorage.getItem(STORAGE) || localStorage.getItem(CP.STORAGE)))
+    say('Previous browser saves are available. Open Storage to copy them to disk.');
+  else if (!DS.disk)
+    say('Browser mode. Use the installed launcher for disk saving. Storage can export your existing work.');
+
+  // Help: welcome screen (first start only) and keyboard shortcuts.
+  const welcomeChoices = {
+    packs: () => (location.hash = 'packs'),
+    routed: () => (location.hash = 'routed'),
+    freeform: () => (location.hash = 'freeform'),
+    builder: () => {
+      location.hash = 'builder';
+      if (!items.length) example();
+    },
+  };
+  Menus.attach($('help-button'), $('help-menu'));
+  $('help-shortcuts').onclick = () => CircuitHelp.shortcuts();
+  $('help-welcome').onclick = () => CircuitHelp.welcome(welcomeChoices);
+  CircuitHelp.condense();
+  $('settings-view').insertBefore(Units.settingsCard(), $('app-theme-settings'));
+  Units.start();
+  UpdateUI.start({ settings: $('settings-view'), before: $('app-theme-settings'), say });
+  CircuitHelp.maybeWelcome(welcomeChoices);
 })();

@@ -35,3 +35,7 @@ desktop.ini
 *.sqlite-journal
 workspace.json
 sqlite-storage.json
+
+# Desktop build tooling
+node_modules/
+/.qa/

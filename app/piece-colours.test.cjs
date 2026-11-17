@@ -1,4 +1,51 @@
-const test=require('node:test'),assert=require('node:assert/strict'),F=require('./core.js'),C=require('./piece-colours.js');
-const d=(id,type,size,extra={})=>F.validateDefinition({id,name:id,pack:'Kit',family:'custom',color:'#343a40',parameters:{type,widthMm:200,laneCount:2,laneSpacingMm:90,...(type==='curve'?{innerRadiusMm:size,angleDeg:45}:{lengthMm:size}),...extra}});
-test('radii ignore angle, straight sizes are distinct, originals never change',()=>{const ds=[d('R1','curve',200),d('R1-other','curve',200,{angleDeg:90}),d('R2','curve',400),d('full','straight',400),d('third','straight',400/3),d('quarter','straight',100)],before=structuredClone(ds),c=C.build(ds);assert.equal(c.colour(ds[0]),c.colour(ds[1]));assert.notEqual(c.colour(ds[0]),c.colour(ds[2]));assert.equal(new Set(ds.filter(d=>d.parameters.type==='straight').map(c.colour)).size,3);assert.deepEqual(ds,before);assert.equal(c.legend(ds).length,5);assert.deepEqual(C.build(ds.slice().reverse()).legend(ds),c.legend(ds));});
-test('packs are independent and digital/border/routed pieces keep original artwork',()=>{const a=d('a','curve',200),b={...d('b','curve',400),pack:'Other'},c=C.build([a,b]);assert.equal(c.colour(a),c.colour(b));for(const p of [{type:'straight-border'},{type:'reference'},{type:'straight',routed:{}},{type:'straight',laneChange:'both'}])assert.equal(C.eligible({...a,parameters:p}),false);});
+const test = require('node:test'),
+  assert = require('node:assert/strict'),
+  F = require('./core.js'),
+  C = require('./piece-colours.js');
+const d = (id, type, size, extra = {}) =>
+  F.validateDefinition({
+    id,
+    name: id,
+    pack: 'Kit',
+    family: 'custom',
+    color: '#343a40',
+    parameters: {
+      type,
+      widthMm: 200,
+      laneCount: 2,
+      laneSpacingMm: 90,
+      ...(type === 'curve' ? { innerRadiusMm: size, angleDeg: 45 } : { lengthMm: size }),
+      ...extra,
+    },
+  });
+test('radii ignore angle, straight sizes are distinct, originals never change', () => {
+  const ds = [
+      d('R1', 'curve', 200),
+      d('R1-other', 'curve', 200, { angleDeg: 90 }),
+      d('R2', 'curve', 400),
+      d('full', 'straight', 400),
+      d('third', 'straight', 400 / 3),
+      d('quarter', 'straight', 100),
+    ],
+    before = structuredClone(ds),
+    c = C.build(ds);
+  assert.equal(c.colour(ds[0]), c.colour(ds[1]));
+  assert.notEqual(c.colour(ds[0]), c.colour(ds[2]));
+  assert.equal(new Set(ds.filter(d => d.parameters.type === 'straight').map(c.colour)).size, 3);
+  assert.deepEqual(ds, before);
+  assert.equal(c.legend(ds).length, 5);
+  assert.deepEqual(C.build(ds.slice().reverse()).legend(ds), c.legend(ds));
+});
+test('packs are independent and digital/border/routed pieces keep original artwork', () => {
+  const a = d('a', 'curve', 200),
+    b = { ...d('b', 'curve', 400), pack: 'Other' },
+    c = C.build([a, b]);
+  assert.equal(c.colour(a), c.colour(b));
+  for (const p of [
+    { type: 'straight-border' },
+    { type: 'reference' },
+    { type: 'straight', routed: {} },
+    { type: 'straight', laneChange: 'both' },
+  ])
+    assert.equal(C.eligible({ ...a, parameters: p }), false);
+});

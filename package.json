@@ -1,0 +1,134 @@
+{
+  "name": "slotforge-circuit",
+  "version": "0.4.0",
+  "description": "SlotForge Circuit: slotcar track designer",
+  "author": "theDutchmanJames",
+  "homepage": "https://github.com/theDutchmanJames/SlotForgeCircuit",
+  "private": true,
+  "main": "desktop/main.cjs",
+  "license": "SEE LICENSE IN LICENSE",
+  "scripts": {
+    "start": "electron .",
+    "start:portable": "electron . --portable-data-dir=.qa/portable",
+    "test": "node desktop/run-tests.cjs",
+    "test:desktop": "node desktop/smoke.cjs",
+    "format": "prettier --write \"app/*.{js,cjs,css,html}\" \"desktop/*.cjs\" \"installer/*.cjs\" \"track-packs/tools/*.cjs\" \"track-packs/custom-library.js\"",
+    "format:check": "prettier --check \"app/*.{js,cjs,css,html}\" \"desktop/*.cjs\" \"installer/*.cjs\" \"track-packs/tools/*.cjs\" \"track-packs/custom-library.js\"",
+    "icons": "electron desktop/build-icon.cjs",
+    "dist:win": "electron-builder --win --publish never",
+    "dist:mac": "electron-builder --mac --publish never",
+    "dist:linux": "electron-builder --linux --publish never",
+    "version:sync": "node desktop/sync-version.cjs",
+    "test:ui": "node desktop/ui-test-runner.cjs"
+  },
+  "devDependencies": {
+    "electron": "45.1.0",
+    "electron-builder": "26.18.1",
+    "prettier": "3.6.2"
+  },
+  "build": {
+    "appId": "nl.slotforge.circuit",
+    "productName": "SlotForge Circuit",
+    "executableName": "SlotForgeCircuit",
+    "asar": false,
+    "directories": {
+      "output": "dist/desktop/v${version}",
+      "buildResources": "desktop/build"
+    },
+    "files": [
+      "package.json",
+      "desktop/*.cjs",
+      "!desktop/*.test.cjs",
+      "!desktop/smoke.cjs",
+      "!desktop/ui-tests.cjs",
+      "!desktop/ui-test-runner.cjs",
+      "!desktop/build-icon.cjs",
+      "!desktop/run-tests.cjs",
+      "!desktop/sync-version.cjs",
+      "!desktop/build-desktop.cjs",
+      "app/**/*",
+      "!app/**/*.test.cjs",
+      "!app/test-source.cjs",
+      "!app/*.png",
+      "app/icon.png",
+      "!app/package-files.json",
+      "!app/package-share.py",
+      "designs/**/*",
+      "!designs/*.zip",
+      "track-packs/**/*",
+      "!track-packs/*.zip",
+      "LICENSE",
+      "THIRD-PARTY-NOTICES.txt"
+    ],
+    "extraResources": [
+      {
+        "from": "LICENSE",
+        "to": "SlotForge-Circuit-LICENSE.txt"
+      },
+      {
+        "from": "THIRD-PARTY-NOTICES.txt",
+        "to": "THIRD-PARTY-NOTICES.txt"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "app/icon.ico",
+      "signExecutable": false
+    },
+    "portable": {
+      "artifactName": "SlotForgeCircuit-${version}-Portable-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SlotForge Circuit",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "packElevateHelper": false,
+      "artifactName": "SlotForgeCircuit-${version}-Setup-${arch}.${ext}"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "desktop/build/icon-1024.png",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "notarize": false,
+      "artifactName": "SlotForgeCircuit-${version}-mac-${arch}.${ext}"
+    },
+    "dmg": {
+      "title": "SlotForge Circuit ${version}"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Graphics",
+      "icon": "desktop/build/icon-1024.png",
+      "maintainer": "theDutchmanJames",
+      "synopsis": "Slotcar track designer",
+      "artifactName": "SlotForgeCircuit-${version}-linux-${arch}.${ext}"
+    },
+    "fileAssociations": [
+      {
+        "ext": "slotforge",
+        "name": "SlotForge track",
+        "description": "SlotForge Circuit track",
+        "role": "Editor",
+        "mimeType": "application/x-slotforge-track",
+        "icon": "app/icon"
+      }
+    ]
+  }
+}

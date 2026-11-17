@@ -1,23 +1,296 @@
-(function(root){'use strict';
-const F=root.Forge,A=root.FreeFormTools,T=root.DesignTools,FF=F.FreeForm;
-function init(h){
- const toolbar=document.querySelector('.ff-toolbar');let buttonHost=toolbar,menu=null;const button=(text,fn)=>{const b=document.createElement('button');b.className='btn';b.type='button';b.textContent=text;b.onclick=()=>{try{fn();if(menu)menu.open=false;}catch(e){h.error(e);}};buttonHost.append(b);return b;};let curvature=false,envelope=false,driftMm=0,measuring=false,first=null;
- const dialog=document.createElement('dialog');dialog.id='freeform-tools-dialog';dialog.className='design-tool-dialog';document.body.append(dialog);
- const make=(tag,text,host)=>{const el=document.createElement(tag);if(text)el.textContent=text;host?.append(el);return el;};
- function open(title){dialog.replaceChildren();const header=make('div',null,dialog);header.className='dialog-heading';make('h2',title,header);const close=make('button','×',header);close.className='btn';close.onclick=()=>dialog.close();const body=make('div',null,dialog);body.className='design-tool-body';dialog.showModal();return body;}
- function field(body,label,type,value){const l=make('label',label,body);l.className='field';const input=make(type==='select'?'select':'input',null,l);if(type!=='select')input.type=type;input.value=value??'';return input;}
- function act(body,name,fn){const b=make('button',name,body);b.className=/^Apply/.test(name)?'btn primary':'btn';b.onclick=()=>{try{fn();}catch(e){const error=body.querySelector('[role=alert]')||make('p',null,body);error.setAttribute('role','alert');error.textContent=e.message;}};return b;}
- function preview(body,m,profile){const d=FF.definition(m,profile),svg=body.querySelector('svg')||document.createElementNS('http://www.w3.org/2000/svg','svg');svg.classList.add('tool-preview');body.append(svg);const b=d.geometry.boundsMm;svg.setAttribute('viewBox',[b[0]-50,b[1]-50,b[2]+100,b[3]+100].join(' '));svg.innerHTML=F.Routed.draw(d);return d;}
- function stretch(){const s=h.get(),body=open('Edit a continuous stretch'),start=field(body,'Start anchor','select'),end=field(body,'Finish anchor (following drawing direction)','select');for(const select of[start,end])for(const [i,n]of s.model.nodes.entries()){const o=make('option','Point '+(i+1),select);o.value=n.id;}start.value=s.selected||s.model.nodes[0]?.id;const index=s.model.nodes.findIndex(n=>n.id===start.value);end.value=s.model.nodes[(index+1)%s.model.nodes.length]?.id;const operation=field(body,'Operation','select');for(const name of ['Squeeze','Spread','Ramp']){const o=make('option',name,operation);o.value=name.toLowerCase();}const spacing=field(body,'Target slot spacing · mm','number',Math.round(s.profile.laneSpacingMm*.8)),peak=field(body,'Peak position along stretch · %','number',50),transition=field(body,'Distance from normal spacing to peak · mm (blank = longest smooth transition)','number',''),z0=field(body,'Ramp start height · mm','number',0),z1=field(body,'Ramp end height · mm','number',100);make('p','Insert anchors on the drawing to choose precise limits. A stretch can pass through multiple curves or across the closing seam. Preview before applying. The drawn slot stays fixed.',body).className='fine';const note=make('p',null,body);let proposed=null,splits=[];
-  function visibility(){const ramp=operation.value==='ramp';for(const el of[spacing,peak,transition])el.parentElement.hidden=ramp;z0.parentElement.hidden=z1.parentElement.hidden=!ramp;}visibility();operation.onchange=()=>{spacing.value=operation.value==='spread'?Math.min(300,s.profile.laneSpacingMm*1.2):s.profile.laneSpacingMm*.8;visibility();proposed=null;};for(const input of[start,end,spacing,peak,transition,z0,z1])input.oninput=()=>{proposed=null;note.textContent='Preview your changes before applying.';};
-  act(body,'Preview',()=>{if(operation.value==='ramp'){const out=A.ramp(s.model,s.profile,start.value,end.value,+z0.value,+z1.value);proposed=out.model;splits=out.splits;note.textContent='Smooth height progression with '+out.model.nodes.length+' anchors; sampled maximum gradient '+out.maxGradientPct.toFixed(1)+'%. Review bridge clearances.';}else{splits=[];const indices=A.span(s.model,start.value,end.value),length=indices.reduce((n,i)=>n+F.Routed.Spline.arcMeasure(FF.controls(s.model,i)).length,0),p=+peak.value/100,t=transition.value===''?Math.min(p,1-p):+transition.value/length,out=A.spacing(s.model,s.profile,start.value,end.value,{mode:operation.value,spacingMm:+spacing.value,peak:p,transition:t});proposed=out.model;note.textContent='Stretch '+out.lengthMm.toFixed(1)+' mm. Transition '+(t*length).toFixed(1)+' mm each side of the peak.';}const d=preview(body,proposed,s.profile);if(!d.geometry.valid){note.textContent+=' Geometry checks: '+d.geometry.issues.map(i=>i.message).join(' ');proposed=null;}});
-  act(body,'Apply preview',()=>{if(!proposed)throw Error('Preview the current settings first.');h.apply(proposed,JSON.stringify(s.model),splits);dialog.close();});
- }
- function smooth(){const s=h.get(),body=open('Smooth selected joins'),proposed=A.smooth(s.model,s.selectedIds),d=preview(body,proposed,s.profile);make('p','Anchors and unselected handles stay fixed. Selected handles align while retaining their lengths where possible. '+(d.geometry.valid?'Review the new shape before applying.':d.geometry.issues.map(i=>i.message).join(' ')),body);act(body,'Apply smoothing',()=>{h.apply(proposed,JSON.stringify(s.model));dialog.close();}).disabled=!d.geometry.valid;}
- function cars(){const s=h.get(),body=open('Car clearance envelope'),size=F.PreviewCar.dimensions(s.car),drift=field(body,'Lateral drift allowance · mm','number',driftMm);make('p',`Using ${size.lengthMm} × ${size.widthMm} mm from Tune profile. Sampled body rectangles show approximate overhang, not a vehicle simulation.`,body);const list=make('div',null,body);act(body,'Show & check',()=>{if(!Number.isFinite(+drift.value)||+drift.value<0||+drift.value>300)throw Error('Use a drift allowance from 0 to 300 mm.');driftMm=+drift.value;envelope=true;h.render();const d=FF.definition(s.model,s.profile),p=F.pose(d);const issues=T.clearance([p],{[d.id]:d},s.table,size,driftMm);list.replaceChildren();for(const issue of issues)act(list,issue.message,()=>{dialog.close();h.focus(issue);});if(!issues.length)make('p','No conflicts in the sampled review.',list);});act(body,'Hide envelopes',()=>{envelope=false;h.render();dialog.close();});}
- button('Stretch spacing / ramp…',stretch).id='ff-stretch-tools';button('Smooth selected joins…',smooth).id='ff-smooth-selection';menu=make('details',null,toolbar);menu.className='ff-design-menu';make('summary','View & measure',menu);buttonHost=make('div',null,menu);button('Curvature colours',()=>{curvature=!curvature;h.render();}).id='ff-curvature';button('Car envelopes…',cars);button('Reference image…',()=>h.reference());const measure=button('Measure',()=>{measuring=!measuring;first=null;measure.setAttribute('aria-pressed',String(measuring));});measure.id='ff-measure';
- const legend=make('p','Slot radius colours: red <150 · orange <300 · yellow <600 · green <1,200 · blue ≥1,200 mm (straight).');legend.className='fine ff-curvature-legend';legend.hidden=true;toolbar.after(legend);const svg=document.getElementById('ff-canvas');svg.addEventListener('pointerdown',e=>{if(!measuring||e.button!==0)return;e.preventDefault();e.stopImmediatePropagation();const p=h.world(e);if(!first)first=p;else{h.measure(first,p);first=null;measuring=false;measure.setAttribute('aria-pressed','false');}},true);svg.addEventListener('keydown',e=>{if(e.key==='Escape'){first=null;measuring=false;measure.setAttribute('aria-pressed','false');}});
- return{render(d){legend.hidden=!curvature;const s=h.get(),p=F.pose(d);document.getElementById('ff-curvature').setAttribute('aria-pressed',String(curvature));return T.overlay([p],{[d.id]:d},{curvature,envelope,...F.PreviewCar.dimensions(s.car),driftMm});}};
-}
-root.FreeFormToolsUI={init};
+(function (root) {
+  'use strict';
+  const F = root.Forge,
+    A = root.FreeFormTools,
+    T = root.DesignTools,
+    FF = F.FreeForm;
+  function init(h) {
+    const toolbar = document.querySelector('.ff-toolbar');
+    let buttonHost = toolbar,
+      menu = null;
+    const button = (text, fn) => {
+      const b = document.createElement('button');
+      b.className = 'btn';
+      b.type = 'button';
+      b.textContent = text;
+      b.onclick = () => {
+        try {
+          fn();
+          if (menu) menu.open = false;
+        } catch (e) {
+          h.error(e);
+        }
+      };
+      buttonHost.append(b);
+      return b;
+    };
+    let curvature = false,
+      envelope = false,
+      driftMm = 0,
+      measuring = false,
+      first = null;
+    const dialog = document.createElement('dialog');
+    dialog.id = 'freeform-tools-dialog';
+    dialog.className = 'design-tool-dialog';
+    document.body.append(dialog);
+    const make = (tag, text, host) => {
+      const el = document.createElement(tag);
+      if (text) el.textContent = text;
+      host?.append(el);
+      return el;
+    };
+    function open(title) {
+      dialog.replaceChildren();
+      const header = make('div', null, dialog);
+      header.className = 'dialog-heading';
+      make('h2', title, header);
+      const close = make('button', '×', header);
+      close.className = 'btn';
+      close.onclick = () => dialog.close();
+      const body = make('div', null, dialog);
+      body.className = 'design-tool-body';
+      dialog.showModal();
+      return body;
+    }
+    function field(body, label, type, value) {
+      const l = make('label', label, body);
+      l.className = 'field';
+      const input = make(type === 'select' ? 'select' : 'input', null, l);
+      if (type !== 'select') input.type = type;
+      input.value = value ?? '';
+      return input;
+    }
+    function act(body, name, fn) {
+      const b = make('button', name, body);
+      b.className = /^Apply/.test(name) ? 'btn primary' : 'btn';
+      b.onclick = () => {
+        try {
+          fn();
+        } catch (e) {
+          const error = body.querySelector('[role=alert]') || make('p', null, body);
+          error.setAttribute('role', 'alert');
+          error.textContent = e.message;
+        }
+      };
+      return b;
+    }
+    function preview(body, m, profile) {
+      const d = FF.definition(m, profile),
+        svg = body.querySelector('svg') || document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.classList.add('tool-preview');
+      body.append(svg);
+      const b = d.geometry.boundsMm;
+      svg.setAttribute('viewBox', [b[0] - 50, b[1] - 50, b[2] + 100, b[3] + 100].join(' '));
+      svg.innerHTML = F.Routed.draw(d);
+      return d;
+    }
+    function stretch() {
+      const s = h.get(),
+        body = open('Edit a continuous stretch'),
+        start = field(body, 'Start anchor', 'select'),
+        end = field(body, 'Finish anchor (following drawing direction)', 'select');
+      for (const select of [start, end])
+        for (const [i, n] of s.model.nodes.entries()) {
+          const o = make('option', 'Point ' + (i + 1), select);
+          o.value = n.id;
+        }
+      start.value = s.selected || s.model.nodes[0]?.id;
+      const index = s.model.nodes.findIndex(n => n.id === start.value);
+      end.value = s.model.nodes[(index + 1) % s.model.nodes.length]?.id;
+      const operation = field(body, 'Operation', 'select');
+      for (const name of ['Squeeze', 'Spread', 'Ramp']) {
+        const o = make('option', name, operation);
+        o.value = name.toLowerCase();
+      }
+      const spacing = field(body, 'Target slot spacing · mm', 'number', Math.round(s.profile.laneSpacingMm * 0.8)),
+        peak = field(body, 'Peak position along stretch · %', 'number', 50),
+        transition = field(
+          body,
+          'Distance from normal spacing to peak · mm (blank = longest smooth transition)',
+          'number',
+          ''
+        ),
+        z0 = field(body, 'Ramp start height · mm', 'number', 0),
+        z1 = field(body, 'Ramp end height · mm', 'number', 100);
+      make(
+        'p',
+        'Insert anchors on the drawing to choose precise limits. A stretch can pass through multiple curves or across the closing seam. Preview before applying. The drawn slot stays fixed.',
+        body
+      ).className = 'fine';
+      const note = make('p', null, body);
+      let proposed = null,
+        splits = [];
+      function visibility() {
+        const ramp = operation.value === 'ramp';
+        for (const el of [spacing, peak, transition]) el.parentElement.hidden = ramp;
+        z0.parentElement.hidden = z1.parentElement.hidden = !ramp;
+      }
+      visibility();
+      operation.onchange = () => {
+        spacing.value =
+          operation.value === 'spread' ? Math.min(300, s.profile.laneSpacingMm * 1.2) : s.profile.laneSpacingMm * 0.8;
+        visibility();
+        proposed = null;
+      };
+      for (const input of [start, end, spacing, peak, transition, z0, z1])
+        input.oninput = () => {
+          proposed = null;
+          note.textContent = 'Preview your changes before applying.';
+        };
+      act(body, 'Preview', () => {
+        if (operation.value === 'ramp') {
+          const out = A.ramp(s.model, s.profile, start.value, end.value, +z0.value, +z1.value);
+          proposed = out.model;
+          splits = out.splits;
+          note.textContent =
+            'Smooth height progression with ' +
+            out.model.nodes.length +
+            ' anchors; sampled maximum gradient ' +
+            out.maxGradientPct.toFixed(1) +
+            '%. Review bridge clearances.';
+        } else {
+          splits = [];
+          const indices = A.span(s.model, start.value, end.value),
+            length = indices.reduce((n, i) => n + F.Routed.Spline.arcMeasure(FF.controls(s.model, i)).length, 0),
+            p = +peak.value / 100,
+            t = transition.value === '' ? Math.min(p, 1 - p) : +transition.value / length,
+            out = A.spacing(s.model, s.profile, start.value, end.value, {
+              mode: operation.value,
+              spacingMm: +spacing.value,
+              peak: p,
+              transition: t,
+            });
+          proposed = out.model;
+          note.textContent =
+            'Stretch ' +
+            out.lengthMm.toFixed(1) +
+            ' mm. Transition ' +
+            (t * length).toFixed(1) +
+            ' mm each side of the peak.';
+        }
+        const d = preview(body, proposed, s.profile);
+        if (!d.geometry.valid) {
+          note.textContent += ' Geometry checks: ' + d.geometry.issues.map(i => i.message).join(' ');
+          proposed = null;
+        }
+      });
+      act(body, 'Apply preview', () => {
+        if (!proposed) throw Error('Preview the current settings first.');
+        h.apply(proposed, JSON.stringify(s.model), splits);
+        dialog.close();
+      });
+    }
+    function smooth() {
+      const s = h.get(),
+        body = open('Smooth selected joins'),
+        proposed = A.smooth(s.model, s.selectedIds),
+        d = preview(body, proposed, s.profile);
+      make(
+        'p',
+        'Anchors and unselected handles stay fixed. Selected handles align while retaining their lengths where possible. ' +
+          (d.geometry.valid
+            ? 'Review the new shape before applying.'
+            : d.geometry.issues.map(i => i.message).join(' ')),
+        body
+      );
+      act(body, 'Apply smoothing', () => {
+        h.apply(proposed, JSON.stringify(s.model));
+        dialog.close();
+      }).disabled = !d.geometry.valid;
+    }
+    function cars() {
+      const s = h.get(),
+        body = open('Car clearance envelope'),
+        size = F.PreviewCar.dimensions(s.car),
+        drift = field(body, 'Lateral drift allowance · mm', 'number', driftMm);
+      make(
+        'p',
+        `Using ${size.lengthMm} × ${size.widthMm} mm from Tune profile. Sampled body rectangles show approximate overhang, not a vehicle simulation.`,
+        body
+      );
+      const list = make('div', null, body);
+      act(body, 'Show & check', () => {
+        if (!Number.isFinite(+drift.value) || +drift.value < 0 || +drift.value > 300)
+          throw Error('Use a drift allowance from 0 to 300 mm.');
+        driftMm = +drift.value;
+        envelope = true;
+        h.render();
+        const d = FF.definition(s.model, s.profile),
+          p = F.pose(d);
+        const issues = T.clearance([p], { [d.id]: d }, s.table, size, driftMm);
+        list.replaceChildren();
+        for (const issue of issues)
+          act(list, issue.message, () => {
+            dialog.close();
+            h.focus(issue);
+          });
+        if (!issues.length) make('p', 'No conflicts in the sampled review.', list);
+      });
+      act(body, 'Hide envelopes', () => {
+        envelope = false;
+        h.render();
+        dialog.close();
+      });
+    }
+    button('Stretch spacing / ramp…', stretch).id = 'ff-stretch-tools';
+    button('Smooth selected joins…', smooth).id = 'ff-smooth-selection';
+    menu = make('details', null, toolbar);
+    menu.className = 'ff-design-menu';
+    make('summary', 'View & measure', menu);
+    buttonHost = make('div', null, menu);
+    button('Curvature colours', () => {
+      curvature = !curvature;
+      h.render();
+    }).id = 'ff-curvature';
+    button('Car envelopes…', cars);
+    button('Reference image…', () => h.reference());
+    const measure = button('Measure', () => {
+      measuring = !measuring;
+      first = null;
+      measure.setAttribute('aria-pressed', String(measuring));
+    });
+    measure.id = 'ff-measure';
+    const legend = make(
+      'p',
+      'Slot radius colours: red <150 · orange <300 · yellow <600 · green <1,200 · blue ≥1,200 mm (straight).'
+    );
+    legend.className = 'fine ff-curvature-legend';
+    legend.hidden = true;
+    toolbar.after(legend);
+    const svg = document.getElementById('ff-canvas');
+    svg.addEventListener(
+      'pointerdown',
+      e => {
+        if (!measuring || e.button !== 0) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const p = h.world(e);
+        if (!first) first = p;
+        else {
+          h.measure(first, p);
+          first = null;
+          measuring = false;
+          measure.setAttribute('aria-pressed', 'false');
+        }
+      },
+      true
+    );
+    svg.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        first = null;
+        measuring = false;
+        measure.setAttribute('aria-pressed', 'false');
+      }
+    });
+    return {
+      render(d) {
+        legend.hidden = !curvature;
+        const s = h.get(),
+          p = F.pose(d);
+        document.getElementById('ff-curvature').setAttribute('aria-pressed', String(curvature));
+        return T.overlay([p], { [d.id]: d }, { curvature, envelope, ...F.PreviewCar.dimensions(s.car), driftMm });
+      },
+    };
+  }
+  root.FreeFormToolsUI = { init };
 })(window);

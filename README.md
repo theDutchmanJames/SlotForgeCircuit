@@ -56,7 +56,16 @@ The right-hand **Track tools** panel keeps a compact track summary above expanda
 
 **Quickly identify your pieces:** switch **Colour by piece** on above the left-hand catalogue. Curve radii and straight lengths get distinct colours in the catalogue and layout. Expand **Piece colour key** for the legend. Switch it off to restore normal artwork; saved colours and exports are unchanged.
 
-Dimensions are physical **millimetres**. A pack's model scale describes the cars and track system; it does not shrink or enlarge the pieces in your plan.
+Dimensions are physical **millimetres**. A pack's model scale describes the cars and track system; it does not shrink or enlarge the pieces in your plan. Prefer inches? Choose **Settings → Measurement units → Imperial** to see lengths, footprints, speeds and the PDF report in inches and feet; number fields stay in millimetres and show the inch equivalent beside them.
+
+### Start quickly and work faster
+
+- **Welcome screen:** the first start asks what you want to plan (plastic track, routed wood, a free drawing or the example) and takes you there. Open it again from the **?** button in the header.
+- **Templates:** **File → Start from a template…** builds a compact oval, long oval, club rectangle or wide oval from your system's standard straight and curves, so it closes exactly. A **figure eight with a bridge** starts in FreeForm.
+- **File menu:** Save to Library stays one click away; New track, Open, Export and the PDF report sit under **File ▾**.
+- **Right-click** a piece to rotate, mirror, duplicate, add borders, set heights, lock or delete it; right-click empty canvas to fit the track or add a space guide.
+- **Keyboard shortcuts:** press **?** for the full list. Ctrl+Z/Y undo and redo, R rotates, M mirrors, Ctrl+D duplicates, Delete removes, Ctrl+N/O/S for new, open and export.
+- **Shorter help:** long explanations show their first sentence with a **More** link.
 
 ### Measure, organise and check a design
 
@@ -107,7 +116,7 @@ Apply the change to just that selected piece, and optionally **save the variant 
 
 ### Design routed wood tracks
 
-Use **Routed Wood** to plan straights, circular corners and flowing Bézier curves. Work with separate wooden sections or route slots into a continuous tabletop:
+Use **Routed Wood** to plan straights, circular corners and flowing Bézier curves. The routing profile sits in a side panel on the left, with its preview, materials estimate and planning checks beside it. Work with separate wooden sections or route slots into a continuous tabletop:
 
 - **Individual piece:** each section has its own wood outline and edge clearances.
 - **Tabletop routing:** the table defines the boundary, so imaginary section edges do not limit a continuous routed layout.
@@ -172,7 +181,9 @@ Run **Live Preview** on a supported closed circuit to watch two cars follow its 
 
 In **Tune profile → Car size**, choose **1:32, 1:24, 1:42 or 1:64**, or enter a custom car length and width in millimetres. Both preview cars use those physical dimensions and zoom with the track. The presets scale a generic 4.5 m × 1.8 m car; use Custom for the dimensions of your actual model. Car size is saved with the track and does not change the driving profile.
 
-The profile shapes an illustrative animation. It does not predict real lap times, check collisions or replace physical testing.
+**Lap times:** **Tune profile → Lap times** shows a lap time and average speed for every lane, and how far each lane is behind the fastest. They use the same speed plan as Live Preview, so they are as realistic as your profile: set top speed, acceleration, braking and cornering to match your cars. Real laps also depend on motor, tyres, guide and driver; the preview does not check collisions or replace physical testing.
+
+**Side view of heights:** once a circuit has heights, **Heights & bridges** shows the height along the lap for lane 1, with the highest point and the steepest climb; climbs over 10% are flagged. FreeForm shows the same side view under **Checks**.
 
 ### Keep a Track Library
 
@@ -191,6 +202,8 @@ Opening the HTML file directly uses browser storage instead of the installed dis
 ### Import, share and export
 
 The **Import & Export** page separates **Tracks** from **Track Packs**, with a selector for exactly what you want to export.
+
+**In the desktop app:** **File → Open track file…** and every export use your system's Open and Save dialogs, starting in the folder you used last. Track files are saved as **`.slotforge`** by default; double-click one to open it in Circuit. Choose *Track JSON for SlotForge Timing* in the Save dialog for a `.slotforge.json` file. Recently used files are listed in the **File** menu (and in the Windows jump list or macOS Dock menu).
 
 **To share an editable track:** choose your current builder track or a saved Track Library entry, then click **Export track JSON**. The `.slotforge.json` file carries the layout and its piece definitions. On another computer, choose **Import track JSON**, open the file, then **Save to Library** to keep a named copy. Importing offers a chance to export the current track before replacing it.
 
@@ -233,7 +246,39 @@ Track artwork keeps its physical colours, and PDF reports remain printer-friendl
 
 ## How to install
 
-**Circuit runs in your browser.** The installer places the app and a local helper on your computer so tracks and custom packs can be saved to disk. You do not need an account, npm or a manual Node.js installation.
+Circuit is a desktop app for **Windows, macOS and Linux**. Pick the **installer** to add it to your computer, or the **portable app** to run it from any folder or USB stick without installing. Open the **[latest release](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/latest)** and download the file for your system from its Assets:
+
+| System | Installer | Portable app |
+| --- | --- | --- |
+| Windows | `SlotForgeCircuit-<version>-Setup-x64.exe` | `SlotForgeCircuit-<version>-Portable-x64.exe` |
+| macOS (Intel and Apple Silicon) | `SlotForgeCircuit-<version>-mac-universal.dmg` | `SlotForgeCircuit-<version>-mac-universal.zip` |
+| Linux | `SlotForgeCircuit-<version>-linux-amd64.deb` | `SlotForgeCircuit-<version>-linux-x86_64.AppImage` |
+
+- **Windows installer:** run Setup and choose where to install. It adds Start menu and desktop shortcuts and can be removed from *Settings → Apps*. Windows may show a SmartScreen warning because the app is not code-signed: choose **More info → Run anyway**.
+- **Windows portable:** put the `.exe` in a folder of its own and double-click it.
+- **macOS installer:** open the DMG and drag **SlotForge Circuit** into **Applications**. The first time, right-click the app and choose **Open**, because it is not notarised by Apple.
+- **macOS portable:** unzip, then use Finder to move the folder holding **SlotForge Circuit** out of Downloads (for example to Documents or a USB drive) before opening it.
+- **Linux installer:** open the `.deb` with your package manager, or run `sudo apt install ./SlotForgeCircuit-<version>-linux-amd64.deb`.
+- **Linux portable:** mark the AppImage as executable (`chmod +x`), then run it.
+
+**Where your work is saved**
+
+- **Installed app:** the same data folder as earlier Circuit / Track Builder installs (`%LOCALAPPDATA%\SlotForgeTrackBuilder\data` on Windows, `~/Library/Application Support/SlotForgeTrackBuilder/data` on macOS, `~/.local/share/SlotForgeTrackBuilder/data` on Linux). Your existing Track Library opens straight away. Uninstalling keeps it.
+- **Portable app:** a **SlotForge Circuit Data** folder created beside the program. Copy or move them together. Nothing is stored elsewhere on the computer.
+
+**Updates:** Circuit tells you when a new version is published: a small **Circuit x.y.z is available** notice appears, with **Download** (opens the release page in your browser) and **Not now** (hides it until an even newer version appears). It asks GitHub for the newest version number about 15 seconds after starting and at most twice a day; nothing about you or your tracks is sent, and Circuit never downloads or installs anything by itself. **Settings → Updates** shows your version, has **Check now**, and turns the automatic check off. To update, download the new installer or portable app and run it as before; your saved work stays where it is.
+
+*Help → Show data folder* opens the folder in use. Close the browser edition (Storage → Stop local app) before opening the desktop app on the same data; Circuit warns you if it is still running.
+
+### Build the downloads yourself
+
+The installers and portable apps are built with Electron. On each system, with Node.js 24 or newer, run **Build Windows.cmd**, **Build macOS.command** or `sh "Build Linux.sh"`. Each one installs its build tools, runs the tests, builds the installer and portable app into `dist/desktop/v<version>/`, and checks that the built app starts.
+
+For development, `npm install` then `npm start` opens the app from the source files. `npm test` runs the unit tests, `npm run test:ui` clicks through the real app in a hidden window (28 interface tests), and `npm run format` tidies the code with Prettier. The version number is set only in `app/integration.js`; `npm run version:sync` (and every build) copies it into `package.json`.
+
+### Browser edition (previous installer)
+
+The earlier browser-based setup is still available. It runs Circuit in your web browser with a small local helper. You do not need an account, npm or a manual Node.js installation.
 
 1. Open the **[latest release](https://github.com/theDutchmanJames/SlotForgeCircuit/releases/latest)** and download the **complete ZIP package** from its Assets.
 2. **Extract the entire ZIP** into a folder.

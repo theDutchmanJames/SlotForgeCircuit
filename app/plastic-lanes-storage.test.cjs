@@ -1,6 +1,61 @@
-const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path'),{DiskStore}=require('./disk-store.cjs'),F=require('./core.js'),I=require('./integration.js'),CP=require('./custom-packs.js');
-test('adjusted plastic slots survive SQLite save, reopen and workspace backup',async t=>{
- const dir=await fs.mkdtemp(path.join(os.tmpdir(),'circuit-plastic-lanes-'));let store;t.after(async()=>{await store?.close();assert.ok(path.basename(dir).startsWith('circuit-plastic-lanes-'));await fs.rm(dir,{recursive:true,force:true});});store=await new DiskStore(dir).init();
- const d=F.validateDefinition({id:'custom:spread',name:'Spread corner',pack:'Custom / unbranded',family:'custom',parameters:{type:'curve',innerRadiusMm:400,angleDeg:90,widthMm:300,laneCount:3,laneSpacingMm:90,laneAdjustment:{version:1,mode:'spread',spacingMm:110,anchor:'inner'}}}),lib=CP.empty();lib.packs[0].pieces=[d];await store.putPacks(CP.serialize(lib),null);
- const raw=I.prepare({format:'slotforge.layout',version:1,units:'mm',title:'Plastic spread',pieces:[F.pose(d)],definitions:[d]});await store.putCurrent(raw,null,null);const saved=await store.putDesign(raw,null);await store.close();store=await new DiskStore(dir).init();const workspace=await store.read();assert.equal(workspace.packs.data.version,4);const current=await store.current();assert.deepEqual(current.data.definitions[0].parameters.laneAdjustment,d.parameters.laneAdjustment);assert.equal((await store.list()).some(r=>r.id===saved.id),true);const backup=await store.exportBundle();assert.ok(JSON.stringify(backup).includes('"laneAdjustment"'));assert.deepEqual(CP.read(workspace.packs.data).packs[0].pieces[0].geometry,d.geometry);assert.deepEqual(I.prepare(current.data).preparedGeometry,raw.preparedGeometry);
+const test = require('node:test'),
+  assert = require('node:assert/strict'),
+  fs = require('node:fs/promises'),
+  os = require('node:os'),
+  path = require('node:path'),
+  { DiskStore } = require('./disk-store.cjs'),
+  F = require('./core.js'),
+  I = require('./integration.js'),
+  CP = require('./custom-packs.js');
+test('adjusted plastic slots survive SQLite save, reopen and workspace backup', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'circuit-plastic-lanes-'));
+  let store;
+  t.after(async () => {
+    await store?.close();
+    assert.ok(path.basename(dir).startsWith('circuit-plastic-lanes-'));
+    await fs.rm(dir, { recursive: true, force: true });
+  });
+  store = await new DiskStore(dir).init();
+  const d = F.validateDefinition({
+      id: 'custom:spread',
+      name: 'Spread corner',
+      pack: 'Custom / unbranded',
+      family: 'custom',
+      parameters: {
+        type: 'curve',
+        innerRadiusMm: 400,
+        angleDeg: 90,
+        widthMm: 300,
+        laneCount: 3,
+        laneSpacingMm: 90,
+        laneAdjustment: { version: 1, mode: 'spread', spacingMm: 110, anchor: 'inner' },
+      },
+    }),
+    lib = CP.empty();
+  lib.packs[0].pieces = [d];
+  await store.putPacks(CP.serialize(lib), null);
+  const raw = I.prepare({
+    format: 'slotforge.layout',
+    version: 1,
+    units: 'mm',
+    title: 'Plastic spread',
+    pieces: [F.pose(d)],
+    definitions: [d],
+  });
+  await store.putCurrent(raw, null, null);
+  const saved = await store.putDesign(raw, null);
+  await store.close();
+  store = await new DiskStore(dir).init();
+  const workspace = await store.read();
+  assert.equal(workspace.packs.data.version, 4);
+  const current = await store.current();
+  assert.deepEqual(current.data.definitions[0].parameters.laneAdjustment, d.parameters.laneAdjustment);
+  assert.equal(
+    (await store.list()).some(r => r.id === saved.id),
+    true
+  );
+  const backup = await store.exportBundle();
+  assert.ok(JSON.stringify(backup).includes('"laneAdjustment"'));
+  assert.deepEqual(CP.read(workspace.packs.data).packs[0].pieces[0].geometry, d.geometry);
+  assert.deepEqual(I.prepare(current.data).preparedGeometry, raw.preparedGeometry);
 });

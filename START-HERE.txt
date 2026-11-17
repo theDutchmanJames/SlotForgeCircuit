@@ -1,4 +1,10 @@
-SLOTFORGE CIRCUIT v0.3.27
+SLOTFORGE CIRCUIT v0.4.0
+
+DESKTOP APP: Circuit is also available as a desktop app with its own window:
+SlotForgeCircuit-0.4.0-Setup-x64.exe (installer) or -Portable-x64.exe on Windows,
+a .dmg or .zip on macOS, and a .deb or .AppImage on Linux. The installed desktop
+app opens the same saved library as this browser edition. The steps below are
+for the browser edition in this ZIP.
 
 Previously SlotForge Track Builder. Existing launchers, saved tracks and custom
 packs still work. For compatibility, the installed folder keeps the original

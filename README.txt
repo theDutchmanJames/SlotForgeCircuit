@@ -1,10 +1,20 @@
-SlotForge Circuit — editor iteration (v0.3.27)
+SlotForge Circuit — editor iteration (v0.4.0)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. The rename does not move your data.
 This update automatically migrates installed JSON workspaces to SQLite.
+
+NEW IN v0.4.0 — DESKTOP APP, TEMPLATES, LAP TIMES AND EASIER EDITING
+Circuit is now also a desktop app for Windows, macOS and Linux, as an installer
+or a portable app. Installed copies open the existing saved library. New:
+templates for every track system, a figure eight with a bridge in FreeForm,
+lap times per lane from the Tune profile, a side view of track heights,
+inches/feet display, a File menu with recent files, double-click .slotforge
+files to open them, right-click piece menus, keyboard shortcut overview (?),
+a first-start welcome screen, a side-panel Routed Wood layout and shorter help
+texts. Fixed: the track could be off-screen after starting on another page.
 
 NEW IN v0.3.27 — BRANDING AND PANEL ALIGNMENT
 New Circuit SVG header beside the app icon and slogan, plus a small SlotForge

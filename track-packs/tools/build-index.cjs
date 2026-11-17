@@ -1,3 +1,7 @@
 // Preserve old catalogue bookmarks while keeping pack management in one workspace.
-const fs=require('node:fs'),path=require('node:path');
-fs.writeFileSync(path.resolve(__dirname,'../index.html'),`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=../app/index.html#packs"><title>SlotForge Circuit · Track Packs</title><link rel="icon" type="image/svg+xml" href="../app/icon.svg"></head><body><p>Track packs now live in Circuit.</p><a href="../app/index.html#packs">Open Track Packs</a></body></html>\n`);
+const fs = require('node:fs'),
+  path = require('node:path');
+fs.writeFileSync(
+  path.resolve(__dirname, '../index.html'),
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=../app/index.html#packs"><title>SlotForge Circuit · Track Packs</title><link rel="icon" type="image/svg+xml" href="../app/icon.svg"></head><body><p>Track packs now live in Circuit.</p><a href="../app/index.html#packs">Open Track Packs</a></body></html>\n`
+);

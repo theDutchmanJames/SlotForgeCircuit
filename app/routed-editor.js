@@ -1,116 +1,841 @@
-(function(root){'use strict';
-function init(h){
- const F=root.Forge,R=root.RoutedTracks,C=root.RoutedChecks,$=id=>document.getElementById(id),G=F.G;
- const fields=[['laneCount','Lanes',1,8,1],['laneSpacingMm','Slot spacing · mm',10,300,.1],['innerClearanceMm','First-slot edge clearance · mm',10,1000,1],['outerClearanceMm','Last-slot edge clearance · mm',10,1000,1],['minRadiusMm','Preferred minimum slot radius · mm',10,3000,1],['boardThicknessMm','Board thickness · mm',3,50,.1],['slotWidthMm','Guide slot width · mm',.5,10,.1],['slotDepthMm','Guide slot depth · mm',1,30,.1],['conductorWidthMm','Conductor width · mm',1,20,.1],['conductorGapMm','Gap from slot edge · mm',0,15,.1],['conductorThicknessMm','Conductor thickness · mm',.01,5,.01],['adhesiveThicknessMm','Adhesive thickness · mm',0,3,.01],['recessDepthMm','Braid recess depth · mm',0,8,.05],['allowancePct','Conductor allowance · %',0,100,1]];
- for(const[key,label,min,max,step]of fields){const box=document.createElement('label');box.textContent=label;const input=document.createElement('input');Object.assign(input,{type:'number',name:key,min,max,step,required:true});box.append(input);$('routed-fields').append(box);}
- const catalogueFoot=document.querySelector('.catalogue-panel .panel-foot'),plasticFoot=catalogueFoot.textContent;
- const metres=v=>(v/1000).toFixed(2)+' m';let editing=null,draft=null,bridge=null,autoName=false,lastReportKey=null,lastReport=null,lastSavedPack=null,saving=false;
- const curveEditor=root.RoutedCurveEditor.init({change:()=>sectionPreview()});
- const foldField=document.createElement('label');foldField.id='routed-fold-override-field';foldField.className='field';foldField.hidden=true;foldField.innerHTML='<span><input type="checkbox" name="foldOverride" id="routed-fold-override"> Override folds · planning only</span><small>Keep a visual, editable piece even if its slots, braid or wood edges fold or cross. Snapping, saving and PDF pictures remain available. No racing lengths, material estimates or SVG/DXF construction export until repaired and unchecked.</small>';$('routed-section-error').before(foldField);
- const outward=document.createElement('button');outward.id='routed-spread-outward';outward.type='button';outward.className='btn small';outward.hidden=true;$('routed-squeeze-summary').before(outward);
- const spreadHelp=document.createElement('p');spreadHelp.id='routed-spread-help';spreadHelp.className='fine';spreadHelp.hidden=true;outward.after(spreadHelp);
- function spreadInside(){const f=$('routed-section-form').elements,s=JSON.parse($('routed-section-form').dataset.profile);return f.shape.value==='curve'?1:f.shape.value==='routed-spline'?R.Spline.innerLane(curveEditor.read().controlPointsMm,s.laneCount):null;}
- function outwardAnchor(){const f=$('routed-section-form').elements;f.squeezeAnchor.value=String(spreadInside()??'centre');}
- outward.onclick=()=>{try{outwardAnchor();sectionPreview();}catch(e){$('routed-section-error').textContent=e.message;}};
- function spreadHint(){
-  const f=$('routed-section-form').elements,show=f.squeezeEnabled.checked&&f.squeezeMode.value==='spread';outward.hidden=spreadHelp.hidden=!show;if(!show)return;
-  let inside=null;try{inside=spreadInside();}catch{}
-  const anchor=inside??'centre';outward.textContent=inside?'Spread outward · keep Lane '+inside+' fixed':'Spread evenly from centre';
-  const fixed=f.squeezeAnchor.value===String(anchor);outward.disabled=fixed;
-  spreadHelp.textContent=inside?(fixed?'Lane '+inside+' keeps its original rounded path. The other lanes spread outward, returning to normal spacing at both ends.':'This corner’s inner lane is Lane '+inside+'. Keep it fixed to spread outward without pushing it toward the bend centre.'):(fixed?'Lanes spread evenly on both sides of the bundle centre, returning to normal spacing at both ends.':'Use the bundle centre to spread evenly on both sides. Straights and S-bends have no single inside lane.');
- }
- const bridgeButton=document.createElement('button');bridgeButton.id='routed-bridge';bridgeButton.type='button';bridgeButton.className='btn small';bridgeButton.textContent='Fill closing gap…';bridgeButton.title='Create a flowing section between the two open ends';$('routed-setup').after(bridgeButton);
- const reshapeButton=document.createElement('button');reshapeButton.id='routed-close-reshape';reshapeButton.type='button';reshapeButton.className='btn small';reshapeButton.textContent='Reshape to close…';reshapeButton.title='Select one routed section at either open end';bridgeButton.after(reshapeButton);
- const closeHelp=document.createElement('p');closeHelp.className='fine routed-close-help';closeHelp.textContent='Close one remaining gap, or select an end section to reshape. Both options preview the curve before applying.';reshapeButton.after(closeHelp);
- const selectedBridge=document.createElement('button');selectedBridge.id='routed-bridge-selected';selectedBridge.type='button';selectedBridge.className='btn small';selectedBridge.textContent='Bridge selected ends…';selectedBridge.title='Join two selected routed sections, even when other gaps remain';closeHelp.after(selectedBridge);
- const tools=$('routed-controls');
- const heading=document.querySelector('.catalogue-panel .panel-heading');heading.insertBefore(tools,$('custom'));
- tools.addEventListener('click',e=>{if(e.target.closest('button:not(:disabled)'))tools.open=false;});
- document.addEventListener('click',e=>{if(tools.open&&!tools.contains(e.target))tools.open=false;});
- document.addEventListener('keydown',e=>{if(e.key==='Escape'&&tools.open){tools.open=false;tools.querySelector('summary').focus();e.preventDefault();e.stopPropagation();}},true);
- const read=()=>{const f=$('routed-profile-form').elements;return R.settings(Object.fromEntries([...fields.map(([key])=>[key,f[key].value.trim()===''?NaN:Number(f[key].value)]),['conductor',f.conductor.value],['constructionMode',f.constructionMode.value]]));};
- function profilePreview(){try{const s=read();$('routed-width').textContent=R.width(s).toFixed(1)+(s.constructionMode==='table'?' mm slot/conductor footprint · continuous table':' mm piece width');$('routed-profile-error').textContent='';const r=Math.max(300,s.innerClearanceMm+50),d=R.definition(s,{type:'curve',slotRadiusMm:r,angleDeg:90});$('routed-profile-preview').innerHTML=G.svg(R.draw(d),d.geometry.boundsMm,'Routed profile preview');}catch(e){$('routed-profile-error').textContent=e.message;}}
- function fill(){const s=h.get().routed.settings,f=$('routed-profile-form').elements;for(const[key]of fields)f[key].value=s[key];f.conductor.value=s.conductor;f.constructionMode.value=s.constructionMode||'sections';profilePreview();}
- function render(){
-  const model=h.get(),has=model.items.some(p=>model.defs[p.definitionId].parameters.routed),chosen=$('pack').value===R.ID||h.packs().some(p=>p.id===$('pack').value&&p.pieces.length&&p.pieces.every(d=>d.parameters.routed));
-  $('custom').textContent=chosen?'＋ Section':'＋ Custom';catalogueFoot.textContent=chosen?'Click a section to add it. End magnets align matching slot bundles. Select one section to edit its dimensions.':plasticFoot;bridgeButton.disabled=!has;reshapeButton.disabled=model.selectedIds.size!==1||!model.items.some(p=>model.selectedIds.has(p.id)&&model.defs[p.definitionId].parameters.routed);$('routed-controls').hidden=!chosen;$('routed-display').value=model.routed.display;
-  const p=model.items.find(p=>p.id===model.selected),single=model.selectedIds.size===1;
-  heading.querySelector('h2').textContent=chosen?'Sections':'Track pieces';
-  if(!chosen)tools.open=false;
-  selectedBridge.disabled=model.selectedIds.size!==2||model.items.filter(p=>model.selectedIds.has(p.id)&&model.defs[p.definitionId].parameters.routed).length!==2;
-  $('edit-routed-section').hidden=!single||!p||!model.defs[p.definitionId].parameters.routed||model.defs[p.definitionId].parameters.type==='freeform';
-  $('squeeze-routed-section').hidden=!single||!p||!model.defs[p.definitionId].parameters.routed||model.defs[p.definitionId].parameters.routed.laneCount<2||model.defs[p.definitionId].parameters.type==='freeform';
-  if(p&&single&&model.defs[p.definitionId].parameters.routed){$('custom-from').hidden=true;$('add-borders').hidden=$('add-borders').disabled=true;}
-  $('routed-overview').hidden=!has;
-  const reportKey=JSON.stringify([model.items,model.spaceGuide]);if(!lastReport||reportKey!==lastReportKey&&!model.interacting){lastReport={material:R.materials(model.items,model.defs),issues:C.checks(model.items,model.defs,model.spaceGuide)};lastReportKey=reportKey;}const {material,issues}=lastReport;document.body.dataset.routedCatalogue=String(chosen);$('measurement-note').textContent=has?'Routed dimensions are user-entered. Piece outlines and tabletop routing footprints have separate clearance checks; vehicle clearance and heights still need checking.':'Lengths use nominal or user-entered geometry. Footprint is an approximate bounding box; overlap and clearance are not checked.';
-  const badge=$('routed-checks-badge');badge.textContent=model.interacting?'Updating…':issues.length?issues.length+' to check':'Clear';badge.classList.toggle('has-issues',!model.interacting&&issues.length>0);
-  for(const[id,compact]of[['routed-materials',false],['routed-materials-compact',true]]){
-   const host=$(id);host.replaceChildren();const values=[...(material.planningSections?[['Planning-only sections (excluded from quantities)',material.planningSections]]:[]),['Routed design sections',material.sections],['Total slot length',metres(material.slotMm)],['Braid, including allowance',metres(material.orderBraidMm)],['Tape, including allowance',metres(material.orderTapeMm)]];
-   for(const[label,value]of values){const row=document.createElement('p');row.className=compact?'fine':'routed-metric';row.textContent=label+': '+value;host.append(row);}
+(function (root) {
+  'use strict';
+  function init(h) {
+    const F = root.Forge,
+      R = root.RoutedTracks,
+      C = root.RoutedChecks,
+      $ = id => document.getElementById(id),
+      G = F.G;
+    const fields = [
+      ['laneCount', 'Lanes', 1, 8, 1],
+      ['laneSpacingMm', 'Slot spacing · mm', 10, 300, 0.1],
+      ['innerClearanceMm', 'First-slot edge clearance · mm', 10, 1000, 1],
+      ['outerClearanceMm', 'Last-slot edge clearance · mm', 10, 1000, 1],
+      ['minRadiusMm', 'Preferred minimum slot radius · mm', 10, 3000, 1],
+      ['boardThicknessMm', 'Board thickness · mm', 3, 50, 0.1],
+      ['slotWidthMm', 'Guide slot width · mm', 0.5, 10, 0.1],
+      ['slotDepthMm', 'Guide slot depth · mm', 1, 30, 0.1],
+      ['conductorWidthMm', 'Conductor width · mm', 1, 20, 0.1],
+      ['conductorGapMm', 'Gap from slot edge · mm', 0, 15, 0.1],
+      ['conductorThicknessMm', 'Conductor thickness · mm', 0.01, 5, 0.01],
+      ['adhesiveThicknessMm', 'Adhesive thickness · mm', 0, 3, 0.01],
+      ['recessDepthMm', 'Braid recess depth · mm', 0, 8, 0.05],
+      ['allowancePct', 'Conductor allowance · %', 0, 100, 1],
+    ];
+    for (const [key, label, min, max, step] of fields) {
+      const box = document.createElement('label');
+      box.textContent = label;
+      const input = document.createElement('input');
+      Object.assign(input, { type: 'number', name: key, min, max, step, required: true });
+      box.append(input);
+      $('routed-fields').append(box);
+    }
+    const catalogueFoot = document.querySelector('.catalogue-panel .panel-foot'),
+      plasticFoot = catalogueFoot.textContent;
+    const metres = v => (v / 1000).toFixed(2) + ' m';
+    let editing = null,
+      draft = null,
+      bridge = null,
+      autoName = false,
+      lastReportKey = null,
+      lastReport = null,
+      lastSavedPack = null,
+      saving = false;
+    const curveEditor = root.RoutedCurveEditor.init({ change: () => sectionPreview() });
+    const foldField = document.createElement('label');
+    foldField.id = 'routed-fold-override-field';
+    foldField.className = 'field';
+    foldField.hidden = true;
+    foldField.innerHTML =
+      '<span><input type="checkbox" name="foldOverride" id="routed-fold-override"> Override folds · planning only</span><small>Keep a visual, editable piece even if its slots, braid or wood edges fold or cross. Snapping, saving and PDF pictures remain available. No racing lengths, material estimates or SVG/DXF construction export until repaired and unchecked.</small>';
+    $('routed-section-error').before(foldField);
+    const outward = document.createElement('button');
+    outward.id = 'routed-spread-outward';
+    outward.type = 'button';
+    outward.className = 'btn small';
+    outward.hidden = true;
+    $('routed-squeeze-summary').before(outward);
+    const spreadHelp = document.createElement('p');
+    spreadHelp.id = 'routed-spread-help';
+    spreadHelp.className = 'fine';
+    spreadHelp.hidden = true;
+    outward.after(spreadHelp);
+    function spreadInside() {
+      const f = $('routed-section-form').elements,
+        s = JSON.parse($('routed-section-form').dataset.profile);
+      return f.shape.value === 'curve'
+        ? 1
+        : f.shape.value === 'routed-spline'
+          ? R.Spline.innerLane(curveEditor.read().controlPointsMm, s.laneCount)
+          : null;
+    }
+    function outwardAnchor() {
+      const f = $('routed-section-form').elements;
+      f.squeezeAnchor.value = String(spreadInside() ?? 'centre');
+    }
+    outward.onclick = () => {
+      try {
+        outwardAnchor();
+        sectionPreview();
+      } catch (e) {
+        $('routed-section-error').textContent = e.message;
+      }
+    };
+    function spreadHint() {
+      const f = $('routed-section-form').elements,
+        show = f.squeezeEnabled.checked && f.squeezeMode.value === 'spread';
+      outward.hidden = spreadHelp.hidden = !show;
+      if (!show) return;
+      let inside = null;
+      try {
+        inside = spreadInside();
+      } catch {}
+      const anchor = inside ?? 'centre';
+      outward.textContent = inside ? 'Spread outward · keep Lane ' + inside + ' fixed' : 'Spread evenly from centre';
+      const fixed = f.squeezeAnchor.value === String(anchor);
+      outward.disabled = fixed;
+      spreadHelp.textContent = inside
+        ? fixed
+          ? 'Lane ' +
+            inside +
+            ' keeps its original rounded path. The other lanes spread outward, returning to normal spacing at both ends.'
+          : 'This corner’s inner lane is Lane ' +
+            inside +
+            '. Keep it fixed to spread outward without pushing it toward the bend centre.'
+        : fixed
+          ? 'Lanes spread evenly on both sides of the bundle centre, returning to normal spacing at both ends.'
+          : 'Use the bundle centre to spread evenly on both sides. Straights and S-bends have no single inside lane.';
+    }
+    const bridgeButton = document.createElement('button');
+    bridgeButton.id = 'routed-bridge';
+    bridgeButton.type = 'button';
+    bridgeButton.className = 'btn small';
+    bridgeButton.textContent = 'Fill closing gap…';
+    bridgeButton.title = 'Create a flowing section between the two open ends';
+    $('routed-setup').after(bridgeButton);
+    const reshapeButton = document.createElement('button');
+    reshapeButton.id = 'routed-close-reshape';
+    reshapeButton.type = 'button';
+    reshapeButton.className = 'btn small';
+    reshapeButton.textContent = 'Reshape to close…';
+    reshapeButton.title = 'Select one routed section at either open end';
+    bridgeButton.after(reshapeButton);
+    const closeHelp = document.createElement('p');
+    closeHelp.className = 'fine routed-close-help';
+    closeHelp.textContent =
+      'Close one remaining gap, or select an end section to reshape. Both options preview the curve before applying.';
+    reshapeButton.after(closeHelp);
+    const selectedBridge = document.createElement('button');
+    selectedBridge.id = 'routed-bridge-selected';
+    selectedBridge.type = 'button';
+    selectedBridge.className = 'btn small';
+    selectedBridge.textContent = 'Bridge selected ends…';
+    selectedBridge.title = 'Join two selected routed sections, even when other gaps remain';
+    closeHelp.after(selectedBridge);
+    const tools = $('routed-controls');
+    const heading = document.querySelector('.catalogue-panel .panel-heading');
+    heading.insertBefore(tools, $('custom'));
+    tools.addEventListener('click', e => {
+      if (e.target.closest('button:not(:disabled)')) tools.open = false;
+    });
+    document.addEventListener('click', e => {
+      if (tools.open && !tools.contains(e.target)) tools.open = false;
+    });
+    document.addEventListener(
+      'keydown',
+      e => {
+        if (e.key === 'Escape' && tools.open) {
+          tools.open = false;
+          tools.querySelector('summary').focus();
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      },
+      true
+    );
+    const read = () => {
+      const f = $('routed-profile-form').elements;
+      return R.settings(
+        Object.fromEntries([
+          ...fields.map(([key]) => [key, f[key].value.trim() === '' ? NaN : Number(f[key].value)]),
+          ['conductor', f.conductor.value],
+          ['constructionMode', f.constructionMode.value],
+        ])
+      );
+    };
+    function profilePreview() {
+      try {
+        const s = read();
+        $('routed-width').textContent =
+          R.width(s).toFixed(1) +
+          (s.constructionMode === 'table' ? ' mm slot/conductor footprint · continuous table' : ' mm piece width');
+        $('routed-profile-error').textContent = '';
+        const r = Math.max(300, s.innerClearanceMm + 50),
+          d = R.definition(s, { type: 'curve', slotRadiusMm: r, angleDeg: 90 });
+        $('routed-profile-preview').innerHTML = G.svg(R.draw(d), d.geometry.boundsMm, 'Routed profile preview');
+      } catch (e) {
+        $('routed-profile-error').textContent = e.message;
+      }
+    }
+    function fill() {
+      const s = h.get().routed.settings,
+        f = $('routed-profile-form').elements;
+      for (const [key] of fields) f[key].value = s[key];
+      f.conductor.value = s.conductor;
+      f.constructionMode.value = s.constructionMode || 'sections';
+      profilePreview();
+    }
+    function render() {
+      const model = h.get(),
+        has = model.items.some(p => model.defs[p.definitionId].parameters.routed),
+        chosen =
+          $('pack').value === R.ID ||
+          h.packs().some(p => p.id === $('pack').value && p.pieces.length && p.pieces.every(d => d.parameters.routed));
+      $('custom').textContent = chosen ? '＋ Section' : '＋ Custom';
+      catalogueFoot.textContent = chosen
+        ? 'Click a section to add it. End magnets align matching slot bundles. Select one section to edit its dimensions.'
+        : plasticFoot;
+      bridgeButton.disabled = !has;
+      reshapeButton.disabled =
+        model.selectedIds.size !== 1 ||
+        !model.items.some(p => model.selectedIds.has(p.id) && model.defs[p.definitionId].parameters.routed);
+      $('routed-controls').hidden = !chosen;
+      $('routed-display').value = model.routed.display;
+      const p = model.items.find(p => p.id === model.selected),
+        single = model.selectedIds.size === 1;
+      heading.querySelector('h2').textContent = chosen ? 'Sections' : 'Track pieces';
+      if (!chosen) tools.open = false;
+      selectedBridge.disabled =
+        model.selectedIds.size !== 2 ||
+        model.items.filter(p => model.selectedIds.has(p.id) && model.defs[p.definitionId].parameters.routed).length !==
+          2;
+      $('edit-routed-section').hidden =
+        !single ||
+        !p ||
+        !model.defs[p.definitionId].parameters.routed ||
+        model.defs[p.definitionId].parameters.type === 'freeform';
+      $('squeeze-routed-section').hidden =
+        !single ||
+        !p ||
+        !model.defs[p.definitionId].parameters.routed ||
+        model.defs[p.definitionId].parameters.routed.laneCount < 2 ||
+        model.defs[p.definitionId].parameters.type === 'freeform';
+      if (p && single && model.defs[p.definitionId].parameters.routed) {
+        $('custom-from').hidden = true;
+        $('add-borders').hidden = $('add-borders').disabled = true;
+      }
+      $('routed-overview').hidden = !has;
+      const reportKey = JSON.stringify([model.items, model.spaceGuide]);
+      if (!lastReport || (reportKey !== lastReportKey && !model.interacting)) {
+        lastReport = {
+          material: R.materials(model.items, model.defs),
+          issues: C.checks(model.items, model.defs, model.spaceGuide),
+        };
+        lastReportKey = reportKey;
+      }
+      const { material, issues } = lastReport;
+      document.body.dataset.routedCatalogue = String(chosen);
+      $('measurement-note').textContent = has
+        ? 'Routed dimensions are user-entered. Piece outlines and tabletop routing footprints have separate clearance checks; vehicle clearance and heights still need checking.'
+        : 'Lengths use nominal or user-entered geometry. Footprint is an approximate bounding box; overlap and clearance are not checked.';
+      const badge = $('routed-checks-badge');
+      badge.textContent = model.interacting ? 'Updating…' : issues.length ? issues.length + ' to check' : 'Clear';
+      badge.classList.toggle('has-issues', !model.interacting && issues.length > 0);
+      for (const [id, compact] of [
+        ['routed-materials', false],
+        ['routed-materials-compact', true],
+      ]) {
+        const host = $(id);
+        host.replaceChildren();
+        const values = [
+          ...(material.planningSections
+            ? [['Planning-only sections (excluded from quantities)', material.planningSections]]
+            : []),
+          ['Routed design sections', material.sections],
+          ['Total slot length', metres(material.slotMm)],
+          ['Braid, including allowance', metres(material.orderBraidMm)],
+          ['Tape, including allowance', metres(material.orderTapeMm)],
+        ];
+        for (const [label, value] of values) {
+          const row = document.createElement('p');
+          row.className = compact ? 'fine' : 'routed-metric';
+          row.textContent = label + ': ' + value;
+          host.append(row);
+        }
+      }
+      for (const id of ['routed-checks', 'routed-checks-compact']) {
+        const list = $(id);
+        list.replaceChildren();
+        for (const issue of model.interacting ? [{ message: 'Release the drag to update layout checks.' }] : issues) {
+          const li = document.createElement('li');
+          if (h.focus && (issue.pieceIds?.length || issue.point)) {
+            const button = document.createElement('button');
+            button.className = 'btn small';
+            button.textContent = issue.message;
+            button.onclick = () => h.focus(issue);
+            li.append(button);
+          } else li.textContent = issue.message;
+          list.append(li);
+        }
+        if (!issues.length && !model.interacting) {
+          const li = document.createElement('li');
+          li.textContent = has
+            ? 'No issues found by the 2D planning checks.'
+            : 'Add routed sections to check the layout.';
+          list.append(li);
+        }
+      }
+      const savedHost = $('routed-saved-packs');
+      savedHost.replaceChildren();
+      let savedCount = 0;
+      for (const pack of h.packs()) {
+        const count = pack.pieces.filter(d => d.parameters.routed).length;
+        if (!count) continue;
+        savedCount++;
+        const row = document.createElement('div');
+        row.className = 'routed-saved-pack';
+        const label = document.createElement('p');
+        label.textContent = pack.name + ' · ' + count + ' routed section' + (count === 1 ? '' : 's');
+        const open = document.createElement('button');
+        open.className = 'btn small';
+        open.textContent = 'Open pack';
+        open.onclick = () => h.showSavedPack(pack.id);
+        row.append(label, open);
+        savedHost.append(row);
+      }
+      if (!savedCount) {
+        const text = document.createElement('p');
+        text.className = 'fine';
+        text.textContent =
+          'Save a section to a pack to reuse it in other layouts. Saved packs also appear in Track Packs.';
+        savedHost.append(text);
+      }
+      $('routed-table-note').textContent = model.spaceGuide
+        ? 'Table / available space: ' +
+          model.spaceGuide.lengthMm.toFixed(0) +
+          ' × ' +
+          model.spaceGuide.widthMm.toFixed(0) +
+          ' mm' +
+          (model.spaceGuide.locked ? ' · Locked' : '')
+        : 'No table added yet.';
+    }
+    function saveFields() {
+      const f = $('routed-section-form').elements;
+      $('routed-new-pack-field').hidden = f.savePack.value !== 'new';
+      f.newPackName.disabled = f.savePack.value !== 'new';
+    }
+    function saveChoices(preferred) {
+      const f = $('routed-section-form').elements,
+        packs = h.packs();
+      f.savePack.replaceChildren();
+      for (const pack of packs) {
+        const option = document.createElement('option');
+        option.value = pack.id;
+        option.textContent = pack.name;
+        f.savePack.append(option);
+      }
+      const option = document.createElement('option');
+      option.value = 'new';
+      option.textContent = '+ New track pack';
+      f.savePack.append(option);
+      f.savePack.value = packs.some(p => p.id === preferred)
+        ? preferred
+        : packs.some(p => p.id === lastSavedPack)
+          ? lastSavedPack
+          : packs.find(p => p.pieces.some(d => d.parameters.routed))?.id || 'new';
+      if (!f.newPackName.value.trim()) f.newPackName.value = 'My routed sections';
+      saveFields();
+    }
+    function squeezeOpen(z, s, length = 1000) {
+      const f = $('routed-section-form').elements;
+      f.squeezeEnabled.checked = !!z;
+      f.squeezeMode.value = z?.version === 3 ? 'spread' : 'squeeze';
+      f.squeezeShape.value = !z || z.shape === 'apex' ? 'apex' : 'hold';
+      f.squeezeEnabled.disabled = s.laneCount < 2;
+      f.squeezeSpacing.value =
+        z?.spacingMm ??
+        Math.max(2 * (s.slotWidthMm / 2 + s.conductorGapMm + s.conductorWidthMm) + 1, s.laneSpacingMm * 0.8);
+      f.squeezeTransition.value = z?.transitionMm ?? Math.max(10, Math.min(200, length / 4));
+      f.squeezeAnchor.replaceChildren();
+      for (const [value, label] of [
+        ['centre', 'Bundle centre'],
+        ...Array.from({ length: s.laneCount }, (_, i) => [String(i + 1), 'Lane ' + (i + 1)]),
+      ]) {
+        const o = document.createElement('option');
+        o.value = value;
+        o.textContent = label;
+        f.squeezeAnchor.append(o);
+      }
+      f.squeezeAnchor.value = String(z?.anchorLane ?? 'centre');
+    }
+    function squeezeFields() {
+      const f = $('routed-section-form').elements,
+        enabled = f.squeezeEnabled.checked,
+        apex = f.squeezeShape.value === 'apex';
+      $('routed-squeeze-fields').hidden = !enabled;
+      for (const key of ['squeezeSpacing', 'squeezeTransition', 'squeezeAnchor', 'squeezeShape', 'squeezeMode']) {
+        f[key].disabled = !enabled;
+        f[key].required = enabled;
+      }
+      f.squeezeTransition.disabled = !enabled || apex;
+      f.squeezeTransition.required = enabled && !apex;
+      $('routed-squeeze-transition-field').hidden = apex;
+      f.shape.disabled = !!bridge || enabled;
+      if (enabled && f.shape.value === 'straight') {
+        const length = Number(f.lengthMm.value);
+        f.shape.value = 'routed-spline';
+        curveEditor.open(
+          {
+            type: 'routed-spline',
+            controlPointsMm: [
+              [0, 0],
+              [length / 3, 0],
+              [(length * 2) / 3, 0],
+              [length, 0],
+            ],
+          },
+          JSON.parse($('routed-section-form').dataset.profile)
+        );
+      }
+      if (enabled && f.shape.value === 'curve') f.shape.value = 'routed-spline';
+      const normal = JSON.parse($('routed-section-form').dataset.profile).laneSpacingMm;
+      $('routed-squeeze-summary').textContent =
+        normal +
+        ' mm at entry → ' +
+        f.squeezeSpacing.value +
+        (apex ? ' mm at the midpoint → ' : ' mm inside → ') +
+        normal +
+        ' mm at exit. ' +
+        (apex
+          ? 'The whole section blends gradually toward its midpoint and back out, without a constant-width middle.'
+          : 'Transition lengths are measured along the middle reference path.') +
+        ' Lane spacing is measured across that reference, not as the shortest distance between bending slots.';
+    }
+    function openSection(piece, connection = null, template = null) {
+      const model = h.get();
+      editing = piece?.id || null;
+      bridge = connection;
+      const d = piece ? model.defs[piece.definitionId] : template?.definition || null,
+        s =
+          bridge?.settings ||
+          d?.parameters.routed ||
+          template?.profile ||
+          h
+            .packs()
+            .find(p => p.id === model.packId)
+            ?.pieces.find(d => d.parameters.routed)?.parameters.routed ||
+          model.routed.settings;
+      $('routed-section-profile').textContent =
+        s.laneCount +
+        ' lanes · ' +
+        s.laneSpacingMm +
+        ' mm slot spacing · Lane 1 edge clearance ' +
+        s.innerClearanceMm +
+        ' mm · Lane ' +
+        s.laneCount +
+        ' edge clearance ' +
+        s.outerClearanceMm +
+        ' mm. Preferred minimum slot radius ' +
+        s.minRadiusMm +
+        ' mm is advisory; folding is checked separately.';
+      autoName = !!d && d.name === R.definition(s, R.shapeOf(d.parameters)).name;
+      const f = $('routed-section-form').elements;
+      f.constructionMode.value = s.constructionMode || 'sections';
+      f.foldOverride.checked = !!d?.parameters.foldOverride;
+      f.sectionName.value = d?.name || (bridge ? 'Connecting curve' : 'My routed section');
+      f.shape.value = bridge ? 'routed-spline' : d?.parameters.type || 'straight';
+      f.shape.disabled = !!bridge;
+      f.lengthMm.value = d?.parameters.lengthMm || 1000;
+      f.slotRadiusMm.value =
+        d?.parameters.type === 'curve' ? R.shapeOf(d.parameters).slotRadiusMm : Math.max(300, s.innerClearanceMm + 50);
+      f.angleDeg.value = d?.parameters.angleDeg || 45;
+      f.turn.value =
+        (bridge?.pose.flip ?? piece?.flip ?? template?.definition?.catalogueFlip ?? false) ? 'left' : 'right';
+      $('routed-section-title').textContent = bridge?.closeLoop
+        ? piece
+          ? 'Reshape section to close loop'
+          : 'Fill closing gap'
+        : piece
+          ? 'Edit routed section'
+          : 'Create routed section';
+      $('routed-section-apply').textContent = bridge?.closeLoop
+        ? piece
+          ? 'Reshape & close loop'
+          : 'Save & close loop'
+        : piece
+          ? 'Update section'
+          : bridge
+            ? 'Save & bridge gap'
+            : 'Save & add to layout';
+      $('routed-save-note').textContent = piece
+        ? 'Save to pack keeps a reusable copy. Update section changes only this layout.'
+        : 'Save a reusable section to a named pack. You can also add it to this layout.';
+      if (bridge?.closeLoop)
+        $('routed-save-note').textContent =
+          (piece
+            ? 'Only this placed section will change; its saved pack definition stays unchanged. '
+            : 'The connecting section will also be saved to your chosen pack. ') +
+          'Endpoints and directions are fixed. Adjust the handles if needed. Other sections stay in place; check table fit and overlaps after applying. Cancel leaves the layout unchanged.';
+      saveChoices(template?.packId || model.packId);
+      $('routed-section-form').dataset.profile = JSON.stringify(s);
+      curveEditor.open(
+        bridge
+          ? { type: 'routed-spline', controlPointsMm: bridge.controlPointsMm }
+          : d
+            ? R.shapeOf(d.parameters)
+            : null,
+        s,
+        !!bridge
+      );
+      squeezeOpen(
+        bridge?.squeeze ?? d?.parameters.squeeze,
+        s,
+        d?.geometry.reference?.lengthMm ?? d?.geometry.centrelineLengthMm ?? 1000
+      );
+      sectionPreview();
+      $('routed-section-dialog').showModal();
+    }
+    function sectionPreview() {
+      squeezeFields();
+      const f = $('routed-section-form').elements,
+        curve = f.shape.value === 'curve',
+        flowing = curveEditor.activate();
+      const foldField = $('routed-fold-override-field');
+      if (foldField) foldField.hidden = !flowing;
+      if (f.foldOverride) f.foldOverride.disabled = !flowing;
+      spreadHint();
+      $('routed-length-field').hidden = f.shape.value !== 'straight';
+      f.lengthMm.disabled = f.shape.value !== 'straight';
+      $('routed-curve-fields').hidden = !curve;
+      for (const el of $('routed-curve-fields').querySelectorAll('input,select')) el.disabled = !curve;
+      draft = null;
+      try {
+        const s = R.settings({
+          ...JSON.parse($('routed-section-form').dataset.profile),
+          constructionMode: f.constructionMode.value,
+        });
+        $('routed-section-profile').textContent =
+          (s.constructionMode === 'table' ? 'Tabletop routing' : 'Individual piece') +
+          ' · ' +
+          s.laneCount +
+          ' lanes · ' +
+          s.laneSpacingMm +
+          ' mm spacing. Edge clearance: Lane 1 ' +
+          s.innerClearanceMm +
+          ' mm / Lane ' +
+          s.laneCount +
+          ' ' +
+          s.outerClearanceMm +
+          ' mm. Preferred radius ' +
+          s.minRadiusMm +
+          ' mm (advisory).';
+        const number = key => (f[key].value.trim() === '' ? NaN : Number(f[key].value));
+        draft = F.validateDefinition(
+          R.definition(
+            s,
+            flowing
+              ? {
+                  ...curveEditor.read(),
+                  ...(f.foldOverride?.checked ? { foldOverride: true } : {}),
+                  ...(f.squeezeEnabled.checked
+                    ? {
+                        squeeze: {
+                          ...(f.squeezeMode.value === 'spread'
+                            ? {
+                                version: 3,
+                                mode: 'spread',
+                                shape: f.squeezeShape.value,
+                                ...(f.squeezeShape.value === 'hold'
+                                  ? { transitionMm: number('squeezeTransition') }
+                                  : {}),
+                              }
+                            : f.squeezeShape.value === 'apex'
+                              ? { version: 2, shape: 'apex' }
+                              : { version: 1, transitionMm: number('squeezeTransition') }),
+                          spacingMm: number('squeezeSpacing'),
+                          anchorLane: f.squeezeAnchor.value === 'centre' ? 'centre' : Number(f.squeezeAnchor.value),
+                        },
+                      }
+                    : {}),
+                }
+              : curve
+                ? { type: 'curve', slotRadiusMm: number('slotRadiusMm'), angleDeg: number('angleDeg') }
+                : { type: 'straight', lengthMm: number('lengthMm') },
+            'routed:preview',
+            autoName ? undefined : f.sectionName.value.trim()
+          )
+        );
+        if (autoName) f.sectionName.value = draft.name;
+        const left = !flowing && f.turn.value === 'left',
+          bounds = draft.geometry.boundsMm;
+        if (flowing) curveEditor.render(draft);
+        else
+          $('routed-section-preview').innerHTML = G.svg(
+            left ? '<g transform="scale(1,-1)">' + R.draw(draft) + '</g>' : R.draw(draft),
+            left ? [bounds[0], -bounds[1] - bounds[3], bounds[2], bounds[3]] : bounds,
+            draft.name
+          );
+        $('routed-slot-radii').textContent = draft?.parameters.foldOverride
+          ? 'Planning-only fold override. The drawing is not validated for routing; slot lengths and minimum radii are not reported.'
+          : flowing
+            ? 'Smallest sampled radius per lane: ' +
+              draft.geometry.minRadiiMm
+                .map((r, i) => 'Lane ' + (i + 1) + ' ' + (r === null ? 'straight' : r.toFixed(1) + ' mm'))
+                .join(' / ') +
+              '. Slot lengths: ' +
+              draft.geometry.lanePaths.map(l => l.lengthMm.toFixed(1) + ' mm').join(' / ') +
+              (draft.geometry.minRadiiMm.some(r => r !== null && r < s.minRadiusMm)
+                ? '. Red sections are tighter than your preferred ' + s.minRadiusMm + ' mm.'
+                : '')
+            : curve
+              ? 'Slot radii: ' +
+                draft.geometry.lanePaths.map(l => l.segments[0].radiusMm.toFixed(1) + ' mm').join(' / ')
+              : 'Every slot: ' + number('lengthMm') + ' mm';
+        $('routed-section-error').textContent = '';
+        $('routed-section-apply').disabled = false;
+        $('routed-section-save').disabled = false;
+      } catch (e) {
+        draft = null;
+        $('routed-slot-radii').textContent = draft?.parameters.foldOverride
+          ? 'Planning-only fold override. The drawing is not validated for routing; slot lengths and minimum radii are not reported.'
+          : flowing
+            ? 'This curve is invalid. Current slot lengths and minimum radii are unavailable. The red line shows the middle reference path, not the slots or wood edges.'
+            : '';
+        if (flowing) curveEditor.render(null);
+        else $('routed-section-preview').innerHTML = '<p class="fine">Preview unavailable for these dimensions.</p>';
+        $('routed-section-error').textContent = e.message;
+        $('routed-section-apply').disabled = true;
+        $('routed-section-save').disabled = true;
+      }
+    }
+    $('routed-profile-form').oninput = profilePreview;
+    $('routed-profile-form').onsubmit = e => {
+      e.preventDefault();
+      try {
+        const model = h.get(),
+          s = read(),
+          replacements = new Map(),
+          byDefinition = new Map();
+        if ($('routed-update-all').checked)
+          for (const p of model.items) {
+            const old = model.defs[p.definitionId],
+              q = old.parameters;
+            if (!q.routed) continue;
+            if (q.type === 'freeform') throw Error('Edit the construction profile in Edit FreeForm for this circuit.');
+            const shape = R.shapeOf(q);
+            if (!byDefinition.has(old.id))
+              byDefinition.set(old.id, F.validateDefinition(R.definition(s, shape, 'routed:' + F.uid(), old.name)));
+            replacements.set(p.id, byDefinition.get(old.id));
+          }
+        const result = replacements.size
+          ? C.reflow(model.items, model.defs, replacements, model.selected)
+          : { items: model.items, definitions: model.defs };
+        h.commit({ ...result, routed: { settings: s, display: model.routed.display } });
+        h.message(
+          replacements.size
+            ? 'Updated routed sections. Check closure and table fit after changing dimensions.'
+            : 'Routed defaults saved for new sections.'
+        );
+      } catch (error) {
+        $('routed-profile-error').textContent = error.message;
+      }
+    };
+    $('routed-section-form').oninput = e => {
+      if (e.target.name === 'sectionName') autoName = false;
+      sectionPreview();
+    };
+    $('routed-section-form').onchange = sectionPreview;
+    $('routed-save-pack').onchange = saveFields;
+    $('routed-section-dialog').addEventListener('cancel', e => {
+      if (saving) e.preventDefault();
+    });
+    $('routed-section-form').onsubmit = async e => {
+      e.preventDefault();
+      if (saving) return;
+      sectionPreview();
+      if (!draft) return;
+      const saveOnly = e.submitter?.id === 'routed-section-save',
+        form = $('routed-section-form'),
+        f = form.elements,
+        model = h.get(),
+        flip = f.turn.value === 'left';
+      let controls = null;
+      try {
+        if (bridge?.closeLoop && !saveOnly) {
+          const d = F.validateDefinition({ ...draft, id: 'routed:' + F.uid() }),
+            result = C.applyClosure(model.items, model.defs, bridge, d);
+          if (bridge.replaceId) {
+            h.commit(result);
+            h.message('Routed loop closed by reshaping the selected section. Other sections stayed in place.');
+            $('routed-section-dialog').close();
+            return;
+          }
+        }
+        if (editing && !saveOnly) {
+          const p = model.items.find(p => p.id === editing);
+          if (!p) throw Error('This section is no longer in the layout.');
+          const d = F.validateDefinition({ ...draft, id: 'routed:' + F.uid() }),
+            result = C.reflow(model.items, model.defs, new Map([[editing, d]]), editing, new Map([[editing, flip]]));
+          h.commit(result);
+          h.message('Section updated. Check any open ends after changing its shape.');
+          $('routed-section-dialog').close();
+          return;
+        }
+        if (!saveOnly && model.items.length >= 500)
+          throw Error(
+            'The layout already has 500 pieces. Choose Save to pack to keep this section without placing it.'
+          );
+        let placement = null;
+        if (bridge && !saveOnly) {
+          placement = C.connectionPlacement(model.items, model.defs, bridge, draft);
+          const allDefs = { ...model.defs, [draft.id]: draft },
+            ports = F.ports(placement, allDefs);
+          for (let i = 0; i < 2; i++)
+            if (
+              F.dist(ports[i].position, bridge.targets[i].position) > 0.1 ||
+              Math.abs(Math.abs(F.wrap(ports[i].angle - bridge.targets[i].angle)) - 180) > 0.1 ||
+              !F.slotsMatch(ports[i], bridge.targets[i], 0.1)
+            )
+              throw Error(
+                'The curve no longer matches both selected ends. Restore its endpoint and tangent directions.'
+              );
+        }
+        const packId = f.savePack.value,
+          packName = f.newPackName.value;
+        saving = true;
+        form.inert = true;
+        controls = [...form.querySelectorAll('input,select,button')].map(el => [el, el.disabled]);
+        for (const [el] of controls) el.disabled = true;
+        const saved = await h.saveDefinition(draft, placement ? !!placement.flip : flip, packId, packName);
+        lastSavedPack = saved.packId;
+        h.choosePack(saved.packId);
+        if (saveOnly) h.message(saved.definition.name + ' saved to ' + saved.packName + '.');
+        else if (placement && bridge.closeLoop) {
+          const current = h.get();
+          h.commit(C.applyClosure(current.items, current.defs, bridge, saved.definition));
+          h.message('Section saved to ' + saved.packName + ' and the routed loop is closed.');
+          location.hash = 'builder';
+        } else if (placement) {
+          placement.definitionId = saved.definition.id;
+          h.commit({
+            items: [...model.items, placement],
+            definitions: { ...model.defs, [saved.definition.id]: saved.definition },
+            selectId: placement.id,
+          });
+          h.message('Section saved to ' + saved.packName + ' and the gap was bridged.');
+          location.hash = 'builder';
+        } else {
+          if (h.add(saved.definition, flip) === false)
+            throw Error('The section was saved to ' + saved.packName + ', but the layout is full.');
+          h.message('Section saved to ' + saved.packName + ' and added to the layout.');
+          location.hash = 'builder';
+        }
+        $('routed-section-dialog').close();
+      } catch (error) {
+        $('routed-section-error').textContent = error.message;
+      } finally {
+        saving = false;
+        form.inert = false;
+        if (controls) for (const [el, disabled] of controls) el.disabled = disabled;
+      }
+    };
+    for (const id of ['routed-add-section', 'routed-new-section']) $(id).onclick = () => openSection();
+    bridgeButton.onclick = () => {
+      try {
+        const model = h.get();
+        openSection(null, C.closeLoopDraft(model.items, model.defs));
+      } catch (e) {
+        h.message(e.message, true);
+      }
+    };
+    selectedBridge.onclick = () => {
+      try {
+        const model = h.get();
+        openSection(null, C.bridgeDraft(model.items, model.defs, model.selectedIds));
+      } catch (e) {
+        h.message(e.message, true);
+      }
+    };
+    reshapeButton.onclick = () => {
+      try {
+        const model = h.get();
+        if (model.selectedIds.size !== 1) throw Error('Select one routed section at an open end to reshape.');
+        const id = [...model.selectedIds][0];
+        openSection(
+          model.items.find(p => p.id === id),
+          C.closeLoopDraft(model.items, model.defs, id)
+        );
+      } catch (e) {
+        h.message(e.message, true);
+      }
+    };
+    $('routed-section-form').elements.squeezeMode.onchange = () => {
+      const f = $('routed-section-form').elements,
+        s = JSON.parse($('routed-section-form').dataset.profile);
+      f.squeezeSpacing.value =
+        f.squeezeMode.value === 'spread'
+          ? Math.min(300, s.laneSpacingMm * 1.2)
+          : Math.max(2 * (s.slotWidthMm / 2 + s.conductorGapMm + s.conductorWidthMm) + 1, s.laneSpacingMm * 0.8);
+      if (f.squeezeMode.value === 'spread') {
+        try {
+          outwardAnchor();
+        } catch {
+          f.squeezeAnchor.value = 'centre';
+        }
+      }
+      sectionPreview();
+    };
+    $('routed-squeeze-reset').onclick = () => {
+      const f = $('routed-section-form').elements;
+      f.squeezeEnabled.checked = false;
+      sectionPreview();
+    };
+    $('squeeze-routed-section').onclick = () => {
+      openSection(h.get().items.find(p => p.id === h.get().selected));
+      $('routed-squeeze-enabled').focus();
+      $('routed-squeeze-enabled').scrollIntoView({ block: 'center' });
+    };
+    $('edit-routed-section').onclick = () => openSection(h.get().items.find(p => p.id === h.get().selected));
+    $('routed-setup').onclick = () => {
+      location.hash = 'routed';
+      fill();
+    };
+    $('routed-new-layout').onclick = () => h.newLayout(false);
+    $('routed-example').onclick = () => h.newLayout(true);
+    const flowExample = document.createElement('button');
+    flowExample.type = 'button';
+    flowExample.className = 'btn';
+    flowExample.id = 'routed-flowing-example';
+    flowExample.textContent = 'Load flowing example';
+    $('routed-example').after(flowExample);
+    flowExample.onclick = () => h.newLayout('flowing');
+    $('routed-table').onclick = () => h.table();
+    $('routed-display').onchange = () => {
+      const model = h.get();
+      h.commit({ routed: { ...model.routed, display: $('routed-display').value } });
+    };
+    $('routed-return').onclick = () => {
+      h.choosePack();
+      location.hash = 'builder';
+    };
+    root.addEventListener('hashchange', () => {
+      if (location.hash === '#routed') {
+        fill();
+        render();
+      }
+    });
+    fill();
+    render();
+    return {
+      render,
+      fill,
+      createFrom: (definition, packId) => openSection(null, null, { definition, packId }),
+      createInPack: pack =>
+        openSection(null, null, {
+          packId: pack.id,
+          profile: pack.pieces.find(d => d.parameters.routed)?.parameters.routed,
+        }),
+    };
   }
-  for(const id of['routed-checks','routed-checks-compact']){const list=$(id);list.replaceChildren();for(const issue of model.interacting?[{message:'Release the drag to update layout checks.'}]:issues){const li=document.createElement('li');if(h.focus&&(issue.pieceIds?.length||issue.point)){const button=document.createElement('button');button.className='btn small';button.textContent=issue.message;button.onclick=()=>h.focus(issue);li.append(button);}else li.textContent=issue.message;list.append(li);}if(!issues.length&&!model.interacting){const li=document.createElement('li');li.textContent=has?'No issues found by the 2D planning checks.':'Add routed sections to check the layout.';list.append(li);}}
-  const savedHost=$('routed-saved-packs');savedHost.replaceChildren();let savedCount=0;for(const pack of h.packs()){const count=pack.pieces.filter(d=>d.parameters.routed).length;if(!count)continue;savedCount++;const row=document.createElement('div');row.className='routed-saved-pack';const label=document.createElement('p');label.textContent=pack.name+' · '+count+' routed section'+(count===1?'':'s');const open=document.createElement('button');open.className='btn small';open.textContent='Open pack';open.onclick=()=>h.showSavedPack(pack.id);row.append(label,open);savedHost.append(row);}if(!savedCount){const text=document.createElement('p');text.className='fine';text.textContent='Save a section to a pack to reuse it in other layouts. Saved packs also appear in the Track Pack Library.';savedHost.append(text);}
-  $('routed-table-note').textContent=model.spaceGuide?('Table / available space: '+model.spaceGuide.lengthMm.toFixed(0)+' × '+model.spaceGuide.widthMm.toFixed(0)+' mm'+(model.spaceGuide.locked?' · Locked':'')):'No table added yet.';
- }
- function saveFields(){const f=$('routed-section-form').elements;$('routed-new-pack-field').hidden=f.savePack.value!=='new';f.newPackName.disabled=f.savePack.value!=='new';}
- function saveChoices(preferred){const f=$('routed-section-form').elements,packs=h.packs();f.savePack.replaceChildren();for(const pack of packs){const option=document.createElement('option');option.value=pack.id;option.textContent=pack.name;f.savePack.append(option);}const option=document.createElement('option');option.value='new';option.textContent='+ New track pack';f.savePack.append(option);f.savePack.value=packs.some(p=>p.id===preferred)?preferred:packs.some(p=>p.id===lastSavedPack)?lastSavedPack:packs.find(p=>p.pieces.some(d=>d.parameters.routed))?.id||'new';if(!f.newPackName.value.trim())f.newPackName.value='My routed sections';saveFields();}
- function squeezeOpen(z,s,length=1000){
-  const f=$('routed-section-form').elements;f.squeezeEnabled.checked=!!z;f.squeezeMode.value=z?.version===3?'spread':'squeeze';f.squeezeShape.value=!z||z.shape==='apex'?'apex':'hold';f.squeezeEnabled.disabled=s.laneCount<2;f.squeezeSpacing.value=z?.spacingMm??Math.max(2*(s.slotWidthMm/2+s.conductorGapMm+s.conductorWidthMm)+1,s.laneSpacingMm*.8);f.squeezeTransition.value=z?.transitionMm??Math.max(10,Math.min(200,length/4));f.squeezeAnchor.replaceChildren();
-  for(const[value,label]of [['centre','Bundle centre'],...Array.from({length:s.laneCount},(_,i)=>[String(i+1),'Lane '+(i+1)])]){const o=document.createElement('option');o.value=value;o.textContent=label;f.squeezeAnchor.append(o);}f.squeezeAnchor.value=String(z?.anchorLane??'centre');
- }
- function squeezeFields(){const f=$('routed-section-form').elements,enabled=f.squeezeEnabled.checked,apex=f.squeezeShape.value==='apex';$('routed-squeeze-fields').hidden=!enabled;for(const key of ['squeezeSpacing','squeezeTransition','squeezeAnchor','squeezeShape','squeezeMode']){f[key].disabled=!enabled;f[key].required=enabled;}f.squeezeTransition.disabled=!enabled||apex;f.squeezeTransition.required=enabled&&!apex;$('routed-squeeze-transition-field').hidden=apex;f.shape.disabled=!!bridge||enabled;
-  if(enabled&&f.shape.value==='straight'){const length=Number(f.lengthMm.value);f.shape.value='routed-spline';curveEditor.open({type:'routed-spline',controlPointsMm:[[0,0],[length/3,0],[length*2/3,0],[length,0]]},JSON.parse($('routed-section-form').dataset.profile));}
-  if(enabled&&f.shape.value==='curve')f.shape.value='routed-spline';
-  const normal=JSON.parse($('routed-section-form').dataset.profile).laneSpacingMm;$('routed-squeeze-summary').textContent=normal+' mm at entry → '+f.squeezeSpacing.value+(apex?' mm at the midpoint → ':' mm inside → ')+normal+' mm at exit. '+(apex?'The whole section blends gradually toward its midpoint and back out, without a constant-width middle.':'Transition lengths are measured along the middle reference path.')+' Lane spacing is measured across that reference, not as the shortest distance between bending slots.';
- }
- function openSection(piece,connection=null,template=null){
-  const model=h.get();editing=piece?.id||null;bridge=connection;const d=piece?model.defs[piece.definitionId]:template?.definition||null,s=bridge?.settings||d?.parameters.routed||template?.profile||h.packs().find(p=>p.id===model.packId)?.pieces.find(d=>d.parameters.routed)?.parameters.routed||model.routed.settings;
-  $('routed-section-profile').textContent=s.laneCount+' lanes · '+s.laneSpacingMm+' mm slot spacing · Lane 1 edge clearance '+s.innerClearanceMm+' mm · Lane '+s.laneCount+' edge clearance '+s.outerClearanceMm+' mm. Preferred minimum slot radius '+s.minRadiusMm+' mm is advisory; folding is checked separately.';autoName=!!d&&d.name===R.definition(s,R.shapeOf(d.parameters)).name;const f=$('routed-section-form').elements;f.constructionMode.value=s.constructionMode||'sections';f.foldOverride.checked=!!d?.parameters.foldOverride;f.sectionName.value=d?.name||(bridge?'Connecting curve':'My routed section');f.shape.value=bridge?'routed-spline':d?.parameters.type||'straight';f.shape.disabled=!!bridge;f.lengthMm.value=d?.parameters.lengthMm||1000;f.slotRadiusMm.value=d?.parameters.type==='curve'?R.shapeOf(d.parameters).slotRadiusMm:Math.max(300,s.innerClearanceMm+50);f.angleDeg.value=d?.parameters.angleDeg||45;f.turn.value=(bridge?.pose.flip??piece?.flip??template?.definition?.catalogueFlip??false)?'left':'right';$('routed-section-title').textContent=bridge?.closeLoop?(piece?'Reshape section to close loop':'Fill closing gap'):piece?'Edit routed section':'Create routed section';$('routed-section-apply').textContent=bridge?.closeLoop?(piece?'Reshape & close loop':'Save & close loop'):piece?'Update section':bridge?'Save & bridge gap':'Save & add to layout';$('routed-save-note').textContent=piece?'Save to pack keeps a reusable copy. Update section changes only this layout.':'Save a reusable section to a named pack. You can also add it to this layout.';if(bridge?.closeLoop)$('routed-save-note').textContent=(piece?'Only this placed section will change; its saved pack definition stays unchanged. ':'The connecting section will also be saved to your chosen pack. ')+'Endpoints and directions are fixed. Adjust the handles if needed. Other sections stay in place; check table fit and overlaps after applying. Cancel leaves the layout unchanged.';saveChoices(template?.packId||model.packId);$('routed-section-form').dataset.profile=JSON.stringify(s);curveEditor.open(bridge?{type:'routed-spline',controlPointsMm:bridge.controlPointsMm}:d?R.shapeOf(d.parameters):null,s,!!bridge);squeezeOpen(bridge?.squeeze??d?.parameters.squeeze,s,d?.geometry.reference?.lengthMm??d?.geometry.centrelineLengthMm??1000);sectionPreview();$('routed-section-dialog').showModal();
- }
- function sectionPreview(){
-  squeezeFields();const f=$('routed-section-form').elements,curve=f.shape.value==='curve',flowing=curveEditor.activate();const foldField=$('routed-fold-override-field');if(foldField)foldField.hidden=!flowing;if(f.foldOverride)f.foldOverride.disabled=!flowing;spreadHint();$('routed-length-field').hidden=f.shape.value!=='straight';f.lengthMm.disabled=f.shape.value!=='straight';$('routed-curve-fields').hidden=!curve;for(const el of $('routed-curve-fields').querySelectorAll('input,select'))el.disabled=!curve;draft=null;
-  try{const s=R.settings({...JSON.parse($('routed-section-form').dataset.profile),constructionMode:f.constructionMode.value});$('routed-section-profile').textContent=(s.constructionMode==='table'?'Tabletop routing':'Individual piece')+' · '+s.laneCount+' lanes · '+s.laneSpacingMm+' mm spacing. Edge clearance: Lane 1 '+s.innerClearanceMm+' mm / Lane '+s.laneCount+' '+s.outerClearanceMm+' mm. Preferred radius '+s.minRadiusMm+' mm (advisory).';const number=key=>f[key].value.trim()===''?NaN:Number(f[key].value);draft=F.validateDefinition(R.definition(s,flowing?{...curveEditor.read(),...(f.foldOverride?.checked?{foldOverride:true}:{}),...(f.squeezeEnabled.checked?{squeeze:{...(f.squeezeMode.value==='spread'?{version:3,mode:'spread',shape:f.squeezeShape.value,...(f.squeezeShape.value==='hold'?{transitionMm:number('squeezeTransition')}:{})}:f.squeezeShape.value==='apex'?{version:2,shape:'apex'}:{version:1,transitionMm:number('squeezeTransition')}),spacingMm:number('squeezeSpacing'),anchorLane:f.squeezeAnchor.value==='centre'?'centre':Number(f.squeezeAnchor.value)}}:{})}:curve?{type:'curve',slotRadiusMm:number('slotRadiusMm'),angleDeg:number('angleDeg')}:{type:'straight',lengthMm:number('lengthMm')},'routed:preview',autoName?undefined:f.sectionName.value.trim()));if(autoName)f.sectionName.value=draft.name;const left=!flowing&&f.turn.value==='left',bounds=draft.geometry.boundsMm; if(flowing)curveEditor.render(draft);else $('routed-section-preview').innerHTML=G.svg(left?'<g transform="scale(1,-1)">'+R.draw(draft)+'</g>':R.draw(draft),left?[bounds[0],-bounds[1]-bounds[3],bounds[2],bounds[3]]:bounds,draft.name);$('routed-slot-radii').textContent=draft?.parameters.foldOverride?'Planning-only fold override. The drawing is not validated for routing; slot lengths and minimum radii are not reported.':flowing?'Smallest sampled radius per lane: '+draft.geometry.minRadiiMm.map((r,i)=>'Lane '+(i+1)+' '+(r===null?'straight':r.toFixed(1)+' mm')).join(' / ')+'. Slot lengths: '+draft.geometry.lanePaths.map(l=>l.lengthMm.toFixed(1)+' mm').join(' / ')+(draft.geometry.minRadiiMm.some(r=>r!==null&&r<s.minRadiusMm)?'. Red sections are tighter than your preferred '+s.minRadiusMm+' mm.':''):curve?'Slot radii: '+draft.geometry.lanePaths.map(l=>l.segments[0].radiusMm.toFixed(1)+' mm').join(' / '):'Every slot: '+number('lengthMm')+' mm';$('routed-section-error').textContent='';$('routed-section-apply').disabled=false;$('routed-section-save').disabled=false;}catch(e){draft=null;$('routed-slot-radii').textContent=draft?.parameters.foldOverride?'Planning-only fold override. The drawing is not validated for routing; slot lengths and minimum radii are not reported.':flowing?'This curve is invalid. Current slot lengths and minimum radii are unavailable. The red line shows the middle reference path, not the slots or wood edges.':'';if(flowing)curveEditor.render(null);else $('routed-section-preview').innerHTML='<p class="fine">Preview unavailable for these dimensions.</p>';$('routed-section-error').textContent=e.message;$('routed-section-apply').disabled=true;$('routed-section-save').disabled=true;}
- }
- $('routed-profile-form').oninput=profilePreview;
- $('routed-profile-form').onsubmit=e=>{e.preventDefault();try{
-  const model=h.get(),s=read(),replacements=new Map(),byDefinition=new Map();if($('routed-update-all').checked)for(const p of model.items){const old=model.defs[p.definitionId],q=old.parameters;if(!q.routed)continue;if(q.type==='freeform')throw Error('Edit the construction profile in Edit FreeForm for this circuit.');const shape=R.shapeOf(q);if(!byDefinition.has(old.id))byDefinition.set(old.id,F.validateDefinition(R.definition(s,shape,'routed:'+F.uid(),old.name)));replacements.set(p.id,byDefinition.get(old.id));}
-  const result=replacements.size?C.reflow(model.items,model.defs,replacements,model.selected):{items:model.items,definitions:model.defs};
-  h.commit({...result,routed:{settings:s,display:model.routed.display}});h.message(replacements.size?'Updated routed sections. Check closure and table fit after changing dimensions.':'Routed defaults saved for new sections.');
- }catch(error){$('routed-profile-error').textContent=error.message;}};
- $('routed-section-form').oninput=e=>{if(e.target.name==='sectionName')autoName=false;sectionPreview();};$('routed-section-form').onchange=sectionPreview;
- $('routed-save-pack').onchange=saveFields;
- $('routed-section-dialog').addEventListener('cancel',e=>{if(saving)e.preventDefault();});
- $('routed-section-form').onsubmit=async e=>{e.preventDefault();if(saving)return;sectionPreview();if(!draft)return;const saveOnly=e.submitter?.id==='routed-section-save',form=$('routed-section-form'),f=form.elements,model=h.get(),flip=f.turn.value==='left';
-  let controls=null;try{
-   if(bridge?.closeLoop&&!saveOnly){const d=F.validateDefinition({...draft,id:'routed:'+F.uid()}),result=C.applyClosure(model.items,model.defs,bridge,d);if(bridge.replaceId){h.commit(result);h.message('Routed loop closed by reshaping the selected section. Other sections stayed in place.');$('routed-section-dialog').close();return;}}
-   if(editing&&!saveOnly){const p=model.items.find(p=>p.id===editing);if(!p)throw Error('This section is no longer in the layout.');const d=F.validateDefinition({...draft,id:'routed:'+F.uid()}),result=C.reflow(model.items,model.defs,new Map([[editing,d]]),editing,new Map([[editing,flip]]));h.commit(result);h.message('Section updated. Check any open ends after changing its shape.');$('routed-section-dialog').close();return;}
-   if(!saveOnly&&model.items.length>=500)throw Error('The layout already has 500 pieces. Choose Save to pack to keep this section without placing it.');
-   let placement=null;if(bridge&&!saveOnly){placement=C.connectionPlacement(model.items,model.defs,bridge,draft);const allDefs={...model.defs,[draft.id]:draft},ports=F.ports(placement,allDefs);for(let i=0;i<2;i++)if(F.dist(ports[i].position,bridge.targets[i].position)>.1||Math.abs(Math.abs(F.wrap(ports[i].angle-bridge.targets[i].angle))-180)>.1||!F.slotsMatch(ports[i],bridge.targets[i],.1))throw Error('The curve no longer matches both selected ends. Restore its endpoint and tangent directions.');}
-   const packId=f.savePack.value,packName=f.newPackName.value;saving=true;form.inert=true;controls=[...form.querySelectorAll('input,select,button')].map(el=>[el,el.disabled]);for(const[el]of controls)el.disabled=true;
-   const saved=await h.saveDefinition(draft,placement?!!placement.flip:flip,packId,packName);lastSavedPack=saved.packId;h.choosePack(saved.packId);
-   if(saveOnly)h.message(saved.definition.name+' saved to '+saved.packName+'.');
-   else if(placement&&bridge.closeLoop){const current=h.get();h.commit(C.applyClosure(current.items,current.defs,bridge,saved.definition));h.message('Section saved to '+saved.packName+' and the routed loop is closed.');location.hash='builder';}
-   else if(placement){placement.definitionId=saved.definition.id;h.commit({items:[...model.items,placement],definitions:{...model.defs,[saved.definition.id]:saved.definition},selectId:placement.id});h.message('Section saved to '+saved.packName+' and the gap was bridged.');location.hash='builder';}
-   else{if(h.add(saved.definition,flip)===false)throw Error('The section was saved to '+saved.packName+', but the layout is full.');h.message('Section saved to '+saved.packName+' and added to the layout.');location.hash='builder';}
-   $('routed-section-dialog').close();
-  }catch(error){$('routed-section-error').textContent=error.message;}finally{saving=false;form.inert=false;if(controls)for(const[el,disabled]of controls)el.disabled=disabled;}
- };
- for(const id of['routed-add-section','routed-new-section'])$(id).onclick=()=>openSection();
- bridgeButton.onclick=()=>{try{const model=h.get();openSection(null,C.closeLoopDraft(model.items,model.defs));}catch(e){h.message(e.message,true);}};
- selectedBridge.onclick=()=>{try{const model=h.get();openSection(null,C.bridgeDraft(model.items,model.defs,model.selectedIds));}catch(e){h.message(e.message,true);}};
- reshapeButton.onclick=()=>{try{const model=h.get();if(model.selectedIds.size!==1)throw Error('Select one routed section at an open end to reshape.');const id=[...model.selectedIds][0];openSection(model.items.find(p=>p.id===id),C.closeLoopDraft(model.items,model.defs,id));}catch(e){h.message(e.message,true);}};
- $('routed-section-form').elements.squeezeMode.onchange=()=>{const f=$('routed-section-form').elements,s=JSON.parse($('routed-section-form').dataset.profile);f.squeezeSpacing.value=f.squeezeMode.value==='spread'?Math.min(300,s.laneSpacingMm*1.2):Math.max(2*(s.slotWidthMm/2+s.conductorGapMm+s.conductorWidthMm)+1,s.laneSpacingMm*.8);if(f.squeezeMode.value==='spread'){try{outwardAnchor();}catch{f.squeezeAnchor.value='centre';}}sectionPreview();};
- $('routed-squeeze-reset').onclick=()=>{const f=$('routed-section-form').elements;f.squeezeEnabled.checked=false;sectionPreview();};
- $('squeeze-routed-section').onclick=()=>{openSection(h.get().items.find(p=>p.id===h.get().selected));$('routed-squeeze-enabled').focus();$('routed-squeeze-enabled').scrollIntoView({block:'center'});};
- $('edit-routed-section').onclick=()=>openSection(h.get().items.find(p=>p.id===h.get().selected));
- $('routed-setup').onclick=()=>{location.hash='routed';fill();};
- $('routed-new-layout').onclick=()=>h.newLayout(false);$('routed-example').onclick=()=>h.newLayout(true);
- const flowExample=document.createElement('button');flowExample.type='button';flowExample.className='btn';flowExample.id='routed-flowing-example';flowExample.textContent='Load flowing example';$('routed-example').after(flowExample);flowExample.onclick=()=>h.newLayout('flowing');
- $('routed-table').onclick=()=>h.table();
- $('routed-display').onchange=()=>{const model=h.get();h.commit({routed:{...model.routed,display:$('routed-display').value}});};
- $('routed-return').onclick=()=>{h.choosePack();location.hash='builder';};
- root.addEventListener('hashchange',()=>{if(location.hash==='#routed'){fill();render();}});
- fill();render();return{render,fill,createFrom:(definition,packId)=>openSection(null,null,{definition,packId}),createInPack:pack=>openSection(null,null,{packId:pack.id,profile:pack.pieces.find(d=>d.parameters.routed)?.parameters.routed})};
-}
-root.RoutedEditor={init};
+  root.RoutedEditor = { init };
 })(window);

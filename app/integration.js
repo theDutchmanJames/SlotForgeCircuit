@@ -3,7 +3,7 @@
   else root.SlotForgeIntegration = factory(root.Forge);
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (F) {
   'use strict';
-  const VERSION = '0.4.0',
+  const VERSION = '0.4.1',
     CONTRACT = '1.0.0-draft.2',
     ROUTED_CONTRACT = '1.0.0-draft.3',
     FLOWING_CONTRACT = '1.0.0-draft.4',

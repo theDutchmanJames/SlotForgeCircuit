@@ -1,10 +1,14 @@
-SlotForge Circuit — editor iteration (v0.4.0)
+SlotForge Circuit — editor iteration (v0.4.1)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. The rename does not move your data.
 This update automatically migrates installed JSON workspaces to SQLite.
+
+NEW IN v0.4.1 — ONE CAR PER LANE
+Live preview now drives a car on every lane (up to 8), each in its own colour,
+instead of only the first two. Lane 1 stays red and lane 2 blue.
 
 NEW IN v0.4.0 — DESKTOP APP, TEMPLATES, LAP TIMES AND EASIER EDITING
 Circuit is now also a desktop app for Windows, macOS and Linux, as an installer

@@ -1,7 +1,7 @@
-SLOTFORGE CIRCUIT v0.4.0
+SLOTFORGE CIRCUIT v0.4.1
 
 DESKTOP APP: Circuit is also available as a desktop app with its own window:
-SlotForgeCircuit-0.4.0-Setup-x64.exe (installer) or -Portable-x64.exe on Windows,
+SlotForgeCircuit-0.4.1-Setup-x64.exe (installer) or -Portable-x64.exe on Windows,
 a .dmg or .zip on macOS, and a .deb or .AppImage on Linux. The installed desktop
 app opens the same saved library as this browser edition. The steps below are
 for the browser edition in this ZIP.

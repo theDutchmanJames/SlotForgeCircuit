@@ -593,6 +593,36 @@ test('Check now finds a newer release: notice with Download and Not now, and Set
   }
 });
 
+// ---------------------------------------------------------------- live preview (last: replaces the track)
+
+test('Live preview drives one car per lane', async h => {
+  // Routed example layouts, opened as a double-clicked file would be.
+  const open = async name => {
+    h.context.trackFiles.deliver(
+      require('node:path').join(__dirname, '..', 'integration/slotforge-timing/routed-examples', name)
+    );
+    await h.waitFor(`return document.getElementById('confirm-dialog').open;`, 'replace confirmation');
+    await h.click('#confirm-go');
+    await h.waitFor(`return !document.getElementById('confirm-dialog').open;`, name);
+  };
+  const play = async () => {
+    await h.click('#play');
+    await h.waitFor(`return document.querySelectorAll('#cars .car').length > 0;`, 'cars on the track');
+    const colours = await h.js(
+      `return [...document.querySelectorAll('#cars .car')].map(c => c.innerHTML.match(/#(?:ec6167|66b4e7|5cc46a|f2c94c|f2994a|a77ce8|4fd1c5|f07cb8)/i)?.[0]);`
+    );
+    await h.click('#play');
+    return colours;
+  };
+  await open('closed-routed-oval.slotforge.json');
+  const two = await play();
+  assert(two.length === 2, `the 2-lane oval showed ${two.length} cars`);
+  await open('closed-tabletop-track.slotforge.json');
+  const four = await play();
+  assert(four.length === 4, `the 4-lane track showed ${four.length} cars`);
+  assert(new Set(four).size === 4, `cars share colours: ${four.join(', ')}`);
+});
+
 async function run(win, context = {}) {
   const h = harness(win);
   h.context = context; // { app, where, origin, trackFiles } from the desktop shell

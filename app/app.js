@@ -79,7 +79,7 @@
     network = { closed: false, routes: [] },
     snapEnabled = true,
     playing = false,
-    carDistances = [0, 0],
+    carDistances = [],
     speedPlans = [],
     lastTime = 0,
     drag = null,
@@ -382,7 +382,7 @@
     checkpoint();
     stop();
     fn();
-    carDistances = [0, 0];
+    carDistances = [];
     refresh();
   }
   async function exportPNG(raw = layout(false)) {
@@ -1713,10 +1713,11 @@
   $('open-template').onclick = openTemplates;
 
   function rebuildMotion() {
-    speedPlans = network.routes
-      .slice(0, 2)
-      .map(r => I.travelPlan(r, profile, timingOffset(r.id), integrationState.direction));
+    // One car per lane.
+    speedPlans = network.routes.map(r => I.travelPlan(r, profile, timingOffset(r.id), integrationState.direction));
   }
+  // Lane 1 red and lane 2 blue as before, then a clearly different colour per lane.
+  const CAR_COLOURS = ['#ec6167', '#66b4e7', '#5cc46a', '#f2c94c', '#f2994a', '#a77ce8', '#4fd1c5', '#f07cb8'];
   const motion = F.animationLoop(requestAnimationFrame, cancelAnimationFrame, frame);
   function stop() {
     motion.stop();
@@ -1743,12 +1744,13 @@
     lastTime = t;
     const factor = Number($('playback').value);
     const body = [];
-    for (const [r, i] of network.routes.slice(0, 2).map((r, i) => [r, i])) {
-      carDistances[i] = (carDistances[i] + speedPlans[i](carDistances[i]) * dt * factor) % r.lengthMm;
+    for (const [i, r] of network.routes.entries()) {
+      if (!speedPlans[i]) continue; // Lanes changed while playing: the next start picks them up.
+      carDistances[i] = ((carDistances[i] || 0) + speedPlans[i](carDistances[i] || 0) * dt * factor) % r.lengthMm;
       const q = I.atTravel(r, carDistances[i], timingOffset(r.id), integrationState.direction),
         drift = Math.sign(q.curvature) * profile.drift * Math.min(1, Math.abs(q.curvature) * 350);
       body.push(
-        `<g class="car" transform="translate(${q.x} ${q.y}) rotate(${q.heading})"><g transform="rotate(${drift})">${F.PreviewCar.draw(previewCar, i ? '#66b4e7' : '#ec6167')}</g><circle r="2" fill="white"/></g>`
+        `<g class="car" transform="translate(${q.x} ${q.y}) rotate(${q.heading})"><g transform="rotate(${drift})">${F.PreviewCar.draw(previewCar, CAR_COLOURS[i % CAR_COLOURS.length])}</g><circle r="2" fill="white"/></g>`
       );
     }
     $('cars').innerHTML = body.join('');
@@ -2700,7 +2702,7 @@
   $('empty-demo').onclick = example;
   $('play').onclick = togglePlay;
   $('restart').onclick = () => {
-    carDistances = [0, 0];
+    carDistances = [];
     if (!playing && network.closed) togglePlay();
   };
   $('mirror-new').onchange = () => rememberMirror($('mirror-new').checked);

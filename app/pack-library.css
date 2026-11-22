@@ -10,19 +10,7 @@
   background: var(--panel);
 }
 .pack-hub-filters {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.pack-hub-filters .btn {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-.pack-hub-filters .btn[aria-pressed='true'] {
-  border-color: var(--accent);
-  color: var(--ink);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  align-self: flex-start;
 }
 .pack-hub-search {
   width: min(360px, 45%);
@@ -116,10 +104,6 @@
   gap: 8px;
   flex-wrap: wrap;
   margin-top: auto;
-}
-.pack-hub-actions .btn {
-  font-size: 12px;
-  padding: 8px 10px;
 }
 .pack-hub-help {
   padding: 22px 24px;

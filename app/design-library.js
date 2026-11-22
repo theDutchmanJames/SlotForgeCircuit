@@ -1,7 +1,8 @@
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory(require('./integration.js'));
-  else root.DesignLibrary = factory(root.SlotForgeIntegration);
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (I) {
+  if (typeof module === 'object' && module.exports)
+    module.exports = factory(require('./integration.js'), require('./core.js'));
+  else root.DesignLibrary = factory(root.SlotForgeIntegration, root.Forge);
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (I, F) {
   'use strict';
   let backend = null;
   const DATABASE = 'slotforge.design-library.v1',
@@ -120,8 +121,41 @@
   async function list() {
     return backend ? backend.list() : browserList();
   }
+  // A saved track's card facts. v2 adds what the Track Library filters and sorts by: the kind of
+  // track, the track systems used, the lap length, the footprint and the favourite star.
+  const SUMMARY_VERSION = 2;
+  function facts(layout) {
+    const defs = layout?.definitions || [],
+      types = new Set(defs.map(d => d?.parameters?.type || '')),
+      routed = defs.some(d => d?.parameters?.routed || /^routed/.test(d?.parameters?.type || '')),
+      kind = types.has('freeform') ? 'freeform' : routed ? 'routed' : 'sectional',
+      systems = [
+        ...new Set(
+          defs
+            .filter(d => !/border/.test(d?.parameters?.type || ''))
+            .map(d => String(d?.pack || '').trim())
+            .filter(name => name && !/^routed (wood|freeform)$/i.test(name))
+        ),
+      ].sort(),
+      lanes = (layout?.track?.lanes || []).map(l => Number(l.lengthMm)).filter(Number.isFinite),
+      lapMm = lanes.length ? Math.round(lanes.reduce((a, b) => a + b, 0) / lanes.length) : 0;
+    let sizeMm = null;
+    try {
+      const guide = layout?.workspace?.spaceGuide;
+      if (guide?.kind === 'table' && guide.lengthMm && guide.widthMm) sizeMm = [guide.lengthMm, guide.widthMm];
+      else if (F && layout?.pieces?.length) {
+        const clean = F.validateLayout(layout),
+          b = F.bounds(clean.pieces, clean.definitions);
+        sizeMm = [Math.round(b[2]), Math.round(b[3])];
+      }
+    } catch {
+      sizeMm = null;
+    }
+    return { kind, systems, lapMm, sizeMm };
+  }
   function summarize(r) {
     return {
+      v: SUMMARY_VERSION,
       id: r.id,
       revision: r.revision || r.layout?.design?.revision || '',
       updatedAt: String(r.updatedAt || ''),
@@ -129,13 +163,22 @@
       designRevision: r.layout?.design?.revision || '',
       pieceCount: r.layout?.pieces?.length || 0,
       laneCount: r.layout?.track?.laneCount || 0,
+      favourite: !!r.favourite,
+      ...facts(r.layout),
     };
   }
   async function summaries() {
     if (backend) return backend.summaries();
-    const rows = await transaction('readonly', (store, done) => {
+    let rows = await transaction('readonly', (store, done) => {
       store.transaction.objectStore(SUMMARIES).getAll().onsuccess = e => done(e.target.result);
     });
+    if (rows.some(r => r.v !== SUMMARY_VERSION)) {
+      rows = (await browserList()).map(summarize);
+      await transaction('readwrite', store => {
+        const table = store.transaction.objectStore(SUMMARIES);
+        for (const r of rows) table.put(r);
+      });
+    }
     return rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id));
   }
   async function page({ query = '', offset = 0, limit = 24 } = {}) {
@@ -183,6 +226,7 @@
       store.get(record.id).onsuccess = e => {
         try {
           checkRevision(e.target.result, expected);
+          if (e.target.result?.favourite) record.favourite = true;
           store.put(record);
           store.transaction.objectStore(SUMMARIES).put(summarize(record));
           done(record);
@@ -207,7 +251,41 @@
       };
     });
   }
+  // The star on a card. It does not change the design's revision, so an open copy stays in step.
+  async function favourite(id, on) {
+    if (backend) return backend.favourite(id, !!on);
+    await transaction('readwrite', (store, done, fail) => {
+      store.get(id).onsuccess = e => {
+        const record = e.target.result;
+        if (!record) return fail(Error('This design is no longer in the library.'));
+        if (on) record.favourite = true;
+        else delete record.favourite;
+        store.put(record);
+        store.transaction.objectStore(SUMMARIES).put(summarize(record));
+      };
+    });
+  }
+  // The Bin: deleted tracks the disk workspace keeps (the last 20). Browser storage has no Bin.
+  const hasBin = () => !!backend?.trash;
+  async function bin() {
+    return hasBin() ? backend.trash() : [];
+  }
+  async function restore(id, deletedAt) {
+    if (!hasBin()) throw Error('The Bin needs the disk workspace.');
+    return backend.restore(id, deletedAt);
+  }
+  async function purge(id = null, deletedAt = null) {
+    if (!hasBin()) throw Error('The Bin needs the disk workspace.');
+    return backend.purge(id, deletedAt);
+  }
   return {
+    SUMMARY_VERSION,
+    summarize,
+    favourite,
+    hasBin,
+    bin,
+    restore,
+    purge,
     setBackend: value => {
       backend = value;
     },

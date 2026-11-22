@@ -1,6 +1,6 @@
 {
   "name": "slotforge-circuit",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "SlotForge Circuit: slotcar track designer",
   "author": "theDutchmanJames",
   "homepage": "https://github.com/theDutchmanJames/SlotForgeCircuit",
@@ -19,7 +19,9 @@
     "dist:mac": "electron-builder --mac --publish never",
     "dist:linux": "electron-builder --linux --publish never",
     "version:sync": "node desktop/sync-version.cjs",
-    "test:ui": "node desktop/ui-test-runner.cjs"
+    "test:ui": "node desktop/ui-test-runner.cjs",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=**/*.test.cjs --test-coverage-exclude=node_modules/** \"app/*.test.cjs\" \"desktop/*.test.cjs\" \"installer/*.test.cjs\"",
+    "test:monkey": "node desktop/monkey-runner.cjs"
   },
   "devDependencies": {
     "electron": "45.1.0",
@@ -42,6 +44,8 @@
       "!desktop/smoke.cjs",
       "!desktop/ui-tests.cjs",
       "!desktop/ui-test-runner.cjs",
+      "!desktop/monkey.cjs",
+      "!desktop/monkey-runner.cjs",
       "!desktop/build-icon.cjs",
       "!desktop/run-tests.cjs",
       "!desktop/sync-version.cjs",
@@ -79,7 +83,8 @@
       "signExecutable": false
     },
     "portable": {
-      "artifactName": "SlotForgeCircuit-${version}-Portable-${arch}.${ext}"
+      "artifactName": "SlotForgeCircuit-${version}-Portable-${arch}.${ext}",
+      "unpackDirName": true
     },
     "nsis": {
       "oneClick": false,

@@ -20,7 +20,8 @@
     $('inspector-selection').after(section);
     const action = (name, fn, host = content) => {
       const b = node('button', name, 'btn small');
-      if (/^(Apply|Save|Add this|Download)/.test(name)) b.classList.add('primary');
+      // The confirming action of a planning window is its main button; the tool list itself has none.
+      if (host !== content && /^(Apply|Save|Add this|Download)/.test(name)) b.classList.add('primary');
       b.type = 'button';
       b.onclick = () => {
         try {

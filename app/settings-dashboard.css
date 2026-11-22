@@ -1,0 +1,238 @@
+/* Settings, the dashboard: one screen of cards, each showing its current state with quick
+   controls. The theme presets, colour editor and update card are moved in by app.js. */
+
+#settings-view.sd-page {
+  max-width: none;
+}
+.sd-head {
+  margin-bottom: 16px;
+}
+.sd-head h1 {
+  margin: 0;
+}
+.sd {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.sd-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+.sd-card[hidden] {
+  display: none;
+}
+.sd-wide {
+  grid-column: span 2;
+}
+.sd-full {
+  grid-column: 1 / -1;
+}
+.sd-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.sd-top h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.sd-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.sd-link {
+  margin-left: auto;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--accent-text, var(--accent));
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.sd-link::after {
+  content: ' →';
+}
+.sd-link:hover {
+  text-decoration: underline;
+}
+.sd-link:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  border-radius: 4px;
+}
+.sd-note,
+.sd-facts {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.sd-facts {
+  font: 500 12px/1.45 var(--font-numbers, Consolas, monospace);
+}
+.sd-path {
+  margin: -6px 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font: 500 11.5px var(--font-numbers, Consolas, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sd-path[hidden] {
+  display: none;
+}
+.sd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.sd-actions .btn[hidden] {
+  display: none;
+}
+
+/* Look: the presets as a row of swatch tiles. */
+#sd-look #theme-presets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+}
+.sd-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13.5px;
+}
+.sd-toggle .pack-hub-filters {
+  flex: none;
+}
+
+/* Units: two tiles. */
+.sd-units {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.sd-unit {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.sd-unit input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.sd-unit:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--ui-selected);
+}
+.sd-unit:has(input:focus-visible) {
+  outline: 2px solid var(--ui-focus);
+}
+.sd-unit b {
+  font-size: 14px;
+}
+.sd-unit span {
+  color: var(--muted);
+  font: 500 12px var(--font-numbers, Consolas, monospace);
+}
+
+/* Your saved work. */
+.sd-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+.sd-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.sd-stat b {
+  font: 700 28px/1 var(--font-numbers, Consolas, monospace);
+}
+.sd-stat span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Updates: the update card sits inside without its own heading. */
+.sd-update-host .update-card > h2 {
+  display: none;
+}
+.sd-update-host .update-card {
+  margin: 0;
+}
+.sd-update-host .ss-sheet {
+  border: 0;
+  background: none;
+}
+.sd-update-host .ss-note:not(.warn) {
+  display: none; /* the privacy note is in the update window and the help */
+}
+.sd-update-host .ss-row {
+  padding-inline: 0;
+}
+
+/* Shortcuts. */
+.sd-keys {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px 14px;
+  margin: 0;
+  font-size: 13px;
+}
+.sd-keys dt {
+  display: flex;
+  gap: 3px;
+}
+.sd-keys dd {
+  margin: 0;
+}
+.sd-keys kbd {
+  min-width: 22px;
+  padding: 1px 6px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--bg);
+  font: 600 11px/1.5 var(--font-numbers, Consolas, monospace);
+  text-align: center;
+}
+
+/* The colour editor, opened under Look. */
+#sd-colours .theme-custom-card {
+  margin: 0;
+}
+
+@media (max-width: 1200px) {
+  .sd {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .sd-wide {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 760px) {
+  .sd {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

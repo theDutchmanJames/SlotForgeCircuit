@@ -92,5 +92,27 @@
     if (!r?.visible) return '';
     return `<image href="${r.image}" x="0" y="0" width="${r.widthMm}" height="${r.heightMm}" opacity="${r.opacity}" transform="translate(${r.x} ${r.y}) rotate(${r.angle})" pointer-events="none"/>`;
   }
-  return { validate, measurement, draw, image };
+  // Undo snapshots: a reference picture can be 2 MB, so each one is kept once here and the
+  // snapshot text holds a short token in its place. Equal pictures give equal tokens, so
+  // comparing two snapshots still tells whether anything changed.
+  const pictures = new Map(),
+    tokens = new Map();
+  function snapshotText(value) {
+    return JSON.stringify(value, (key, v) => {
+      if (key !== 'image' || typeof v !== 'string' || !v.startsWith('data:image/')) return v;
+      let token = tokens.get(v);
+      if (!token) {
+        token = 'picture:' + tokens.size;
+        tokens.set(v, token);
+        pictures.set(token, v);
+      }
+      return token;
+    });
+  }
+  function snapshotValue(text) {
+    return JSON.parse(text, (key, v) =>
+      key === 'image' && typeof v === 'string' && pictures.has(v) ? pictures.get(v) : v
+    );
+  }
+  return { validate, measurement, draw, image, snapshotText, snapshotValue };
 });

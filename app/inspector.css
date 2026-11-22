@@ -12,9 +12,6 @@
   justify-content: center;
   white-space: nowrap;
 }
-.inspector-tabs .tab[aria-selected='true'] {
-  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
-}
 .inspector-overview {
   padding: 16px 14px 8px;
 }
@@ -95,7 +92,7 @@
 }
 .inspector-folder > summary:focus-visible,
 .inspector-subfolder > summary:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--ui-focus);
   outline-offset: -3px;
 }
 .inspector-folder-body {
@@ -125,9 +122,6 @@
   color: var(--ui-warning, #e6c47f);
   border-color: currentColor;
 }
-#inspector-selection.has-selection .inspector-folder {
-  border-left: 3px solid var(--accent);
-}
 #inspector-selection.has-selection .inspector-badge {
   color: var(--ink);
 }
@@ -154,18 +148,11 @@
   max-width: 100%;
   white-space: normal;
   text-align: left;
+  justify-content: flex-start;
   line-height: 1.4;
 }
 .inspector .btn:disabled {
   opacity: 0.5;
-}
-html[data-theme] .inspector .inspector-accent {
-  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
-  color: var(--ink);
-}
-html[data-theme] .inspector .inspector-accent:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
 }
 .inspector-subfolder {
   border-top: 1px solid var(--line);

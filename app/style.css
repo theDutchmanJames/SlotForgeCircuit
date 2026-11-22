@@ -27,7 +27,7 @@ button:focus-visible,
 a:focus-visible,
 input:focus-visible,
 select:focus-visible {
-  outline: 2px solid #75b6df;
+  outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
 }
 button,
@@ -60,41 +60,101 @@ input[type='color'] {
   padding: 3px;
 }
 a {
-  color: #75b6df;
+  color: var(--ui-link);
 }
-.btn {
-  padding: 7px 11px;
-  background: #2b323d;
-  font-weight: 600;
+/* Pit Buttons (SlotForge Restyle): one flat family. Kinds: .primary (the one main action
+   of a screen), plain (normal actions), .ghost (tools used now and then), .danger (delete,
+   remove: red text), .quiet (no box, for close and small inline actions), .icon / .square
+   (a square glyph button, with aria-label), .sm / .small (28px, in cards and dense rows).
+   :not(.big) keeps the specificity low so a place can still adjust its own buttons. */
+.btn:not(.big) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--ui-button);
+  color: var(--ink);
+  font:
+    400 13px/1.2 'Segoe UI',
+    system-ui,
+    sans-serif;
+  box-shadow: none;
+  transform: none;
   white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
 }
-.btn:hover:not(:disabled) {
-  background: #39424f;
+.btn:not(.big):hover:where(:not(:disabled)) {
+  background: var(--ui-hover);
+  border-color: transparent;
 }
-.btn.primary {
+.btn:not(.big):active:where(:not(:disabled)) {
+  background: var(--ui-pressed);
+  transform: none;
+}
+.btn:not(.big):disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn.primary:not(.big),
+.link {
+  background: var(--accent-fill, var(--accent));
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 600;
+}
+.btn.primary:not(.big):is(:hover, :active):where(:not(:disabled)) {
   background: var(--accent);
-  border-color: var(--accent);
-  color: white;
 }
-.btn.primary:hover:not(:disabled) {
-  background: #ee5a5e;
+.btn.ghost:not(.big) {
+  background: transparent;
+  border-color: var(--line);
 }
-.btn.small {
-  font-size: 11px;
-  padding: 6px 8px;
+.btn.ghost:not(.big):hover:where(:not(:disabled)) {
+  background: var(--ui-quiet-hover);
+  border-color: color-mix(in srgb, var(--ink) 25%, var(--line));
 }
-.btn.quiet {
+.btn.quiet:not(.big) {
   background: transparent;
 }
-.btn.square {
-  min-width: 32px;
-  padding: 5px 8px;
-  font-size: 18px;
+.btn.quiet:not(.big):hover:where(:not(:disabled)) {
+  background: var(--ui-quiet-hover);
 }
-.btn.toggle[aria-pressed='true'] {
-  background: #264038;
-  border-color: #45735d;
-  color: #a6e2bd;
+.btn.danger:not(.big) {
+  background: transparent;
+  color: var(--accent-text, var(--accent));
+}
+.btn.danger:not(.big):hover:where(:not(:disabled)) {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.btn:is(.icon, .square):not(.big) {
+  width: 32px;
+  padding: 0;
+  font-size: 16px;
+}
+.btn:is(.sm, .small):not(.big) {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12.5px;
+}
+.btn:is(.sm, .small):is(.icon, .square):not(.big) {
+  width: 28px;
+  padding: 0;
+}
+.btn:not(.big) svg {
+  flex: none;
+}
+/* A tool that is switched on (Snap, Colour by piece) lights up in the accent. */
+.btn.toggle[aria-pressed='true']:not(.big) {
+  background: var(--ui-selected);
+  border-color: var(--accent);
+  color: var(--accent-text, var(--accent));
 }
 .app-header {
   height: 66px;
@@ -199,7 +259,7 @@ nav .tab {
   margin-bottom: 18px;
 }
 h2 {
-  font-size: 14px;
+  font-size: 17px;
   margin: 0;
   font-weight: 650;
 }
@@ -245,7 +305,7 @@ p {
   grid-template-columns: 76px 1fr;
   gap: 12px;
   text-align: left;
-  background: #1c222a;
+  background: var(--ui-inset);
   border: 1px solid var(--line);
   border-radius: 8px;
   margin-bottom: 8px;
@@ -254,8 +314,8 @@ p {
   min-height: 82px;
 }
 .piece-card:hover {
-  border-color: #77818e;
-  background: #29323e;
+  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+  background: var(--ui-hover);
 }
 .piece-card img,
 .piece-card svg {
@@ -276,7 +336,7 @@ p {
   margin-top: 5px;
 }
 .piece-card .reference {
-  color: #dcbb70;
+  color: var(--ui-warning);
 }
 .piece-card .add-symbol {
   color: var(--accent);
@@ -307,15 +367,12 @@ p {
   height: 54px;
   padding: 8px 12px;
   border-bottom: 1px solid var(--line);
-  background: #20262e;
+  background: var(--panel);
   flex-shrink: 0;
 }
 .tool-group {
   display: flex;
   gap: 4px;
-}
-.toolbar .btn {
-  font-size: 11px;
 }
 .toolbar .square {
   font-size: 18px;
@@ -324,7 +381,7 @@ p {
   flex: 1;
   min-height: 0;
   position: relative;
-  background: #151a20;
+  background: var(--ui-canvas);
   overflow: hidden;
 }
 #canvas {
@@ -342,7 +399,7 @@ p {
 }
 #canvas .selected-outline {
   pointer-events: none;
-  stroke: #ee6468;
+  stroke: var(--accent);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
   fill: none;
@@ -363,19 +420,19 @@ p {
   font-size: 10px;
   padding: 5px 9px;
   border-radius: 5px;
-  background: #273c34;
-  color: #a4dfbc;
-  border: 1px solid #3d6151;
+  background: color-mix(in srgb, var(--ui-success) 14%, var(--panel));
+  color: var(--ui-success);
+  border: 1px solid color-mix(in srgb, var(--ui-success) 45%, var(--line));
 }
 .pill.open {
-  background: #393124;
-  color: #e6c47f;
-  border-color: #635237;
+  background: color-mix(in srgb, var(--ui-warning) 14%, var(--panel));
+  color: var(--ui-warning);
+  border-color: color-mix(in srgb, var(--ui-warning) 45%, var(--line));
 }
 .pill.subtle {
-  background: #222933;
-  color: #a2acb8;
-  border-color: #343d49;
+  background: var(--panel);
+  color: var(--muted);
+  border-color: var(--line);
 }
 .canvas-bottom {
   position: absolute;
@@ -389,7 +446,7 @@ p {
   pointer-events: none;
 }
 .canvas-bottom > span {
-  color: #788492;
+  color: var(--muted);
   font-size: 10px;
 }
 .zoom-controls {
@@ -397,7 +454,7 @@ p {
   align-items: center;
   gap: 6px;
   pointer-events: auto;
-  background: #202730;
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 3px;
@@ -411,9 +468,6 @@ p {
   background: transparent;
   border: 0;
   box-shadow: none;
-}
-.zoom-controls .btn:not(.square) {
-  font-size: 11px;
 }
 .preview-bar {
   height: 58px;
@@ -432,9 +486,6 @@ p {
 }
 .preview-bar select {
   padding: 4px;
-}
-.preview-bar .btn {
-  font-size: 12px;
 }
 .inspector {
   border-left: 1px solid var(--line);
@@ -464,8 +515,8 @@ p {
 .metric-grid > div {
   padding: 12px;
   border-radius: 6px;
-  background: #1a2027;
-  border: 1px solid #303844;
+  background: var(--ui-inset);
+  border: 1px solid var(--line);
 }
 .metric-grid strong {
   font-size: 23px;
@@ -507,6 +558,25 @@ p {
 .lane-row:nth-child(2) .lane-dot {
   background: #65b0e5;
 }
+/* Lanes 3–8: the same colours as their cars in Live preview. */
+.lane-row:nth-child(3) .lane-dot {
+  background: #5cc46a;
+}
+.lane-row:nth-child(4) .lane-dot {
+  background: #f2c94c;
+}
+.lane-row:nth-child(5) .lane-dot {
+  background: #f2994a;
+}
+.lane-row:nth-child(6) .lane-dot {
+  background: #a77ce8;
+}
+.lane-row:nth-child(7) .lane-dot {
+  background: #4fd1c5;
+}
+.lane-row:nth-child(8) .lane-dot {
+  background: #f07cb8;
+}
 .position-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -534,7 +604,7 @@ p {
 .text-button {
   border: 0;
   background: none;
-  color: #8cbdde;
+  color: var(--ui-link);
   font-size: 11px;
 }
 .inventory-row {
@@ -562,7 +632,7 @@ p {
   margin-bottom: 10px;
 }
 .slider-label output {
-  color: #e7b0b2;
+  color: var(--ink);
 }
 .statusbar {
   height: 26px;
@@ -606,35 +676,121 @@ p {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
 }
+/* Workshop Window (SlotForge Restyle): rounded, a big Barlow title with a line under it,
+   an intro line in grey, the buttons at the bottom right with the main one last.
+   No coloured top bars. */
 dialog {
   background: var(--panel);
   color: var(--ink);
-  border: 1px solid #4a5361;
-  border-radius: 12px;
-  padding: 25px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px 24px;
   width: min(780px, 92vw);
   max-height: 90dvh;
   overflow: auto;
+  box-shadow: 0 30px 80px rgb(0 0 0 / 50%);
+  font-size: 14px;
+}
+/* The window itself takes focus when it has nothing else to focus; it needs no ring. */
+dialog:focus {
+  outline: none;
 }
 dialog::backdrop {
-  background: #080c13b3;
-  backdrop-filter: blur(3px);
+  background: rgb(5 7 10 / 62%);
+  backdrop-filter: blur(2px);
 }
 .dialog-heading {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 22px;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
 }
-.dialog-heading h2 {
-  font-size: 23px;
+.dialog-heading h2,
+:is(dialog, dialog > form) > h2:first-child {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.1;
 }
+:is(dialog, dialog > form) > h2:first-child {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+/* The intro line under the title. */
+:is(.dialog-heading, :is(dialog, dialog > form) > h2:first-child) + p:not([class]) {
+  margin-top: 0;
+  color: var(--muted);
+}
+/* Flag Dialog (SlotForge Restyle): Yes / No and message windows. A badge before the title
+   says the kind: ? a question, i a message, ! something that cannot be undone (accent).
+   The text lines up with the title; Cancel first, the answer last on the right. */
+dialog.appdlg {
+  width: min(480px, 94vw);
+  padding: 22px 24px 18px;
+}
+dialog.appdlg > h2:first-of-type {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 10px;
+  padding: 0;
+  border-bottom: 0;
+  font-size: 24px;
+}
+dialog.appdlg > h2:first-of-type::before {
+  content: '?';
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ink) 9%, var(--panel));
+  color: color-mix(in srgb, var(--ink) 75%, var(--muted));
+  font:
+    700 18px/1 'Segoe UI',
+    system-ui,
+    sans-serif;
+  text-transform: none;
+}
+dialog.appdlg-alert > h2:first-of-type::before {
+  content: 'i';
+  font-family: Georgia, serif;
+  font-style: italic;
+  font-size: 20px;
+}
+dialog.appdlg-danger > h2:first-of-type::before {
+  content: '!';
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  color: var(--accent-text, var(--accent));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+dialog.appdlg > :not(h2, .dialog-actions, .eyebrow) {
+  margin-left: 50px;
+}
+dialog.appdlg > p:not([class]) {
+  color: color-mix(in srgb, var(--ink) 88%, var(--muted));
+  line-height: 1.55;
+}
+dialog.appdlg > .dialog-actions {
+  margin: 18px 0 0;
+  padding-top: 0;
+  border-top: 0;
+}
+/* Eyebrow above a name: plain type, spaced capitals, grey. */
 .eyebrow {
-  font-size: 10px;
-  letter-spacing: 1.8px;
-  color: #dd9296;
   display: block;
   margin-bottom: 6px;
+  font:
+    700 11px/1.3 'Segoe UI',
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 .custom-grid {
   display: grid;
@@ -648,7 +804,7 @@ dialog::backdrop {
   margin: 14px 0;
 }
 .form-grid label {
-  font-size: 11px;
+  font-size: 12.5px;
   color: var(--muted);
 }
 .form-grid input,
@@ -658,7 +814,7 @@ dialog::backdrop {
   margin-top: 5px;
 }
 .custom-preview {
-  background: #171c23;
+  background: var(--ui-inset);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 15px;
@@ -675,13 +831,23 @@ dialog::backdrop {
   color: var(--muted);
 }
 .custom-preview p.error {
-  color: #ff9b9f;
+  color: var(--ui-error);
 }
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 9px;
-  margin-top: 22px;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+/* Fields in windows and pages: 34px, softly rounded. */
+:where(dialog, main)
+  :is(input[type='text'], input[type='number'], input[type='search'], input:not([type]), select, textarea) {
+  min-height: 34px;
+  border-radius: 7px;
+  box-shadow: none;
 }
 #reference-dialog {
   width: min(550px, 90vw);
@@ -695,22 +861,19 @@ dialog::backdrop {
   font-size: 12px;
   color: var(--muted);
 }
-#confirm-dialog {
-  width: 430px;
-}
 #toast {
   position: fixed;
   bottom: 42px;
   left: 50%;
   transform: translateX(-50%);
   padding: 12px 18px;
-  border: 1px solid #657184;
-  background: #303b49;
-  color: #f0eee9;
+  border: 1px solid var(--line);
+  background: var(--ui-box);
+  color: var(--ink);
   border-radius: 8px;
   z-index: 30;
   max-width: 600px;
-  box-shadow: 0 8px 28px #0008;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 35%);
 }
 .no-results {
   padding: 20px 4px;
@@ -796,18 +959,12 @@ dialog::backdrop {
   cursor: crosshair;
 }
 #selection-box {
-  fill: #e5484d20;
-  stroke: #ee6468;
+  fill: color-mix(in srgb, var(--accent) 12%, transparent);
+  stroke: var(--accent);
   stroke-width: 1;
   stroke-dasharray: 5 3;
   vector-effect: non-scaling-stroke;
   pointer-events: none;
-}
-.mirror-preference {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
-  margin: 0 0 12px;
 }
 /* Dedicated custom-library and export sections share the editor theme. */
 .section-view {
@@ -902,7 +1059,7 @@ dialog::backdrop {
   margin: 0 6px 8px 0;
 }
 #borders-missing {
-  color: #e6c47f;
+  color: var(--ui-warning);
   font-size: 12px;
   line-height: 1.7;
 }
@@ -988,8 +1145,8 @@ dialog::backdrop {
   padding: 5px;
 }
 #curve-family-table .active {
-  color: #ffb2b5;
-  background: #472d34;
+  color: var(--ink);
+  background: var(--ui-selected);
 }
 #piece-dialog {
   width: min(920px, 94vw);
@@ -998,15 +1155,15 @@ dialog::backdrop {
   justify-content: flex-start;
 }
 input[readonly] {
-  color: #b2c6d7;
-  background: #252d37;
+  color: var(--muted);
+  background: var(--ui-inset);
 }
 
 .catalogue-folder {
   margin: 0 0 8px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: #1c222a;
+  background: var(--ui-inset);
 }
 .catalogue-folder > summary {
   cursor: pointer;
@@ -1035,32 +1192,6 @@ input[readonly] {
 .catalogue-folder .piece-card svg {
   width: 65px;
 }
-.design-card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 20px;
-  min-width: 0;
-}
-.design-card h2 {
-  font-size: 18px;
-  overflow-wrap: anywhere;
-}
-.design-thumbnail {
-  background: #171c23;
-  border-radius: 6px;
-  margin-bottom: 18px;
-  padding: 15px;
-}
-.design-thumbnail svg {
-  width: 100%;
-  height: 180px;
-  display: block;
-}
-.design-card .view-actions {
-  gap: 8px;
-  flex-wrap: wrap;
-}
 .design-library {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
@@ -1068,9 +1199,6 @@ input[readonly] {
 }
 .projectbar {
   gap: 10px;
-}
-.projectbar .btn {
-  font-size: 12px;
 }
 .projectbar #save-state {
   font-size: 11px;
@@ -1080,10 +1208,10 @@ input[readonly] {
   max-width: 540px;
 }
 #design-save-error {
-  color: #ff9b9f;
+  color: var(--ui-error);
 }
 .catalogue-folder > summary:focus-visible {
-  outline: 2px solid #75b6df;
+  outline: 2px solid var(--ui-focus);
   outline-offset: 2px;
 }
 #library-view > .view-actions {
@@ -1102,15 +1230,6 @@ input[readonly] {
 }
 #library-view .design-library {
   margin-top: 16px;
-}
-.design-thumbnail svg {
-  height: 150px;
-}
-.design-card .view-actions {
-  margin: 12px 0 0;
-}
-.design-card .fine {
-  margin: 10px 0;
 }
 
 /* Track identity and export actions remain visible together. */
@@ -1134,23 +1253,20 @@ input[readonly] {
   width: 230px;
   font-size: 16px;
   padding: 7px 10px;
-  background: #10161d;
-  border: 1px solid #697889;
+  background: var(--bg);
+  border: 1px solid var(--muted);
   border-radius: 6px;
 }
 .title-label input:hover {
-  border-color: #a5b3c3;
+  border-color: var(--ink);
 }
 .title-label input:focus {
-  border-color: #75b6df;
-  box-shadow: 0 0 0 2px #75b6df33;
+  border-color: var(--ui-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ui-focus) 25%, transparent);
 }
 .projectbar #save-state {
   font-size: 10px;
   max-width: 90px;
-}
-.projectbar > .btn {
-  font-size: 12px;
 }
 .projectbar .spacer {
   min-width: 0;
@@ -1172,7 +1288,7 @@ input[readonly] {
   color: var(--ink);
 }
 .export-source-card .error {
-  color: #ff9b9f;
+  color: var(--ui-error);
 }
 .export-source-card .error:empty {
   display: none;
@@ -1223,7 +1339,7 @@ input[readonly] {
     overflow-x: auto;
   }
   .projectbar > .btn {
-    padding: 7px 8px;
+    padding: 0 8px;
   }
   .title-label input {
     width: 180px;
@@ -1252,8 +1368,9 @@ input[readonly] {
 }
 .canvas-top .btn {
   pointer-events: auto;
-  font-size: 10px;
-  padding: 5px 8px;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12.5px;
 }
 .space-guide-area {
   fill: #75b6df0b;
@@ -1330,7 +1447,7 @@ input[readonly] {
   font-size: 12px;
 }
 #storage-error {
-  color: #e6c47f;
+  color: var(--ui-warning);
   overflow-wrap: anywhere;
 }
 .statusbar .text-button {
@@ -1453,12 +1570,1361 @@ input[readonly] {
 #storage-upgrade {
   max-width: 560px;
 }
-#storage-upgrade h2 {
-  font-size: 24px;
-  line-height: 1.25;
-  margin: 10px 0 16px;
-}
 #storage-upgrade progress {
-  width: 100%;
+  width: calc(100% - 50px);
   accent-color: var(--accent);
+}
+
+/* Folder (SlotForge Restyle): a collapsible group with a quiet box, a Barlow title on the
+   left and a chevron on the right; when open, a thin accent mark on the left and a line
+   under the title. Used for the inspector and catalogue groups, the FreeForm settings and
+   the export notes. Nested sub-sections keep their lighter look. */
+:is(.inspector-folder, .catalogue-folder, .export-compatibility, .ff-settings details:not(details details)) {
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  overflow: clip;
+}
+:is(.inspector-folder, .catalogue-folder, .export-compatibility, .ff-settings details:not(details details)) > summary {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  margin: 0;
+  padding: 12px 42px 12px 16px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  font:
+    italic 700 17px/1.15 'SF Barlow Condensed',
+    'Bahnschrift',
+    sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  transition: background 0.12s;
+}
+:is(.inspector-folder, .catalogue-folder, .export-compatibility, .ff-settings details:not(details details))
+  > summary::-webkit-details-marker {
+  display: none;
+}
+:is(.inspector-folder, .catalogue-folder, .export-compatibility, .ff-settings details:not(details details))
+  > summary:hover {
+  background: var(--ui-box);
+}
+:is(.inspector-folder, .catalogue-folder, .export-compatibility, .ff-settings details:not(details details))
+  > summary::before {
+  content: '';
+  position: absolute;
+  right: 18px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -6px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+}
+:is(.inspector-folder, .catalogue-folder, .export-compatibility, .ff-settings details:not(details details))[open]
+  > summary {
+  margin-bottom: 0;
+  background: var(--ui-box);
+  border-bottom: 1px solid var(--line);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+:is(.inspector-folder, .catalogue-folder, .export-compatibility, .ff-settings details:not(details details))[open]
+  > summary::before {
+  margin-top: -2px;
+  transform: rotate(-135deg);
+}
+/* Counts and status chips beside a folder title stay in the plain type. */
+:is(.catalogue-folder > summary > span, .inspector-folder .inspector-badge) {
+  float: none;
+  margin-left: auto;
+  font:
+    400 12px/1.2 'Segoe UI',
+    system-ui,
+    sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.catalogue-folder[open] > .folder-pieces {
+  padding-top: 8px;
+}
+:is(.export-compatibility, .ff-settings details:not(details details))[open] > :not(summary) {
+  margin-left: 16px;
+  margin-right: 16px;
+}
+
+/* Finishing Touches (SlotForge Restyle): file pickers as secondary buttons and thin
+   scroll bars in the theme. */
+:where(dialog, main) input[type='file'] {
+  font-size: 13px;
+  color: var(--muted);
+}
+:where(dialog, main) input[type='file']::file-selector-button {
+  margin-right: 10px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--ink) 9%, var(--panel));
+  color: var(--ink);
+  font:
+    400 13px 'Segoe UI',
+    system-ui,
+    sans-serif;
+  cursor: pointer;
+}
+:where(dialog, main) input[type='file']::file-selector-button:hover {
+  background: color-mix(in srgb, var(--ink) 14%, var(--panel));
+}
+*::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--ink) 22%, transparent) padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in srgb, var(--ink) 34%, transparent);
+}
+
+/* Paddock Rail (SlotForge Restyle): a page with its sections in a side list on the left
+   (240px) and one section at a time on the right. Built by side-rail.js. */
+.section-view.has-rail {
+  padding: 0;
+  overflow: hidden;
+}
+.rail-shell {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+}
+nav.rail {
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  align-self: auto;
+  gap: 2px;
+  min-height: 0;
+  overflow: auto;
+  padding: 22px 12px 24px;
+  border-right: 1px solid var(--line);
+  background: var(--ui-rail);
+}
+.rail-title {
+  margin: 0 10px 0;
+  font:
+    italic 700 22px/1.1 'SF Barlow Condensed',
+    'Bahnschrift',
+    sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.rail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 18px;
+}
+.rail-label {
+  margin: 0 10px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--muted) 80%, var(--bg));
+}
+.rail-tab {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: color-mix(in srgb, var(--ink) 82%, var(--muted));
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+}
+.rail-tab:hover {
+  background: var(--ui-quiet-hover);
+}
+.rail-tab[aria-selected='true'] {
+  background: var(--ui-selected);
+  color: var(--ink);
+  font-weight: 600;
+}
+.rail-tab .rail-ico {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--muted);
+}
+.rail-tab[aria-selected='true'] .rail-ico {
+  color: var(--accent-text, var(--accent));
+}
+/* a small number on the right, such as how many packs an item shows */
+.rail-count {
+  flex: none;
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--ui-button);
+  color: var(--muted);
+  font: 500 11px/1.5 var(--font-numbers, monospace);
+  text-align: center;
+}
+.rail-count[hidden] {
+  display: none;
+}
+.rail-tab[aria-selected='true'] .rail-count {
+  color: var(--ink);
+}
+.rail-tab:focus-visible {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 3px;
+}
+.rail-text {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.rail-page {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 28px 32px 64px;
+}
+.rail-page > * {
+  max-width: 1100px;
+}
+/* Narrow windows: the list becomes a wrapping row above the page. */
+@media (max-width: 900px) {
+  .rail-shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  nav.rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .rail > [role='tablist'],
+  .rail-group {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 2px;
+    margin: 0;
+  }
+  .rail-title,
+  .rail-label {
+    display: none;
+  }
+  .rail-tab {
+    width: auto;
+  }
+  .rail-page {
+    padding: 20px 16px 48px;
+  }
+}
+
+/* Settings Sheet (SlotForge Restyle): groups of slim two-half rows, the name and one short
+   line on the left, one 30px control on the right. Pictures (theme previews, colour
+   pickers) keep their own drawing. */
+.ss-section > h2 {
+  margin: 0 0 6px;
+  font-size: 26px;
+}
+.ss-gh {
+  margin: 22px 2px 8px;
+  font:
+    600 10.5px 'Segoe UI',
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.ss-sheet {
+  margin: 0 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.ss-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 20px;
+  min-height: 52px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+}
+.ss-row:first-child {
+  border-top: 0;
+}
+.ss-t {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.ss-t > b {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.ss-t > .ss-desc {
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.ss-ctl {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ss-ctl > :is(select, input[type='text']) {
+  min-height: 30px;
+  height: 30px;
+}
+.ss-ctl > select {
+  width: clamp(190px, 24vw, 320px);
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: 28px;
+}
+.ss-ctl > .btn:not(.big) {
+  min-height: 30px;
+}
+.ss-note {
+  margin: -8px 2px 18px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.ss-note.warn {
+  color: var(--ui-warning);
+}
+.ss-val {
+  font: 500 13px var(--font-numbers, monospace);
+  color: var(--ink);
+}
+/* Switch: a 34x20 pill, the accent when on. */
+input.ss-switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border: 0;
+  border-radius: 10px;
+  background: var(--line);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+input.ss-switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.15s;
+}
+input.ss-switch:checked {
+  background: var(--accent-fill, var(--accent));
+}
+input.ss-switch:checked::after {
+  transform: translateX(14px);
+}
+/* Segmented choice: a sunken strip, the chosen option lifted. The radios stay, hidden. */
+.ss-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.ss-seg > label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+.ss-seg > label:hover {
+  color: var(--ink);
+}
+.ss-seg > label:has(input:checked) {
+  background: color-mix(in srgb, var(--ink) 13%, var(--panel));
+  color: var(--ink);
+  font-weight: 600;
+}
+.ss-seg > label:has(input:focus-visible) {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.ss-seg input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+/* Status pill: green when fine, amber when it needs you. */
+.ss-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ss-pill::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.ss-pill.good {
+  color: var(--ink);
+  border-color: color-mix(in srgb, var(--ui-good) 45%, var(--line));
+}
+.ss-pill.good::before {
+  background: var(--ui-good);
+}
+.ss-pill.needs {
+  color: var(--ui-warning);
+  border-color: color-mix(in srgb, var(--ui-warning) 45%, var(--line));
+}
+@media (max-width: 640px) {
+  .ss-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ss-ctl {
+    justify-content: flex-start;
+  }
+}
+
+/* Control Strip (SlotForge Restyle): one tight toolbar above a list. The main action on
+   the left; search with a magnifier and the pager as icon buttons on the right. */
+.control-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 0;
+}
+.control-strip-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-left: auto;
+}
+.strip-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.strip-search > svg {
+  position: absolute;
+  left: 10px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.strip-search input {
+  width: 240px;
+  min-height: 32px;
+  padding: 0 10px 0 32px;
+  border-radius: 7px;
+  background: var(--bg);
+  font-size: 13px;
+}
+.strip-pager {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.strip-pager[hidden] {
+  display: none;
+}
+.strip-pager .strip-page {
+  margin-right: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.strip-status {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.strip-status:empty {
+  display: none;
+}
+@media (max-width: 900px) {
+  .control-strip-end {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+  .strip-search input {
+    width: 180px;
+  }
+}
+
+/* Showroom Card (SlotForge Restyle): a card whose top is the saved track itself, drawn by
+   Circuit and scaled to the card, then the name and facts, and the buttons in a foot. */
+.design-library {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+#library-view .design-library {
+  margin-top: 16px;
+}
+.design-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.design-card:hover {
+  border-color: color-mix(in srgb, var(--ink) 22%, var(--line));
+}
+.design-card > .design-thumbnail {
+  display: grid;
+  place-items: center;
+  height: 180px;
+  margin: 0;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: var(--ui-canvas);
+  color: var(--muted);
+  font-size: 12px;
+}
+.design-card > .design-thumbnail img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.design-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 14px 16px;
+}
+.design-body > h3 {
+  margin: 0;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.design-body > .fine {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.design-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 50%, var(--panel));
+}
+.design-foot > .btn.danger {
+  margin-left: auto;
+}
+
+/* Gear Selector (SlotForge Restyle): a quiet segmented control for a small choice or the
+   tabs inside a page. The chosen segment is lifted in neutral grey, not the accent.
+   Used for the Track Packs filter, the inspector and FreeForm tabs and the theme switch. */
+:where(.pack-hub-filters, .inspector-tabs, .ff-tabs, .sf-header .theme-switch) {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+}
+:is(.pack-hub-filters > .btn, .inspector-tabs > .tab, .ff-tabs > button, .sf-header .theme-switch > button) {
+  min-height: 26px;
+  padding: 6px 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+  color: var(--muted);
+  font-weight: 500;
+}
+:is(.pack-hub-filters > .btn, .inspector-tabs > .tab, .ff-tabs > button, .sf-header .theme-switch > button):hover:where(
+    :not(:disabled)
+  ) {
+  background: var(--ui-quiet-hover);
+  color: var(--ink);
+}
+:is(.pack-hub-filters > .btn, .inspector-tabs > .tab, .ff-tabs > button, .sf-header .theme-switch > button):is(
+  .on,
+  [aria-pressed='true'],
+  [aria-selected='true']
+) {
+  background: color-mix(in srgb, var(--ink) 12%, var(--panel));
+  color: var(--ink);
+  font-weight: 600;
+}
+:is(
+  .pack-hub-filters > .btn,
+  .inspector-tabs > .tab,
+  .ff-tabs > button,
+  .sf-header .theme-switch > button
+):focus-visible {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+/* Tabs that fill their panel: the strip spans the width, segments share it. */
+.inspector .inspector-tabs {
+  display: flex;
+  margin: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+.inspector-tabs > .tab {
+  flex: 1;
+  justify-content: center;
+}
+.ff-tabs.ff-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0 0 4px;
+}
+.ff-tabs > button {
+  padding: 6px 2px;
+}
+
+/* Toggle Chips (SlotForge Restyle): on/off choices as pill switches with a tick, for
+   "which of these" groups (CAD layers) and view options (the catalogue). A toggle button
+   with aria-pressed looks the same. */
+.vsgroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  border: 0;
+}
+.vsgroup legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 0;
+  font:
+    600 11px/1.4 'Segoe UI',
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vschip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 12px 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  font:
+    400 13px/1.25 'Segoe UI',
+    system-ui,
+    sans-serif;
+  color: color-mix(in srgb, var(--ink) 80%, var(--muted));
+  box-shadow: none;
+  transform: none;
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    border-color 0.12s;
+}
+.vschip:hover {
+  border-color: color-mix(in srgb, var(--ink) 25%, var(--line));
+  color: var(--ink);
+}
+.vschip input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+.vschip::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 35%, var(--line));
+  border-radius: 4px;
+  background: transparent no-repeat center / 10px 10px;
+}
+.vschip:is(:has(input:checked), [aria-pressed='true']) {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  color: var(--ink);
+}
+.vschip:is(:has(input:checked), [aria-pressed='true'])::before {
+  border-color: var(--accent-fill, var(--accent));
+  background-color: var(--accent-fill, var(--accent));
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2 5 8.5 9.5 3.5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.vschip:is(:has(input:focus-visible), :focus-visible) {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.vschip:has(input:disabled),
+.vschip:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+.catalogue-options .vschip {
+  font-size: 12px;
+  padding: 5px 11px 5px 8px;
+}
+.catalogue-chips {
+  margin: 0 0 12px;
+}
+.catalogue-chips .vschip {
+  font-size: 12px;
+  padding: 5px 11px 5px 8px;
+}
+
+/* Page Note (SlotForge Restyle): the box under a page title that explains the page.
+   An icon tile, what it is in one line, a few more words in grey, and where you use it. */
+.sn {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  column-gap: 14px;
+  row-gap: 3px;
+  align-items: start;
+  max-width: 860px;
+  margin: 4px 0 22px;
+  padding: 14px 18px 14px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.sn-tile {
+  grid-row: 1 / span 3;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--c, var(--accent)) 16%, var(--panel));
+  color: var(--c, var(--accent-text, var(--accent)));
+}
+.sn-lead {
+  grid-column: 2;
+  margin: 0;
+  color: var(--ink);
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.sn-more {
+  grid-column: 2;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.sn-more:empty {
+  display: none;
+}
+.sn-use {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 7px 0 0;
+  color: color-mix(in srgb, var(--ink) 82%, var(--muted));
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.sn-use svg {
+  flex: none;
+  color: var(--accent-text, var(--accent));
+}
+.view-heading + .sn {
+  margin-top: -6px;
+}
+
+/* Pit Board (SlotForge Restyle): the builder's top bar and its tool row. The track name
+   is a big Barlow field under a small eyebrow; the saved state, Undo / Redo and the main
+   Save sit on the right. Below, the tools are quiet buttons in named groups. */
+.projectbar.pitboard {
+  height: auto;
+  min-height: 64px;
+  gap: 10px;
+  padding: 8px 16px;
+  background: var(--panel);
+}
+.pitboard .title-label {
+  gap: 1px;
+  min-width: 0;
+  flex-shrink: 1;
+}
+.pitboard .track-name-label {
+  font:
+    700 10.5px/1.4 'Segoe UI',
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pitboard .title-label input {
+  width: min(420px, 34vw);
+  min-height: 0;
+  padding: 0 0 1px;
+  border: 0;
+  border-bottom: 1px dashed var(--line);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  color: var(--ink);
+  font:
+    italic 700 24px/1.15 'SF Barlow Condensed',
+    'Bahnschrift',
+    sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.pitboard .title-label input:hover {
+  border-bottom-color: color-mix(in srgb, var(--ink) 40%, var(--line));
+}
+.pitboard .title-label input:focus {
+  outline: none;
+  border-bottom: 1px solid var(--ui-focus);
+  box-shadow: none;
+}
+.pitboard #save-state.pb-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: none;
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.pitboard #save-state[data-state='clean'] {
+  color: var(--ui-success);
+}
+.pitboard #save-state[data-state='clean']::before {
+  content: '✓';
+}
+.pitboard #save-state[data-state='busy']::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f2b705;
+}
+.pitboard #save-state[data-state='error'] {
+  color: var(--ui-warning);
+}
+.pitboard #save-state[data-state='error']::before {
+  content: '!';
+  font-weight: 700;
+}
+.toolbar.pb-tools {
+  gap: 4px 6px;
+  height: auto;
+  min-height: 46px;
+  padding: 7px 12px;
+  background: color-mix(in srgb, var(--bg) 50%, var(--panel));
+}
+.pb-tools .pb-grp {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 8px;
+  border-right: 1px solid var(--line);
+}
+.pb-tools .pb-gl {
+  margin: 0 6px 0 2px;
+  font:
+    600 10px 'Segoe UI',
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pb-tools .pb-grp > .btn:not(.big) {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 9px;
+  background: transparent;
+  font-size: 12.5px;
+  color: color-mix(in srgb, var(--ink) 82%, var(--muted));
+}
+.pb-tools .pb-grp > .btn:not(.big):hover:where(:not(:disabled)) {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
+}
+.pb-tools .pb-grp > .btn.square:not(.big) {
+  width: 30px;
+  padding: 0;
+}
+.pb-tools .layer-control select {
+  height: 30px;
+  min-height: 30px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+@media (max-width: 1200px) {
+  .pitboard #save-state.pb-state {
+    display: none;
+  }
+}
+
+/* Help Reader (SlotForge Restyle): the help windows set as a calm document. A small trail in
+   spaced capitals, one Barlow title, the plain words as the lead with a thin accent line on
+   the left (no box), quiet rows, keys as key caps in Roboto Mono, and related guides as pill
+   chips under a thin line. A title focused by the app shows no outline; keyboard focus does. */
+:is(.help-dialog, .welcome-dialog) {
+  width: min(780px, calc(100vw - 32px));
+  padding: 26px 34px 28px;
+}
+:is(.help-dialog, .welcome-dialog) .dialog-heading {
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+:is(.help-dialog, .welcome-dialog) .help-crumb {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+:is(.help-dialog, .welcome-dialog) .dialog-heading h2 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 32px;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+}
+:is(.help-dialog, .welcome-dialog) h2:focus {
+  outline: none;
+}
+:is(.help-dialog, .welcome-dialog) h2:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 4px;
+}
+:is(.help-dialog, .welcome-dialog) .help-plain {
+  max-width: 68ch;
+  margin: 0 0 26px;
+  padding: 2px 0 2px 16px;
+  border-left: 2px solid var(--accent);
+}
+:is(.help-dialog, .welcome-dialog) .help-plain p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  line-height: 1.55;
+}
+.help-dialog .shortcut-groups {
+  gap: 4px 36px;
+}
+.help-dialog .shortcut-groups h3 {
+  margin: 18px 0 6px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+}
+.help-dialog .shortcut-row {
+  align-items: center;
+  padding: 7px 0;
+  border-bottom-color: color-mix(in srgb, var(--line) 45%, transparent);
+  color: color-mix(in srgb, var(--ink) 86%, var(--muted));
+  font-size: 14px;
+  line-height: 1.5;
+}
+.help-dialog .shortcut-row > span:last-child {
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+:is(.help-dialog, .welcome-dialog) kbd {
+  min-width: 22px;
+  padding: 1px 7px;
+  background: var(--bg);
+  color: var(--ink);
+  font:
+    500 12px/1.5 var(--font-numbers, 'SF Roboto Mono'),
+    Consolas,
+    monospace;
+  text-align: center;
+}
+.help-related-block {
+  margin-top: 30px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.help-related-block h4 {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.help-related {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.help-related .btn.help-chip {
+  min-height: 30px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+.help-related .btn.help-chip:hover {
+  background: var(--ui-quiet-hover);
+}
+.welcome-dialog .welcome-foot {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+/* Pit Wall (SlotForge Restyle, pit-wall.js): the main menu as one slim bar that never wraps.
+   The page links in two groups on a dark track, the open one lifted with its picture in the
+   accent; a status light for the storage on the right. The bar steps down (pw-t1 … pw-t8)
+   until it fits, so nothing is ever cut off. */
+html[data-theme] .sf-header.pitwall {
+  height: 60px;
+  min-height: 60px;
+  gap: 20px;
+  padding: 0 18px;
+}
+html[data-theme] .sf-header.pitwall nav {
+  flex: 0 1 auto;
+  align-self: center;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+.sf-header.pitwall .pw-grp {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  height: 38px;
+  padding: 3px;
+  border-radius: 10px;
+  background: color-mix(in srgb, #000 22%, var(--panel));
+}
+html[data-tone='light'] .sf-header.pitwall .pw-grp {
+  background: color-mix(in srgb, var(--ink) 7%, var(--panel));
+}
+html[data-theme] .sf-header.pitwall .pw-grp > .sf-nav-link {
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+html[data-theme] .sf-header.pitwall .pw-grp > .sf-nav-link:hover {
+  color: var(--ink);
+  background: var(--ui-quiet-hover);
+}
+html[data-theme] .sf-header.pitwall .pw-grp > .sf-nav-link[aria-current='page'] {
+  background: color-mix(in srgb, var(--ink) 12%, var(--panel));
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 30%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+}
+.sf-header.pitwall .pw-ico {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+.sf-header.pitwall .sf-nav-link[aria-current='page'] .pw-ico {
+  color: var(--accent-text, var(--accent));
+}
+.sf-header.pitwall .sf-nav-link:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+html[data-theme] .sf-header.pitwall .sf-header-tools {
+  gap: 10px;
+}
+/* the status light */
+.sf-header .pw-light {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: 500 12px/1 inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.sf-header .pw-light:hover {
+  color: var(--ink);
+  background: var(--ui-quiet-hover);
+}
+.sf-header .pw-light:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.sf-header .pw-light > i {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.sf-header .pw-light[data-state='good'] > i {
+  background: var(--ui-good);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--ui-good) 70%, transparent);
+}
+.sf-header .pw-light[data-state='warn'] > i {
+  background: var(--ui-warning);
+}
+.sf-header .pw-light[data-state='bad'] > i {
+  background: var(--ui-error);
+}
+.sf-header .pw-light[data-state='busy'] > i {
+  background: var(--ui-warning);
+  animation: pw-blink 1s ease-in-out infinite alternate;
+}
+@keyframes pw-blink {
+  to {
+    opacity: 0.3;
+  }
+}
+/* the steps, one by one until the bar fits */
+html[data-theme] .sf-header.pw-t1 .sf-version,
+html[data-theme] .sf-header.pw-t2 .sf-brand small,
+html[data-theme] .sf-header.pw-t3 .pw-light-text,
+html[data-theme] .sf-header.pw-t4 .settings-label,
+html[data-theme] .sf-header.pw-t5 .sf-wordmark {
+  display: none;
+}
+html[data-theme] .sf-header.pw-t3 .pw-light {
+  width: 30px;
+  padding: 0;
+  justify-content: center;
+}
+html[data-theme] .sf-header.pw-t4 .theme-switch > button {
+  gap: 0;
+  padding: 6px 9px;
+  font-size: 0;
+}
+html[data-theme] .sf-header.pw-t4 .theme-switch > button span {
+  font-size: 14px;
+}
+html[data-theme] .sf-header.pw-t2 .sf-brand-copy {
+  gap: 0;
+}
+html[data-theme] .sf-header.pw-t5 .sf-brand-copy {
+  display: none;
+}
+html[data-theme] .sf-header.pitwall.pw-t6 .pw-grp {
+  height: 46px;
+}
+html[data-theme] .sf-header.pitwall.pw-t6 .pw-grp > .sf-nav-link {
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 40px;
+  padding: 0 9px;
+  font-size: 10px;
+  line-height: 1.1;
+}
+html[data-theme] .sf-header.pitwall.pw-t6 .pw-ico {
+  width: 16px;
+  height: 16px;
+}
+html[data-theme] .sf-header.pitwall.pw-t7 {
+  gap: 10px;
+  padding: 0 10px;
+}
+html[data-theme] .sf-header.pitwall.pw-t7 nav {
+  gap: 4px;
+}
+html[data-theme] .sf-header.pitwall.pw-t7 .sf-header-tools {
+  gap: 6px;
+}
+html[data-theme] .sf-header.pitwall.pw-t7 .pw-grp > .sf-nav-link {
+  padding: 0 6px;
+}
+html[data-theme] .sf-header.pitwall.pw-t7 .sf-brand .sf-app-icon {
+  width: 34px;
+  height: 34px;
+}
+html[data-theme] .sf-header.pitwall.pw-t8 .pw-name {
+  display: none;
+}
+html[data-theme] .sf-header.pitwall.pw-t8 .pw-grp {
+  height: 38px;
+}
+html[data-theme] .sf-header.pitwall.pw-t8 .pw-grp > .sf-nav-link {
+  height: 32px;
+  padding: 0 8px;
+}
+
+/* Track Packs in the Paddock Rail: the filters and the sharing help in the side list. */
+#packs-view.has-rail .pack-hub-help {
+  max-width: 760px;
+  margin: 0;
+}
+/* the filters moved to the side list, so the search sits on its own without a box */
+#packs-view.has-rail .pack-hub-toolbar {
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* Pit Board, one row: the tools of the selection sit in the top bar between the name and
+   Undo / Redo, so the canvas gets the height of the old tool row. The name field is as wide as
+   the name. Narrower windows drop the group words, then the button words (the pictures stay,
+   the names stay as labels), and below 1000px the tools wrap onto a second line. */
+.pitboard .title-label input {
+  width: 14em;
+  max-width: min(360px, 30vw);
+}
+@supports (field-sizing: content) {
+  .pitboard .title-label input {
+    field-sizing: content;
+    width: auto;
+    min-width: 6ch;
+  }
+}
+html[data-theme] .pitboard .toolbar.pb-tools {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  gap: 6px;
+  height: auto;
+  min-height: 0;
+  margin-left: 6px;
+  padding: 0 0 0 14px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: none;
+}
+.pitboard .pb-tools .pb-grp:last-of-type {
+  border-right: 0;
+}
+.pitboard .pb-tools > #snap {
+  height: 30px;
+  min-height: 30px;
+  margin-left: 2px;
+  padding: 0 11px;
+  font-size: 12.5px;
+}
+.pb-tools .pb-grp > .btn .pb-ico {
+  margin-right: 5px;
+}
+@media (max-width: 1500px) {
+  .pitboard .pb-tools .pb-gl {
+    display: none;
+  }
+}
+@media (max-width: 1320px) {
+  .pitboard .pb-tools .pb-word {
+    display: none;
+  }
+  .pb-tools .pb-grp > .btn .pb-ico {
+    margin-right: 0;
+  }
+  .pitboard .pb-tools .pb-grp > .btn:not(.big) {
+    width: 30px;
+    padding: 0;
+  }
+}
+@media (max-width: 1000px) {
+  .projectbar.pitboard {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+  .projectbar.pitboard > .spacer {
+    display: block; /* keep Undo / Redo and Save on the right */
+  }
+  html[data-theme] .pitboard .toolbar.pb-tools {
+    order: 10;
+    flex: 1 0 100%;
+    margin: 0;
+    padding: 6px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
 }

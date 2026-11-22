@@ -1,0 +1,363 @@
+/* Builder layout (builder-layout.js and the Pit Board): the track facts under the name, the
+   Tools and undo-history menus, a tighter piece list with Recent pieces, the inspector as an icon
+   rail with one section at a time, and sidebars that can be hidden. */
+
+/* ---------- Top bar: the name with its facts, the rotate step, the menus ---------- */
+.pitboard .pb-name {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* the name field keeps its own width */
+  min-width: 0;
+  flex-shrink: 1;
+}
+.pitboard .pb-facts {
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--muted);
+  font: 500 11.5px/1.3 var(--font-numbers, Consolas, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pitboard .pb-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin: 0 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.pitboard .pb-step input {
+  width: 46px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 6px;
+  font: 500 12px var(--font-numbers, Consolas, monospace);
+  text-align: right;
+}
+.pitboard .pb-tools-menu > .btn {
+  height: 30px;
+  min-height: 30px;
+  padding: 0 11px;
+  font-size: 12.5px;
+}
+.pitboard .pb-tools-menu > .menu-popover {
+  right: auto;
+  left: 0;
+}
+.menu-popover .menu-label {
+  margin: 6px 8px 2px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.menu-popover .menu-label:first-child {
+  margin-top: 2px;
+}
+.tools-menu [role='menuitem'][aria-pressed='true']::after {
+  content: '✓';
+  margin-left: auto;
+  color: var(--accent-text, var(--accent));
+}
+.undo-menu {
+  min-width: 220px;
+  max-height: min(420px, 70vh);
+  overflow: auto;
+}
+
+/* ---------- The curvature key over the canvas ---------- */
+.canvas-wrap > .curvature-legend-float {
+  position: absolute;
+  left: 12px;
+  bottom: 62px;
+  z-index: 3;
+  max-width: min(420px, calc(100% - 24px));
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+}
+.canvas-wrap > .curvature-legend-float[hidden] {
+  display: none;
+}
+
+/* ---------- Left: a tighter piece list ---------- */
+.catalogue-panel .panel-heading {
+  flex-wrap: wrap; /* Routed Wood adds Routed tools and + Section: they wrap, never scroll */
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* routed layouts: the routing help is in Routed tools, so the ? gives way */
+body[data-routed-catalogue='true'] .catalogue-panel .catalogue-help {
+  display: none;
+}
+.catalogue-panel .panel-heading h2 {
+  margin-right: auto;
+  white-space: nowrap;
+}
+@media (max-width: 1180px) {
+  .catalogue-panel .catalogue-help {
+    display: none; /* the same words are in the canvas hint */
+  }
+  .catalogue-panel .panel-heading h2 {
+    font-size: 15px;
+  }
+}
+.catalogue-panel .catalogue-help {
+  cursor: help;
+}
+.catalogue-panel > .panel-foot {
+  display: none; /* the same words are on the ? button */
+}
+.catalogue-panel > .field:has(#pack) {
+  margin-bottom: 4px;
+  font-size: 0; /* the pack card speaks for itself; the select keeps its label */
+}
+.catalogue-panel #pack {
+  min-height: 38px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.catalogue-panel #pack-info {
+  display: -webkit-box;
+  margin: 0 0 8px;
+  overflow: hidden;
+  font-size: 11px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.catalogue-panel .search-all {
+  align-self: flex-start;
+  margin: 6px 0 2px;
+}
+.catalogue-panel .catalogue-options {
+  padding: 6px 0;
+}
+.recent-pieces {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+.recent-pieces .recent-label {
+  flex: 1 0 100%;
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.recent-piece {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 36px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--ui-inset, var(--bg));
+  cursor: pointer;
+}
+.recent-piece:hover {
+  border-color: color-mix(in srgb, var(--ink) 35%, var(--line));
+}
+.recent-piece:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.recent-piece > :is(img, svg) {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+#catalogue .piece-card {
+  grid-template-columns: 52px 1fr;
+  gap: 10px;
+  min-height: 0;
+  margin-bottom: 5px;
+  padding: 6px 8px;
+}
+#catalogue .piece-card :is(img, svg) {
+  width: 52px;
+  height: 38px;
+}
+
+/* ---------- Right: the inspector as an icon rail ---------- */
+.rail-off,
+.rail-gone {
+  display: none !important;
+}
+.inspector.has-insp-rail {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  overflow: hidden;
+}
+.insp-rail {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px 6px;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 40%, var(--panel));
+}
+.insp-rail [role='tablist'] {
+  display: grid;
+  gap: 4px;
+}
+.insp-rail-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.insp-rail-btn:hover {
+  background: var(--ui-quiet-hover);
+  color: var(--ink);
+}
+.insp-rail-btn[aria-selected='true'] {
+  background: var(--ui-selected);
+  color: var(--accent-text, var(--accent));
+}
+.insp-rail-btn:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.insp-rail-btn[hidden] {
+  display: none;
+}
+.insp-rail-btn .bl-ico,
+.catalogue-panel #hide-pieces .bl-ico,
+#canvas-only .bl-ico {
+  width: 18px;
+  height: 18px;
+}
+.insp-body {
+  min-height: 0;
+  overflow: auto;
+  padding-top: 10px;
+}
+/* in the rail a section is always open: its folder heading is a title */
+.has-insp-rail .inspector-folder > summary {
+  cursor: default;
+}
+.has-insp-rail .inspector-folder > summary:hover {
+  background: none;
+}
+.has-insp-rail .inspector-folder > summary::before {
+  display: none;
+}
+.has-insp-rail .inspector-folder > summary {
+  padding-right: 16px;
+}
+
+/* ---------- Sidebars that can be hidden ---------- */
+#builder-view.editor {
+  --lw: 274px;
+  --rw: 340px;
+  grid-template-columns: var(--lw) minmax(0, 1fr) var(--rw);
+}
+@media (max-width: 1180px) {
+  #builder-view.editor {
+    --lw: 230px;
+    --rw: 276px;
+  }
+}
+@media (max-width: 900px) {
+  #builder-view.editor {
+    --lw: 210px;
+    --rw: 0px;
+  }
+  .canvas-wrap > .edge-right {
+    display: none;
+  }
+}
+#builder-view.editor.left-off {
+  --lw: 0px;
+}
+#builder-view.editor.right-off {
+  --rw: 0px;
+}
+/* the canvas keeps the middle column when a sidebar is away */
+#builder-view.editor > .workspace {
+  grid-column: 2;
+}
+#builder-view.editor > .catalogue-panel {
+  grid-column: 1;
+}
+#builder-view.editor > .inspector {
+  grid-column: 3;
+}
+#builder-view.left-off > .catalogue-panel,
+#builder-view.right-off > .inspector {
+  display: none;
+}
+.canvas-wrap > .edge-tab {
+  position: absolute;
+  top: 50%;
+  z-index: 4;
+  width: 20px;
+  height: 56px;
+  margin-top: -28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+.canvas-wrap > .edge-tab:hover {
+  color: var(--ink);
+}
+.canvas-wrap > .edge-tab:focus-visible {
+  outline: 2px solid var(--ui-focus);
+}
+.canvas-wrap > .edge-left {
+  left: 0;
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+}
+.canvas-wrap > .edge-right {
+  right: 0;
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+}
+.canvas-wrap > .edge-tab[hidden] {
+  display: none;
+}
+#canvas-only[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent-text, var(--accent));
+}
+.zoom-controls #fit-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.zoom-controls #fit-selection .bl-ico {
+  width: 16px;
+  height: 16px;
+}
+
+/* Narrower windows: the extra top-bar words go first. */
+@media (max-width: 1320px) {
+  .pitboard .pb-step > span[aria-hidden] {
+    display: none;
+  }
+  .zoom-controls #fit-selection .pb-word {
+    display: none;
+  }
+}

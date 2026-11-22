@@ -27,6 +27,8 @@
         ['Mirror', ['M']],
         ['Delete selection', ['Delete'], ['Backspace']],
         ['Clear selection', ['Esc']],
+        ['Zoom to selection (or the whole track)', ['F']],
+        ['Hide or show both sidebars', ['H']],
         ['New track', [mod, 'N']],
         ['Open track file', [mod, 'O']],
         ['Export track file', [mod, 'S']],
@@ -47,6 +49,9 @@
       title: 'FreeForm Drawing',
       rows: [
         ['Undo / redo', [mod, 'Z'], [mod, 'Y']],
+        ['Draw / Edit / Insert', ['D'], ['E'], ['I']],
+        ['Zoom to selected points', ['F']],
+        ['Hide or show the settings', ['H']],
         ['Select all points', [mod, 'A']],
         ['Delete selected point', ['Delete']],
         ['Nudge a point 1 mm / 10 mm', ['arrow keys'], ['Shift', 'arrows']],
@@ -86,14 +91,54 @@
     return d;
   }
 
+  // Related guides under a thin line, as quiet pill chips (Help Reader).
+  const related = links =>
+    el(
+      'div',
+      { class: 'help-related-block' },
+      el('h4', {}, 'Related'),
+      el(
+        'div',
+        { class: 'help-related' },
+        ...links.map(([text, go]) =>
+          el(
+            'button',
+            {
+              class: 'btn help-chip',
+              type: 'button',
+              onclick: () => {
+                document
+                  .querySelectorAll('dialog.help-dialog[open], dialog.welcome-dialog[open]')
+                  .forEach(x => x.close());
+                go();
+              },
+            },
+            text
+          )
+        )
+      )
+    );
+  let welcomeChoices = {};
+
   function shortcuts() {
     const d = dialog('shortcut-dialog', 'help-dialog', 'Keyboard shortcuts');
     d.replaceChildren(
       el(
         'div',
         { class: 'dialog-heading' },
-        el('h2', {}, 'Keyboard shortcuts'),
+        el('div', {}, el('p', { class: 'help-crumb' }, 'Help'), el('h2', {}, 'Keyboard shortcuts')),
         el('button', { class: 'btn quiet', type: 'button', 'data-close-help': '1', ariaLabel: 'Close' }, '✕')
+      ),
+      el(
+        'div',
+        { class: 'help-plain' },
+        el(
+          'p',
+          {},
+          'Shortcuts work when you are not typing in a field. Press ',
+          el('kbd', {}, '?'),
+          ' anywhere to see this list.'
+        )
       ),
       el(
         'div',
@@ -114,7 +159,7 @@
           )
         )
       ),
-      el('p', { class: 'fine' }, 'Shortcuts work when you are not typing in a field.')
+      related([['Welcome screen', () => welcome(welcomeChoices)]])
     );
     if (!d.open) d.showModal();
     return d;
@@ -135,6 +180,7 @@
 
   // choices: { builder, packs, routed, freeform } callbacks supplied by the app.
   function welcome(go) {
+    welcomeChoices = go || welcomeChoices;
     const d = dialog('welcome-dialog', 'welcome-dialog', 'Welcome to SlotForge Circuit');
     const card = (key, icon, title, text) =>
       el(
@@ -148,8 +194,13 @@
       el(
         'div',
         { class: 'dialog-heading' },
-        el('div', {}, el('h2', {}, 'Welcome to Circuit'), el('p', { class: 'muted' }, 'What would you like to plan?')),
+        el('div', {}, el('p', { class: 'help-crumb' }, 'Help · Getting started'), el('h2', {}, 'Welcome to Circuit')),
         el('button', { class: 'btn quiet', type: 'button', 'data-close-help': '1', ariaLabel: 'Close' }, '✕')
+      ),
+      el(
+        'div',
+        { class: 'help-plain' },
+        el('p', {}, 'What would you like to plan? Pick a start below; you can switch between them at any time.')
       ),
       el(
         'div',
@@ -179,6 +230,7 @@
 
   // Shows the welcome once, unless another start-up dialog is already open.
   function maybeWelcome(go) {
+    welcomeChoices = go || welcomeChoices;
     if (seen() || document.querySelector('dialog[open]')) return null;
     return welcome(go);
   }

@@ -8,7 +8,7 @@
       NS = 'http://www.w3.org/2000/svg';
     const entry = document.createElement('button');
     entry.id = 'freeform-open';
-    entry.className = 'btn primary';
+    entry.className = 'btn';
     entry.textContent = 'FreeForm Drawing';
     $('routed-add-section').after(entry);
     const intro = document.createElement('p');
@@ -37,19 +37,24 @@
     };
     const dialog = document.createElement('section');
     dialog.id = 'freeform-dialog';
-    dialog.innerHTML = `<div class="ff-header"><div><h2>FreeForm Drawing</h2><p>Draw one slot. Generate the rest around it.</p></div><button class="btn" id="ff-cancel">Cancel</button><button class="btn primary" id="ff-apply">Save &amp; use in builder</button></div>
+    // Pit Board (as in the Track Builder): the name and its facts, the checks, the drawing modes and
+    // tools in one bar; Undo / Redo, Cancel and the one main answer on the right.
+    dialog.innerHTML = `<div class="ff-header pitboard"><div class="pb-name"><label class="title-label"><span class="track-name-label">FreeForm drawing · track name</span><input id="ff-name" maxlength="100" aria-label="Track name"></label><span id="ff-facts" class="pb-facts" aria-live="polite"></span></div><button type="button" id="ff-status" class="ff-checks-pill" aria-label="View track checks"></button><div class="toolbar pb-tools ff-toolbar" role="toolbar" aria-label="Drawing tools"><div class="ff-modes" role="group" aria-label="Drawing mode"><button type="button" id="ff-draw" title="Draw: click to add points, drag to bend (D)">Draw</button><button type="button" id="ff-edit" title="Edit: drag points and their handles (E)">Edit</button><button type="button" id="ff-insert" title="Insert: click the slot to add a point (I)">Insert</button></div><div class="pb-grp ff-shape"><span class="pb-gl">Shape</span><button class="btn" id="ff-close" title="Join the last point to the first">Close loop</button><button class="btn" id="ff-reopen" title="Open the loop to draw on">Reopen loop</button></div><button type="button" class="btn toggle" id="ff-snap" aria-pressed="false" title="Snap points to a 10 mm grid while drawing and dragging">Snap 10 mm</button></div><div class="spacer"></div><button class="btn ghost icon" id="ff-undo" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button><button class="btn ghost icon" id="ff-redo" title="Redo (Ctrl+Y)" aria-label="Redo">↷</button><div class="menu-anchor"><button type="button" class="btn ghost icon" id="ff-history" title="Undo history" aria-label="Undo history" aria-haspopup="menu" aria-expanded="false" aria-controls="ff-history-menu">▾</button><div id="ff-history-menu" class="menu-popover undo-menu" role="menu" aria-labelledby="ff-history" hidden></div></div><button class="btn" id="ff-cancel">Cancel</button><button class="btn primary" id="ff-apply" title="Save the drawing and use it in the Track Builder">Use in builder</button></div>
  <p id="ff-context-note" class="fine" role="status" hidden></p>
- <div class="ff-toolbar"><button class="btn" id="ff-draw">Draw</button><button class="btn" id="ff-edit">Edit points</button><button class="btn" id="ff-insert">Insert point</button><button class="btn" id="ff-close">Close loop</button><button class="btn" id="ff-reopen">Reopen loop</button><button class="btn" id="ff-undo">Undo</button><button class="btn" id="ff-redo">Redo</button><button class="btn" id="ff-fit">Fit table &amp; track</button><button class="btn" id="ff-oval">Start with oval</button><button class="btn" id="ff-eight" title="A figure eight with a bridge over the crossing">Start with figure eight</button></div>
  <div class="ff-body"><aside class="ff-settings" aria-label="FreeForm settings">
- <div class="ff-sidebar-heading"><label class="field">Track name<input id="ff-name" maxlength="100"></label>
- <div class="ff-tabs" role="tablist" aria-label="FreeForm tools">${[
-   ['points', 'Points'],
-   ['lanes', 'Lanes'],
-   ['table', 'Table'],
-   ['checks', 'Checks'],
+ <div class="ff-sidebar-heading">
+ <div class="ff-tabs ff-rail" role="tablist" aria-label="FreeForm settings" aria-orientation="vertical">${[
+   ['points', 'Point', '<circle cx="12" cy="12" r="3"/><path d="M3 12h5M16 12h5M12 3v5M12 16v5"/>'],
+   ['lanes', 'Lanes', '<path d="M6 3c0 6 4 6 4 18M12 3c0 6 4 6 4 18M18 3c0 6 4 6 4 18" transform="translate(-3 0)"/>'],
+   ['table', 'Table and routing', '<rect x="3" y="6" width="18" height="10" rx="1.5"/><path d="M6 16v4M18 16v4"/>'],
+   [
+     'checks',
+     'Checks and lane lengths',
+     '<path d="M9 6h11M9 12h11M9 18h11"/><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>',
+   ],
  ]
    .map(
-     ([id, label]) =>
+     ([id, label, icon]) =>
        '<button type="button" id="ff-tab-' +
        id +
        '" role="tab" aria-controls="ff-panel-' +
@@ -58,21 +63,28 @@
        (id === 'points') +
        '" tabindex="' +
        (id === 'points' ? 0 : -1) +
-       '">' +
+       '" aria-label="' +
        label +
+       '" title="' +
+       label +
+       '"><svg class="bl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+       icon +
+       '</svg>' +
+       (id === 'checks' ? '<span id="ff-checks-badge" class="ff-rail-badge" hidden></span>' : '') +
        '</button>'
    )
-   .join('')}</div></div>
+   .join(
+     ''
+   )}</div><button type="button" class="ff-rail-hide" id="ff-hide-settings" title="Hide the settings (H)" aria-label="Hide the settings"><svg class="bl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/><path d="m9 10 2 2-2 2"/></svg></button></div>
  <div class="ff-panel-scroll">
  <section id="ff-panel-points" role="tabpanel" aria-labelledby="ff-tab-points" tabindex="0">
  <h3>Shape your drawing</h3><p id="ff-point-intro" class="fine">Draw on the canvas, then choose a point to adjust its shape, height or following stretch.</p>
- <label class="field">Selected point<select id="ff-anchor-choice"></select></label>
+ <div class="ff-point-nav"><button type="button" class="btn ghost sm icon" id="ff-prev-point" aria-label="Previous point" title="Previous point">‹</button><select id="ff-anchor-choice" aria-label="Selected point"></select><button type="button" class="btn ghost sm icon" id="ff-next-point" aria-label="Next point" title="Next point">›</button></div>
  <p id="ff-point-label" class="ff-context" aria-live="polite"></p>
  <div id="ff-point-controls" hidden>
- <div class="ff-actions"><button class="btn small" id="ff-smooth">Smooth point</button><button class="btn small" id="ff-straight">Straighten next stretch</button></div>
+ <div class="form-grid ff-point-grid"><label>X · mm<input id="ff-x" type="number" step="any"></label><label>Y · mm<input id="ff-y" type="number" step="any"></label><label title="Surface height above the table (zero is table level). Height changes gradually between points; bridge clearance is in Table.">Height · mm<input id="ff-height" type="number" min="-5000" max="5000" step="any"></label></div><button class="btn small" id="ff-position" hidden>Set position</button><button class="btn small" id="ff-set-height" hidden>Apply height</button><p id="ff-origin" class="fine" hidden></p>
+ <div class="ff-actions ff-point-actions"><button class="btn small" id="ff-smooth" title="Let Circuit bend this point smoothly">Smooth</button><button class="btn small" id="ff-straight" title="Straighten the stretch to the next point">Straight</button><button class="btn small" id="ff-lock">Lock</button><button class="btn small danger" id="ff-delete">Delete</button></div>
  <label class="check"><input id="ff-linked" type="checkbox"> Keep handles aligned</label>
- <div class="ff-actions"><button class="btn small" id="ff-lock">Lock point</button><button class="btn small" id="ff-delete">Delete point</button></div>
- <details><summary>Position &amp; handles</summary><p id="ff-origin" class="fine" hidden></p><div class="form-grid"><label>X · mm<input id="ff-x" type="number" step="any"></label><label>Y · mm<input id="ff-y" type="number" step="any"></label></div><button class="btn small" id="ff-position">Set position</button>
  <details><summary>Exact handle offsets · mm</summary><div class="form-grid">${[
    ['in-x', 'Incoming X'],
    ['in-y', 'Incoming Y'],
@@ -80,21 +92,20 @@
    ['out-y', 'Outgoing Y'],
  ]
    .map(([k, label]) => '<label>' + label + '<input id="ff-' + k + '" type="number" step="any"></label>')
-   .join('')}</div><button class="btn small" id="ff-handles">Set handles</button></details></details>
- <details><summary>Height &amp; bridge</summary><p class="fine">Raise selected points above the table. Height changes gradually between points.</p><label class="field">Surface height · mm<input id="ff-height" type="number" min="-5000" max="5000" step="any"></label><button class="btn small" id="ff-set-height">Apply height</button><p class="fine">Zero is table level. Set bridge clearance in the Table tab.</p></details>
- <details><summary>Lane spacing — next stretch</summary><p class="fine">Squeeze lanes closer or spread them apart toward the midpoint, then return to normal spacing at the end. Your drawn lane stays fixed.</p><label class="field">Adjustment<select id="ff-squeeze-mode"><option value="squeeze">Squeeze — bring lanes closer</option><option value="spread">Spread — move lanes apart</option></select></label><p id="ff-squeeze-note" class="ff-context"></p><label class="field">Target spacing at midpoint · mm<input id="ff-squeeze-spacing" type="number" min="1" max="300" step="any"></label><div class="ff-actions"><button class="btn small" id="ff-squeeze-apply">Apply spacing</button><button class="btn small" id="ff-squeeze-remove">Reset this stretch</button></div></details>
+   .join('')}</div><button class="btn small" id="ff-handles">Set handles</button></details>
+ <details><summary>Lane spacing — next stretch</summary><p class="fine">Squeeze lanes closer or spread them apart toward the midpoint, then return to normal spacing at the end. Your drawn lane stays fixed.</p><div class="ff-seg" id="ff-squeeze-seg" role="group" aria-label="Lane spacing from this point"><button type="button" data-squeeze="normal">Normal</button><button type="button" data-squeeze="squeeze">Squeeze</button><button type="button" data-squeeze="spread">Spread</button></div><label class="field" hidden>Adjustment<select id="ff-squeeze-mode"><option value="squeeze">Squeeze — bring lanes closer</option><option value="spread">Spread — move lanes apart</option></select></label><p id="ff-squeeze-note" class="ff-context"></p><label class="field">Target spacing at midpoint · mm<input id="ff-squeeze-spacing" type="number" min="1" max="300" step="any"></label><div class="ff-actions"><button class="btn small" id="ff-squeeze-apply">Apply spacing</button><button class="btn small" id="ff-squeeze-remove">Reset this stretch</button></div></details>
  </div></section>
  <section id="ff-panel-lanes" role="tabpanel" aria-labelledby="ff-tab-lanes" tabindex="0" hidden>
  <h3>Build your lanes</h3><p class="fine">Start with one drawn lane. Add lanes alongside it when you’re ready.</p>
- <div class="form-grid"><label>Total lanes<input id="ff-count" type="number" min="1" max="8" step="1"></label><label>Your drawn lane<select id="ff-reference"></select></label></div><label class="field">Normal lane spacing · mm<input id="ff-spacing" type="number" min="10" max="300" step="any"></label><label class="field">Higher lane numbers go<select id="ff-side"><option value="1">Right of drawing direction</option><option value="-1">Left of drawing direction</option></select></label><p class="fine">The blue lane stays in place. The arrow on it shows drawing direction.</p><button class="btn primary ff-wide" id="ff-generate">Apply lane settings</button>
+ <div class="form-grid"><label>Total lanes<span class="ff-stepper"><button type="button" id="ff-count-down" aria-label="One lane fewer">−</button><input id="ff-count" type="number" min="1" max="8" step="1"><button type="button" id="ff-count-up" aria-label="One lane more">＋</button></span></label><label>Your drawn lane<select id="ff-reference"></select></label></div><label class="field">Normal lane spacing · mm<input id="ff-spacing" type="number" min="10" max="300" step="any"></label><div class="field ff-side-field"><span>Higher lane numbers go</span><div class="ff-seg" id="ff-side-seg" role="group" aria-label="Higher lane numbers go"><button type="button" data-side="-1">Left</button><button type="button" data-side="1">Right</button></div><select id="ff-side" hidden aria-hidden="true" tabindex="-1"><option value="1">Right of drawing direction</option><option value="-1">Left of drawing direction</option></select><small>of the drawing direction</small></div><p class="fine">The blue lane stays in place. The arrow on it shows drawing direction.</p><button class="btn ff-wide" id="ff-generate">Apply lane settings</button>
  <details><summary>Numbering &amp; lane spacing</summary><p class="fine">Reverse labels without moving the lanes.</p><button class="btn small" id="ff-reverse">Reverse numbering</button><p class="fine">To squeeze or spread a stretch, select its start point in Points. Restore normal spacing everywhere below.</p><button class="btn small" id="ff-squeeze-all">Reset all lane spacing</button></details></section>
  <section id="ff-panel-table" role="tabpanel" aria-labelledby="ff-tab-table" tabindex="0" hidden>
  <h3>Table &amp; construction</h3><p class="fine">Set the space available for your circuit.</p><div class="form-grid"><label>Table length · mm<input id="ff-table-length" type="number" min="10" max="50000"></label><label>Table width · mm<input id="ff-table-width" type="number" min="10" max="50000"></label></div><div id="ff-table-shape"></div>
- <details><summary>Routing dimensions</summary><p class="fine">Set edge clearances, board and slot dimensions for your build.</p><div id="ff-profile" class="form-grid"></div><label class="field">Conductors<select id="ff-conductor"><option value="braid">Recessed braid</option><option value="tape">Surface copper tape</option></select></label></details><button class="btn primary ff-wide" id="ff-construction">Apply table &amp; routing settings</button>
+ <details><summary>Routing dimensions</summary><p class="fine">Set edge clearances, board and slot dimensions for your build.</p><div id="ff-profile" class="form-grid"></div><label class="field">Conductors<select id="ff-conductor"><option value="braid">Recessed braid</option><option value="tape">Surface copper tape</option></select></label></details><button class="btn ff-wide" id="ff-construction">Apply table &amp; routing settings</button>
  <details><summary>Bridge clearance</summary><div class="form-grid"><label>Deck thickness · mm<input id="ff-deck" type="number" min="0.1" max="500" step="any"></label><label>Required clearance · mm<input id="ff-clearance" type="number" min="0" max="1000" step="any"></label></div><p class="fine">Measured from the lower driving surface to the upper deck underside. Set point heights in Points.</p><button class="btn small" id="ff-elevation-settings">Apply clearance settings</button><p class="fine">Lengths are measured in plan view. Ramp shape and buildability are not checked.</p></details></section>
- <section id="ff-panel-checks" role="tabpanel" aria-labelledby="ff-tab-checks" tabindex="0" hidden><h3>Track checks</h3><p class="fine">Review your layout before using it in the builder.</p><p id="ff-check-summary" class="ff-context"></p><ul id="ff-issues" aria-live="polite"></ul><h3>Lane lengths</h3><div id="ff-lengths"></div><div id="ff-elevation" class="elevation-profile"></div><details><summary>Saving your drawing</summary><p class="fine">Save &amp; use in builder applies your drawing. Then choose Save to Track Library in the builder to keep it.</p><p class="fine">Your draft stays here while you visit other editor pages. Save before reloading or opening the Track Packs catalogue. Cancel discards this editing session.</p></details></section>
- </div><div class="ff-sidebar-footer"><button type="button" id="ff-status" aria-label="View track checks"></button><p id="ff-error" class="error" role="alert"></p></div></aside>
- <div class="ff-stage"><svg id="ff-canvas" tabindex="0" aria-label="FreeForm canvas. Draw or edit anchors and their direction handles."><defs><pattern id="ff-grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M 50 0 H 0 V 50" fill="none" stroke="var(--line)" stroke-width=".7"/></pattern></defs><rect id="ff-background" fill="url(#ff-grid)"/><g id="ff-scene"></g><path id="ff-ghost" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="8 5"/><g id="ff-nodes"></g></svg><p id="ff-help">Click to add smooth points; drag to set direction handles. Click the first point or Close loop to finish. Space + drag pans; wheel zooms.</p></div></div>`;
+ <section id="ff-panel-checks" role="tabpanel" aria-labelledby="ff-tab-checks" tabindex="0" hidden><h3>Lane lengths</h3><div id="ff-lengths"></div><h3>Track checks</h3><p class="fine">Review your layout before using it in the builder.</p><p id="ff-check-summary" class="ff-context"></p><ul id="ff-issues" aria-live="polite"></ul><div id="ff-elevation" class="elevation-profile"></div><details><summary>Saving your drawing</summary><p class="fine">Save &amp; use in builder applies your drawing. Then choose Save to Track Library in the builder to keep it.</p><p class="fine">Your draft stays here while you visit other editor pages. Save before reloading or opening the Track Packs catalogue. Cancel discards this editing session.</p></details></section>
+ </div><div class="ff-sidebar-footer"><p id="ff-error" class="error" role="alert"></p></div></aside>
+ <div class="ff-stage"><svg id="ff-canvas" tabindex="0" aria-label="FreeForm canvas. Draw or edit anchors and their direction handles."><defs><pattern id="ff-grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M 50 0 H 0 V 50" fill="none" stroke="var(--line)" stroke-width=".7"/></pattern></defs><rect id="ff-background" fill="url(#ff-grid)"/><g id="ff-scene"></g><path id="ff-ghost" fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="8 5"/><g id="ff-nodes"></g></svg><div id="ff-start" class="ff-start-card" hidden><h3>Draw your first slot</h3><p data-condensed="true">Click the table to place points, drag while clicking to bend, and click the first point to close the loop. Or start from a shape.</p><div class="ff-start-actions"><button class="btn" id="ff-oval">Oval</button><button class="btn" id="ff-eight" title="A figure eight with a bridge over the crossing">Figure eight</button><button class="btn" id="ff-start-reference" title="Trace over a picture or plan of your table">Reference image…</button></div></div><div class="ff-canvas-bottom"><p id="ff-help">Click to add smooth points; drag to set direction handles. Click the first point or Close loop to finish. Space + drag pans; wheel zooms.</p><div class="zoom-controls ff-zoom"><button class="btn square" id="ff-zoom-out" aria-label="Zoom out">−</button><span id="ff-zoom-level">100%</span><button class="btn square" id="ff-zoom-in" aria-label="Zoom in">＋</button><button class="btn" id="ff-fit">Fit table</button><button class="btn" id="ff-fit-selection" title="Zoom to the selected points (F)" aria-label="Zoom to selection"><svg class="bl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></button><button class="btn square" id="ff-canvas-only" title="Full canvas: hide the settings (H)" aria-label="Full canvas" aria-pressed="false"><svg class="bl-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button></div></div><button type="button" class="edge-tab edge-right" id="ff-show-settings" aria-label="Show the settings" title="Show the settings" hidden>‹</button></div></div>`;
     // Use the same folder shell as the Track Builder catalogue.
     for (const folder of dialog.querySelectorAll('.ff-settings details')) {
       folder.classList.add('catalogue-folder');
@@ -199,10 +210,20 @@
       mode = 'draw',
       view = { x: 0, y: 0, w: 3400, h: 2000 },
       gesture = null,
+      dragFrame = 0,
+      referenceLayer = null,
       space = false,
       history = [],
       future = [],
-      draft = null;
+      draft = null,
+      pendingSqueeze = null;
+    // Snap to grid: points land on a 10 mm grid while drawing and dragging (remembered).
+    let snapOn = false;
+    try {
+      snapOn = localStorage.getItem('slotforge.ff-snap.v1') === 'true';
+    } catch {}
+    const SNAP_MM = 10,
+      snap = p => (snapOn ? p.map(v => Math.round(v / SNAP_MM) * SNAP_MM) : p);
     const svg = $('ff-canvas'),
       create = (tag, attrs, parent) => {
         const el = document.createElementNS(NS, tag);
@@ -212,7 +233,7 @@
       },
       node = () => model.nodes.find(n => n.id === selected),
       snapshot = () =>
-        JSON.stringify({
+        F.Planning.snapshotText({
           model,
           planning,
           profile,
@@ -236,7 +257,7 @@
       $('ff-error').textContent = e.message || String(e);
     }
     function restore(raw) {
-      const s = JSON.parse(raw);
+      const s = F.Planning.snapshotValue(raw);
       ({ model, profile, table, mark, selected } = s);
       planning = F.Planning.validate(s.planning);
       mode = s.mode || 'edit';
@@ -292,6 +313,8 @@
       refs();
       $('ff-reference').value = model.referenceLane;
       $('ff-side').value = model.side;
+      for (const b of $('ff-side-seg').querySelectorAll('button'))
+        b.setAttribute('aria-pressed', String(b.dataset.side === String(model.side)));
       $('ff-spacing').value = profile.laneSpacingMm;
       $('ff-table-length').value = table.lengthMm;
       $('ff-table-width').value = table.widthMm;
@@ -308,6 +331,9 @@
       for (const key of ['draw', 'edit', 'insert']) $('ff-' + key).setAttribute('aria-pressed', String(mode === key));
       $('ff-close').disabled = model.closed || model.nodes.length < 3;
       $('ff-reopen').disabled = !model.closed;
+      // One button for the loop: Close loop while open, Reopen loop once closed.
+      $('ff-close').hidden = model.closed;
+      $('ff-reopen').hidden = !model.closed;
       $('ff-draw').disabled = model.closed;
       $('ff-undo').disabled = !history.length;
       $('ff-redo').disabled = !future.length;
@@ -327,12 +353,16 @@
         u = view.w / Math.max(1, svg.clientWidth);
       scene.replaceChildren();
       handles.replaceChildren();
-      const reference = create(
-        'g',
-        { transform: 'translate(' + -editorOffset[0] + ' ' + -editorOffset[1] + ')' },
-        scene
-      );
-      reference.innerHTML = F.Planning.image(planning);
+      // The reference picture can be a large image: keep its parsed node and only re-attach it,
+      // so a drag does not decode the image again on every move.
+      const markup = F.Planning.image(planning);
+      if (!referenceLayer || referenceLayer.markup !== markup) {
+        referenceLayer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        referenceLayer.innerHTML = markup;
+        referenceLayer.markup = markup;
+      }
+      referenceLayer.setAttribute('transform', 'translate(' + -editorOffset[0] + ' ' + -editorOffset[1] + ')');
+      scene.append(referenceLayer);
       create(
         'path',
         { d: R.Table.path(table), fill: '#dbc8a6', opacity: '.5', stroke: '#a38c66', 'stroke-width': 2 * u },
@@ -579,9 +609,20 @@
           for (let i = 0; i < 2; i++) $('ff-' + dir + '-' + (i ? 'y' : 'x')).value = Number(n[dir][i].toFixed(4));
       }
       $('ff-straight').disabled = !hasNext || !!n?.locked;
+      // Lane spacing from this point: Normal, Squeeze or Spread (the choice shows its fields).
+      const spacingNow = n?.squeeze ? (n.squeeze.mode === 'spread' ? 'spread' : 'squeeze') : 'normal',
+        spacingShown = pendingSqueeze || spacingNow;
+      for (const b of $('ff-squeeze-seg').querySelectorAll('button')) {
+        b.setAttribute('aria-pressed', String(b.dataset.squeeze === spacingShown));
+        b.disabled = !hasNext || !!n?.locked || model.laneCount < 2;
+      }
+      for (const id of ['ff-squeeze-spacing', 'ff-squeeze-apply'])
+        ($(id).closest('label') || $(id)).hidden = spacingShown === 'normal';
+      $('ff-squeeze-remove').hidden = true;
+      $('ff-prev-point').disabled = $('ff-next-point').disabled = !model.nodes.length;
       $('ff-squeeze-spacing').disabled = !hasNext || !!n?.locked || model.laneCount < 2;
-      $('ff-lock').textContent = n?.locked ? 'Unlock point' : 'Lock point';
-      $('ff-delete').textContent = selectedIds.length > 1 ? 'Delete selected points' : 'Delete point';
+      $('ff-lock').textContent = n?.locked ? 'Unlock' : 'Lock';
+      $('ff-delete').textContent = selectedIds.length > 1 ? 'Delete ' + selectedIds.length : 'Delete';
       $('ff-status').textContent = g.closed ? 'Closed circuit' : g.valid ? 'Open draft' : 'Draft needs attention';
       // Side view of the drawn slot's heights.
       const ref = draft?.geometry?.reference,
@@ -618,8 +659,14 @@
       $('ff-check-summary').textContent = checks.length
         ? checks.length + ' check' + (checks.length === 1 ? '' : 's') + ' to review.'
         : 'No issues found in the current checks.';
-      $('ff-tab-checks').textContent = 'Checks' + (checks.length ? ' (' + checks.length + ')' : '');
-      $('ff-status').textContent += ' · ' + (checks.length ? checks.length + ' to review' : 'View checks');
+      $('ff-checks-badge').hidden = !checks.length;
+      $('ff-checks-badge').textContent = checks.length || '';
+      $('ff-tab-checks').title =
+        'Checks and lane lengths' + (checks.length ? ' · ' + checks.length + ' to review' : '');
+      $('ff-status').textContent =
+        (g.closed ? 'Closed circuit' : g.valid ? 'Open draft' : 'Draft needs attention') +
+        (checks.length ? ' · ' + checks.length + ' to review' : g.closed ? ' · no issues' : '');
+      $('ff-status').dataset.state = checks.length ? 'warn' : g.closed ? 'good' : 'draft';
       // A drawing that has barely started is not a problem yet: say what to do next.
       const starting = model.nodes.length < 2;
       $('ff-status').classList.toggle('ff-status-start', starting);
@@ -627,8 +674,25 @@
         $('ff-status').textContent = model.nodes.length
           ? 'Click to add the next point'
           : 'Click on the table to place your first point';
-        $('ff-tab-checks').textContent = 'Checks';
+        $('ff-status').dataset.state = 'start';
+        $('ff-checks-badge').hidden = true;
       }
+      $('ff-start').hidden = model.nodes.length > 0;
+      // Facts under the name, as in the Track Builder: points, loop, drawn lane length, lanes.
+      const drawn = g.lanePaths[(model.referenceLane || 1) - 1] || g.lanePaths[0];
+      $('ff-facts').textContent = model.nodes.length
+        ? [
+            model.nodes.length + (model.nodes.length === 1 ? ' point' : ' points'),
+            model.closed ? 'closed' : 'open',
+            drawn ? (drawn.lengthMm / 1000).toFixed(2) + ' m' : null,
+            model.laneCount + (model.laneCount === 1 ? ' lane' : ' lanes'),
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : 'No points yet';
+      $('ff-facts').title = g.lanePaths
+        .map((l, i) => 'Lane ' + (i + 1) + ': ' + (l.lengthMm / 1000).toFixed(3) + ' m')
+        .join('\n');
       $('ff-issues').replaceChildren();
       for (const issue of checks) {
         const li = document.createElement('li');
@@ -640,6 +704,7 @@
         $('ff-issues').append(li);
       }
       renderTools();
+      renderGuide(g, checks);
     }
     function updateView() {
       const r = svg.getBoundingClientRect();
@@ -647,6 +712,7 @@
       svg.setAttribute('viewBox', [view.x, view.y, view.w, view.h].join(' '));
       for (const [k, v] of Object.entries({ x: view.x, y: view.y, width: view.w, height: view.h }))
         $('ff-background').setAttribute(k, v);
+      $('ff-zoom-level').textContent = Math.round((100 * 1000) / view.w) + '%';
     }
     function fit() {
       const b = draft?.geometry.boundsMm || [0, 0, 0, 0],
@@ -1057,7 +1123,7 @@
         lastDrawDown = { time: e.timeStamp, x: e.clientX, y: e.clientY };
         const before = snapshot();
         try {
-          model = FF.append(model, pos);
+          model = FF.append(model, snap(pos));
           selected = model.nodes.at(-1).id;
           selectedIds = [selected];
           gesture = { type: 'draw', before, start: pos, original: structuredClone(node()) };
@@ -1101,7 +1167,7 @@
           const delta = pos.map((v, i) => v - gesture.start[i]);
           for (const old of gesture.originals) {
             const target = model.nodes.find(n => n.id === old.id);
-            target.p = old.p.map((v, i) => Math.max(-50000, Math.min(50000, v + delta[i])));
+            target.p = snap(old.p.map((v, i) => Math.max(-50000, Math.min(50000, v + delta[i]))));
           }
           model = FF.automatic(model);
         } else if (gesture.type === 'handle' || gesture.type === 'draw') {
@@ -1121,13 +1187,26 @@
             n.mode = 'smooth';
           }
         }
-        render();
+        // At most one redraw per frame while dragging; finish() draws the final state.
+        if (!dragFrame)
+          dragFrame = requestAnimationFrame(() => {
+            dragFrame = 0;
+            if (!gesture) return;
+            try {
+              render();
+            } catch (e) {
+              finish(true);
+              error(e);
+            }
+          });
       } catch (e) {
         finish(true);
         error(e);
       }
     });
     function finish(cancel = false) {
+      if (dragFrame) cancelAnimationFrame(dragFrame);
+      dragFrame = 0;
       if (!gesture) return;
       const g = gesture;
       gesture = null;
@@ -1163,6 +1242,22 @@
     );
     dialog.addEventListener('keydown', e => {
       if (e.target.closest('input,select,textarea,button,summary')) return;
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const key = e.key.toLowerCase();
+        const tool = { d: 'draw', e: 'edit', i: 'insert' }[key];
+        if (tool && !(tool === 'draw' && model.closed)) {
+          e.preventDefault();
+          return chooseTool(tool);
+        }
+        if (key === 'f') {
+          e.preventDefault();
+          return fitSelection();
+        }
+        if (key === 'h') {
+          e.preventDefault();
+          return toggleSettings();
+        }
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
         e.preventDefault();
         selectedIds = model.nodes.map(n => n.id);
@@ -1258,11 +1353,552 @@
       },
     });
 
+    // ---------------------------------------------------------------- layout and new tools
+    // Stretch and Smooth join the Shape group; the View & measure menu becomes Tools, with the
+    // whole-drawing moves and new starts; the curvature key floats over the canvas.
+    {
+      const shape = dialog.querySelector('.ff-shape');
+      const stretch = $('ff-stretch-tools'),
+        smoothJoins = $('ff-smooth-selection');
+      if (stretch) {
+        stretch.textContent = 'Stretch…';
+        stretch.title = 'Stretch lane spacing or build a ramp along a stretch';
+        shape.append(stretch);
+      }
+      if (smoothJoins) {
+        smoothJoins.textContent = 'Smooth joins…';
+        smoothJoins.title = 'Smooth the joins between the selected points';
+        shape.append(smoothJoins);
+      }
+      const toolbar = dialog.querySelector('.ff-toolbar');
+      toolbar.append($('ff-snap'));
+      const menu = dialog.querySelector('.ff-design-menu');
+      if (menu) {
+        toolbar.append(menu);
+        const summaryEl = menu.querySelector('summary');
+        summaryEl.textContent = 'Tools';
+        summaryEl.id = 'ff-tools-menu';
+        const host = menu.querySelector('div');
+        const label = text => {
+          const p = document.createElement('p');
+          p.className = 'menu-label';
+          p.textContent = text;
+          return p;
+        };
+        const item = (text, fn, title) => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'btn';
+          b.textContent = text;
+          if (title) b.title = title;
+          b.onclick = () => {
+            menu.open = false;
+            fn();
+          };
+          return b;
+        };
+        host.prepend(label('View and measure'));
+        host.append(
+          label('Whole drawing'),
+          item('Mirror left to right', () => transform('mirror')),
+          item('Rotate 90°', () => transform('rotate')),
+          item('Centre on the table', () => transform('centre')),
+          label('Start again from'),
+          item('Oval', () => $('ff-oval').click(), 'Replaces the drawing; Undo brings it back'),
+          item('Figure eight', () => $('ff-eight').click(), 'Replaces the drawing; Undo brings it back')
+        );
+        for (const b of host.querySelectorAll('button')) b.addEventListener('click', () => (menu.open = false));
+      }
+      const legend = dialog.querySelector('.ff-curvature-legend');
+      if (legend) dialog.querySelector('.ff-stage').append(legend);
+      $('ff-start-reference').onclick = () =>
+        [...dialog.querySelectorAll('.ff-design-menu button')]
+          .find(b => /Reference image/.test(b.textContent))
+          ?.click();
+    }
+    // Moves the whole drawing: mirror (lanes follow), a quarter turn, or the centre of the table.
+    function transform(kind) {
+      act(() => {
+        if (!model.nodes.length) throw Error('Draw or start a shape first.');
+        if (model.nodes.some(n => n.locked)) throw Error('Unlock all points before moving the whole drawing.');
+        const b = FF.definition(model, profile).geometry.boundsMm,
+          c = [b[0] + b[2] / 2, b[1] + b[3] / 2],
+          shift = [table.x + table.lengthMm / 2 - c[0], table.y + table.widthMm / 2 - c[1]];
+        for (const n of model.nodes) {
+          if (kind === 'mirror') {
+            n.p = [2 * c[0] - n.p[0], n.p[1]];
+            n.in = [-n.in[0], n.in[1]];
+            n.out = [-n.out[0], n.out[1]];
+          } else if (kind === 'rotate') {
+            const d = [n.p[0] - c[0], n.p[1] - c[1]];
+            n.p = [c[0] - d[1], c[1] + d[0]];
+            n.in = [-n.in[1], n.in[0]];
+            n.out = [-n.out[1], n.out[0]];
+          } else n.p = [n.p[0] + shift[0], n.p[1] + shift[1]];
+        }
+        // A mirror image turns left into right: the lanes stay on the same side of the picture.
+        if (kind === 'mirror') model.side = -model.side;
+        model = FF.automatic(model);
+        FF.validate(model);
+      });
+    }
+    function zoomBy(factor) {
+      const c = [view.x + view.w / 2, view.y + view.h / 2];
+      view.w = Math.max(300, Math.min(100000, view.w * factor));
+      updateView();
+      view.x = c[0] - view.w / 2;
+      view.y = c[1] - view.h / 2;
+      updateView();
+      render();
+    }
+    // Zoom to selection (F): the selected points and their handles; nothing selected fits the table.
+    function fitSelection() {
+      const chosen = model.nodes.filter(n => selectedIds.includes(n.id) || n.id === selected);
+      if (!chosen.length) return fit();
+      const xs = chosen.flatMap(n => [n.p[0], n.p[0] + n.in[0], n.p[0] + n.out[0]]),
+        ys = chosen.flatMap(n => [n.p[1], n.p[1] + n.in[1], n.p[1] + n.out[1]]),
+        x = Math.min(...xs),
+        y = Math.min(...ys),
+        w = Math.max(...xs) - x,
+        hh = Math.max(...ys) - y,
+        r = svg.getBoundingClientRect();
+      view.w = Math.max(w + 400, ((hh + 400) * (r.width || 800)) / (r.height || 600), 600);
+      view.x = x + w / 2 - view.w / 2;
+      updateView();
+      view.y = y + hh / 2 - view.h / 2;
+      updateView();
+      render();
+    }
+    // Full canvas (H): the settings fold away; the edge tab or H brings them back.
+    let settingsHidden = false;
+    try {
+      // The guided sketch keeps the canvas full width; All settings (H) shows the panel.
+      settingsHidden = localStorage.getItem('slotforge.ff-settings-hidden.v1') !== 'false';
+    } catch {}
+    function showSettings(hidden) {
+      settingsHidden = hidden;
+      dialog.classList.toggle('ff-canvas-only', hidden);
+      $('ff-canvas-only').setAttribute('aria-pressed', String(hidden));
+      $('ff-show-settings').hidden = !hidden;
+      try {
+        localStorage.setItem('slotforge.ff-settings-hidden.v1', String(hidden));
+      } catch {}
+      if (editorActive) {
+        updateView();
+        render();
+      }
+    }
+    const toggleSettings = () => showSettings(!settingsHidden);
+    $('ff-canvas-only').onclick = toggleSettings;
+    $('ff-hide-settings').onclick = () => showSettings(true);
+    $('ff-show-settings').onclick = () => showSettings(false);
+    showSettings(settingsHidden);
+    $('ff-zoom-in').onclick = () => zoomBy(0.8);
+    $('ff-zoom-out').onclick = () => zoomBy(1.25);
+    $('ff-fit-selection').onclick = fitSelection;
+    // Snap 10 mm.
+    const showSnap = () => $('ff-snap').setAttribute('aria-pressed', String(snapOn));
+    $('ff-snap').onclick = () => {
+      snapOn = !snapOn;
+      showSnap();
+      try {
+        localStorage.setItem('slotforge.ff-snap.v1', String(snapOn));
+      } catch {}
+    };
+    showSnap();
+    // ---------------------------------------------------------------- The guided sketch
+    // Five steps along the top of the canvas (Draw · Close · Lanes · Heights · Check & use) and a
+    // drawer at the bottom with the current step's few controls. The drawer drives the same fields
+    // and buttons as the settings panel, which stays one click away (All settings).
+    var guide = {
+      step: null,
+      visited: new Set(),
+      steps: [
+        ['draw', 'Draw the line'],
+        ['close', 'Close the loop'],
+        ['lanes', 'Lanes'],
+        ['heights', 'Heights'],
+        ['check', 'Check & use'],
+      ],
+    };
+    {
+      const stage = dialog.querySelector('.ff-stage'),
+        bar = document.createElement('div'),
+        drawer = document.createElement('div');
+      bar.id = 'ff-steps';
+      bar.className = 'ff-steps';
+      bar.setAttribute('role', 'tablist');
+      bar.setAttribute('aria-label', 'Steps');
+      guide.steps.forEach(([key, label], i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.id = 'ff-step-' + key;
+        b.className = 'ff-step';
+        b.setAttribute('role', 'tab');
+        b.dataset.step = key;
+        const n = document.createElement('i');
+        n.textContent = String(i + 1);
+        n.setAttribute('aria-hidden', 'true');
+        b.append(n, label);
+        bar.append(b);
+      });
+      drawer.id = 'ff-drawer';
+      drawer.className = 'ff-drawer';
+      drawer.setAttribute('role', 'tabpanel');
+      drawer.innerHTML = `
+        <div class="ffd-body" id="ffd-body"></div>
+        <div class="ffd-nav">
+          <button type="button" class="btn quiet" id="ffd-settings" title="Show every setting (H)">All settings</button>
+          <button type="button" class="btn" id="ffd-back">← Back</button>
+          <button type="button" class="btn ffd-next" id="ffd-next">Next →</button>
+        </div>`;
+      stage.append(bar, drawer);
+      bar.onclick = e => {
+        const b = e.target.closest('[data-step]');
+        if (b) goStep(b.dataset.step);
+      };
+      $('ffd-back').onclick = () => goStep(guide.steps[Math.max(0, stepIndex() - 1)][0]);
+      $('ffd-next').onclick = () => {
+        if (guide.step === 'check') return $('ff-apply').click();
+        goStep(guide.steps[Math.min(guide.steps.length - 1, stepIndex() + 1)][0]);
+      };
+      $('ffd-settings').onclick = () => showSettings(!settingsHidden);
+    }
+    function stepIndex() {
+      return guide.steps.findIndex(([k]) => k === guide.step);
+    }
+    function stepDone(key, checks) {
+      if (key === 'draw') return model.nodes.length >= 3;
+      if (key === 'close') return model.closed;
+      if (key === 'lanes') return model.closed && (model.laneCount > 1 || guide.visited.has('lanes'));
+      if (key === 'heights')
+        return (
+          model.closed && (model.nodes.some(n => Math.abs(n.heightMm || 0) > 0.01) || guide.visited.has('heights'))
+        );
+      return model.closed && !checks.length;
+    }
+    function firstOpenStep(checks) {
+      return (guide.steps.find(([k]) => !stepDone(k, checks)) || guide.steps[guide.steps.length - 1])[0];
+    }
+    function goStep(key) {
+      guide.step = key;
+      guide.visited.add(key);
+      if (key === 'draw' && !model.closed) chooseTool('draw');
+      else if (key !== 'draw' && mode === 'draw' && model.closed) chooseTool('edit');
+      if (key === 'heights' && !selected && model.nodes.length) {
+        selected = model.nodes[0].id;
+      }
+      render();
+    }
+    // A small builder for the drawer's controls.
+    function gEl(tag, cls, text) {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    }
+    function gField(label, ...content) {
+      const box = gEl('div', 'ffd-field');
+      box.append(gEl('span', 'ffd-label', label), ...content);
+      return box;
+    }
+    function gButton(label, run, cls = 'btn') {
+      const b = gEl('button', cls, label);
+      b.type = 'button';
+      b.onclick = run;
+      return b;
+    }
+    const regenerate = () => $('ff-generate').click();
+    function renderGuide(g, checks) {
+      if (!guide || !$('ff-drawer')) return;
+      if (!guide.step) guide.step = firstOpenStep(checks);
+      for (const [key] of guide.steps) {
+        const b = $('ff-step-' + key),
+          done = stepDone(key, checks);
+        b.classList.toggle('done', done && key !== guide.step);
+        b.setAttribute('aria-selected', String(key === guide.step));
+        b.querySelector('i').textContent =
+          done && key !== guide.step ? '✓' : String(guide.steps.findIndex(([k]) => k === key) + 1);
+      }
+      $('ff-drawer').setAttribute('aria-labelledby', 'ff-step-' + guide.step);
+      $('ffd-back').disabled = stepIndex() === 0;
+      $('ffd-next').textContent =
+        guide.step === 'check' ? 'Use in builder' : 'Next: ' + guide.steps[stepIndex() + 1][1] + ' →';
+      $('ffd-next').disabled = guide.step === 'check' && !model.closed;
+      $('ffd-settings').setAttribute('aria-pressed', String(!settingsHidden));
+      // render() runs on every pointer move while dragging: rebuild the drawer only when
+      // something it shows has changed.
+      const node = model.nodes.find(n => n.id === selected),
+        key = JSON.stringify([
+          guide.step,
+          model.nodes.length,
+          model.closed,
+          model.laneCount,
+          settingsHidden,
+          checks.length,
+          guide.step === 'draw' ? $('ff-snap').getAttribute('aria-pressed') : 0,
+          guide.step === 'close' ? $('ff-facts').textContent : 0,
+          guide.step === 'lanes'
+            ? [$('ff-spacing').value, $('ff-side').value, g.lanePaths.map(l => Math.round(l.lengthMm / 10))]
+            : 0,
+          guide.step === 'heights' ? [selected, node?.heightMm || 0, $('ff-elevation').innerHTML.length] : 0,
+          guide.step === 'check' ? [$('ff-check-summary').textContent, $('ff-issues').textContent] : 0,
+          [...guide.visited].join(),
+        ]);
+      if (key === guide.key) return;
+      guide.key = key;
+      const body = $('ffd-body');
+      body.replaceChildren();
+      const say = text => body.append(gEl('p', 'ffd-text', text));
+      if (guide.step === 'draw') {
+        say(
+          model.closed
+            ? 'The line is drawn and closed. Use Edit to move points, or Insert to add one.'
+            : 'Click the table to place points; drag while clicking to bend the line. ' +
+                (model.nodes.length
+                  ? model.nodes.length + (model.nodes.length === 1 ? ' point so far.' : ' points so far.')
+                  : '')
+        );
+        // Starting shapes are on the start card (and in Tools once there are points).
+        const snap = gButton(
+          'Snap 10 mm',
+          () => {
+            $('ff-snap').click();
+            render();
+          },
+          'btn ffd-toggle'
+        );
+        snap.setAttribute('aria-pressed', $('ff-snap').getAttribute('aria-pressed'));
+        body.append(gField('Placing', snap));
+      } else if (guide.step === 'close') {
+        if (model.closed) {
+          say('The loop is closed: ' + $('ff-facts').textContent + '.');
+          const row = gEl('div', 'ffd-row');
+          row.append(gButton('Reopen loop', () => $('ff-reopen').click()));
+          const smooth = $('ff-smooth-selection');
+          if (smooth) row.append(gButton('Smooth joins…', () => smooth.click()));
+          body.append(gField('Shape', row));
+        } else {
+          say(
+            model.nodes.length < 3
+              ? 'Place at least three points first, then close the loop.'
+              : 'Click the first point on the canvas, or close the loop here.'
+          );
+          const close = gButton('Close loop', () => $('ff-close').click());
+          close.disabled = model.nodes.length < 3;
+          body.append(close);
+        }
+      } else if (guide.step === 'lanes') {
+        const stepper = gEl('div', 'ffd-stepper'),
+          count = gEl('b', null, String(model.laneCount));
+        const down = gButton(
+            '−',
+            () => {
+              $('ff-count-down').click();
+              regenerate();
+            },
+            'ffd-step-btn'
+          ),
+          up = gButton(
+            '＋',
+            () => {
+              $('ff-count-up').click();
+              regenerate();
+            },
+            'ffd-step-btn'
+          );
+        down.setAttribute('aria-label', 'One lane fewer');
+        up.setAttribute('aria-label', 'One lane more');
+        down.disabled = model.laneCount <= 1;
+        up.disabled = model.laneCount >= 8;
+        stepper.append(down, count, up);
+        body.append(gField('Lanes', stepper));
+        const range = gEl('input', 'ffd-range'),
+          value = gEl('b', 'ffd-value', $('ff-spacing').value + ' mm'),
+          spacing = gEl('div', 'ffd-row');
+        Object.assign(range, { type: 'range', min: '40', max: '200', step: '1', value: $('ff-spacing').value });
+        range.setAttribute('aria-label', 'Lane spacing in mm');
+        range.oninput = () => (value.textContent = range.value + ' mm');
+        range.onchange = () => {
+          $('ff-spacing').value = range.value;
+          regenerate();
+        };
+        spacing.append(range, value);
+        body.append(gField('Spacing', spacing));
+        const side = gEl('div', 'ffd-seg');
+        for (const [v, label] of [
+          ['-1', 'Left'],
+          ['1', 'Right'],
+        ]) {
+          const b = gButton(
+            label,
+            () => {
+              $('ff-side-seg').querySelector(`[data-side="${v}"]`)?.click();
+              regenerate();
+            },
+            'btn sm'
+          );
+          b.setAttribute('aria-pressed', String($('ff-side').value === v));
+          side.append(b);
+        }
+        body.append(gField('New lanes go', side));
+        const laps = gEl('div', 'ffd-laps');
+        laps.dataset.units = 'raw';
+        g.lanePaths.forEach((l, i) => {
+          const s = gEl('span', 'ffd-lap');
+          s.style.setProperty(
+            '--lane',
+            ['#3b82f6', '#e5484d', '#f5a524', '#30a46c', '#8e4ec6', '#12a594', '#e93d82', '#8d8d8d'][i % 8]
+          );
+          s.textContent = 'L' + (i + 1) + ' ' + (l.lengthMm / 1000).toFixed(2) + ' m';
+          laps.append(s);
+        });
+        body.append(gField('Lap per lane', laps));
+      } else if (guide.step === 'heights') {
+        if (!model.nodes.length) say('Draw the line first.');
+        else {
+          const at = Math.max(
+              0,
+              model.nodes.findIndex(n => n.id === selected)
+            ),
+            node = model.nodes[at],
+            pick = gEl('div', 'ffd-stepper');
+          const prev = gButton('‹', () => $('ff-prev-point').click(), 'ffd-step-btn'),
+            next = gButton('›', () => $('ff-next-point').click(), 'ffd-step-btn');
+          prev.setAttribute('aria-label', 'Previous point');
+          next.setAttribute('aria-label', 'Next point');
+          pick.append(prev, gEl('b', null, 'P' + (at + 1) + ' of ' + model.nodes.length), next);
+          body.append(gField('Point', pick));
+          const height = gEl('input', 'ffd-number');
+          Object.assign(height, { type: 'number', step: 'any', value: String(node.heightMm || 0), id: 'ffd-height' });
+          height.setAttribute('aria-label', 'Height of this point in mm');
+          height.onchange = () => {
+            $('ff-height').value = height.value;
+            $('ff-set-height').click();
+          };
+          const row = gEl('div', 'ffd-row');
+          row.append(height, gEl('span', 'ffd-unit', 'mm above the table'));
+          body.append(gField('Height', row));
+          const side = gEl('div', 'ffd-side');
+          side.innerHTML = $('ff-elevation').innerHTML;
+          if (side.innerHTML.trim()) body.append(gField('Side view', side));
+          else say('Every point is at table level. Raise a point to build a climb or a bridge.');
+        }
+      } else {
+        say($('ff-check-summary').textContent || 'Close the loop to check it.');
+        const list = gEl('div', 'ffd-row');
+        [...$('ff-issues').querySelectorAll('button')]
+          .slice(0, 3)
+          .forEach(b => list.append(gButton(b.textContent, () => b.click(), 'btn sm ffd-issue')));
+        if (list.children.length) body.append(list);
+        say('When it looks right, Use in builder places the circuit in the Track Builder.');
+      }
+    }
+    // Points: step with ‹ ›; X, Y and Height apply when you leave the field or press Enter.
+    const step = by => {
+      if (!model.nodes.length) return;
+      // With nothing selected, › starts at the first point and ‹ at the last.
+      const at = model.nodes.findIndex(n => n.id === selected),
+        from = at < 0 ? (by > 0 ? -1 : model.nodes.length) : at,
+        i = (from + by + model.nodes.length) % model.nodes.length;
+      selected = model.nodes[i].id;
+      selectedIds = [selected];
+      render();
+    };
+    $('ff-prev-point').onclick = () => step(-1);
+    $('ff-next-point').onclick = () => step(1);
+    for (const id of ['ff-x', 'ff-y']) $(id).addEventListener('change', () => $('ff-position').click());
+    $('ff-height').addEventListener('change', () => $('ff-set-height').click());
+    // Lane spacing from this point.
+    for (const b of $('ff-squeeze-seg').querySelectorAll('button'))
+      b.onclick = () => {
+        const want = b.dataset.squeeze;
+        if (want === 'normal') {
+          pendingSqueeze = null;
+          if (node()?.squeeze) $('ff-squeeze-remove').click();
+          else render();
+          return;
+        }
+        pendingSqueeze = want;
+        $('ff-squeeze-mode').value = want;
+        $('ff-squeeze-mode').dispatchEvent(new Event('change'));
+        render();
+      };
+    $('ff-squeeze-apply').addEventListener('click', () => (pendingSqueeze = null));
+    // Lanes: − / + and Left / Right.
+    const countBy = by => {
+      const next = Math.max(1, Math.min(8, (Number($('ff-count').value) || 1) + by));
+      $('ff-count').value = next;
+      refs();
+    };
+    $('ff-count-down').onclick = () => countBy(-1);
+    $('ff-count-up').onclick = () => countBy(1);
+    for (const b of $('ff-side-seg').querySelectorAll('button'))
+      b.onclick = () => {
+        $('ff-side').value = b.dataset.side;
+        for (const o of $('ff-side-seg').querySelectorAll('button')) o.setAttribute('aria-pressed', String(o === b));
+      };
+    // Undo history: the last steps in words; choosing one undoes back to before it.
+    function describeStep(a, b) {
+      let x, y;
+      try {
+        x = JSON.parse(a);
+        y = JSON.parse(b);
+      } catch {
+        return 'Change';
+      }
+      const m = x.model,
+        n = y.model,
+        points = k => k + (k === 1 ? ' point' : ' points');
+      if (!m || !n) return 'Change';
+      if (n.nodes.length > m.nodes.length) return 'Added ' + points(n.nodes.length - m.nodes.length);
+      if (n.nodes.length < m.nodes.length) return 'Removed ' + points(m.nodes.length - n.nodes.length);
+      if (m.closed !== n.closed) return n.closed ? 'Closed the loop' : 'Reopened the loop';
+      if (m.laneCount !== n.laneCount) return 'Set ' + n.laneCount + (n.laneCount === 1 ? ' lane' : ' lanes');
+      const was = new Map(m.nodes.map(p => [p.id, p]));
+      const count = test => n.nodes.filter(p => was.get(p.id) && test(was.get(p.id), p)).length;
+      const moved = count((o, p) => o.p[0] !== p.p[0] || o.p[1] !== p.p[1]);
+      if (moved) return 'Moved ' + points(moved);
+      if (count((o, p) => (o.heightMm || 0) !== (p.heightMm || 0))) return 'Changed a height';
+      if (count((o, p) => JSON.stringify(o.squeeze) !== JSON.stringify(p.squeeze))) return 'Changed lane spacing';
+      if (count((o, p) => !!o.locked !== !!p.locked)) return 'Locked or unlocked a point';
+      if (count((o, p) => JSON.stringify([o.in, o.out, o.mode]) !== JSON.stringify([p.in, p.out, p.mode])))
+        return 'Changed a bend';
+      if (JSON.stringify(x.table) !== JSON.stringify(y.table)) return 'Changed the table';
+      if (JSON.stringify(x.profile) !== JSON.stringify(y.profile)) return 'Changed routing settings';
+      if (x.name !== y.name) return 'Renamed the track';
+      if (JSON.stringify(x.planning) !== JSON.stringify(y.planning)) return 'Changed measurements or pictures';
+      return 'Changed settings';
+    }
+    $('ff-history').addEventListener('click', () => {
+      const list = $('ff-history-menu');
+      list.replaceChildren();
+      const steps = Math.min(history.length, 15);
+      const head = document.createElement('p');
+      head.className = 'menu-label';
+      head.textContent = steps ? 'Undo back to before' : 'Nothing to undo';
+      list.append(head);
+      for (let k = 1; k <= steps; k++) {
+        const i = history.length - k;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'menuitem');
+        b.textContent = describeStep(history[i], k === 1 ? snapshot() : history[i + 1]);
+        b.onclick = () => {
+          list.hidden = true;
+          $('ff-history').setAttribute('aria-expanded', 'false');
+          for (let n = 0; n < k; n++) undo();
+        };
+        list.append(b);
+      }
+    });
+    root.Menus?.attach($('ff-history'), $('ff-history-menu'));
+
     const summary = document.createElement('div');
     summary.className = 'ff-builder-summary';
     const label = document.createElement('p'),
       button = document.createElement('button');
-    button.className = 'btn primary';
+    button.className = 'btn';
     button.textContent = 'Edit FreeForm';
     button.onclick = launch;
     summary.append(label, button);
@@ -1281,7 +1917,7 @@
             d.parameters.freeform.nodes.length +
             ' anchors · ' +
             d.parameters.freeform.laneCount +
-            ' lanes · ' +
+            (d.parameters.freeform.laneCount === 1 ? ' lane · ' : ' lanes · ') +
             (d.geometry.closed ? 'Closed circuit' : 'Editable draft');
           $('duplicate').disabled = true;
         }

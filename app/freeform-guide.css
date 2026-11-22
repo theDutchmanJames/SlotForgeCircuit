@@ -1,0 +1,274 @@
+/* FreeForm, the guided sketch: five steps along the top of the canvas and a drawer at the bottom
+   with the current step's controls. */
+
+#freeform-dialog .ff-stage {
+  position: relative;
+}
+.ff-steps {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  max-width: calc(100% - 24px);
+  padding: 5px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  transform: translateX(-50%);
+}
+.ff-step {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px 5px 5px;
+  border: 0;
+  border-radius: 9px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.ff-step:hover {
+  background: var(--ui-quiet-hover);
+  color: var(--ink);
+}
+.ff-step:focus-visible {
+  outline: 2px solid var(--ui-focus);
+}
+.ff-step i {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--ink) 12%, var(--panel));
+  color: var(--ink);
+  font: 700 11px var(--font-numbers, Consolas, monospace);
+  font-style: normal;
+}
+.ff-step.done i {
+  background: var(--ui-success);
+  color: #fff;
+}
+.ff-step[aria-selected='true'] {
+  background: var(--ui-selected);
+  color: var(--ink);
+  font-weight: 600;
+}
+.ff-step[aria-selected='true'] i {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* The drawer. */
+.ff-drawer {
+  position: absolute;
+  right: 12px;
+  bottom: 62px;
+  left: 12px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 70px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+.ffd-body {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+  min-width: 0;
+}
+.ffd-nav {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+.ffd-next {
+  border-color: var(--accent);
+  color: var(--accent-text, var(--accent));
+  font-weight: 600;
+}
+#ffd-settings[aria-pressed='true'] {
+  color: var(--ink);
+}
+.ffd-text {
+  flex: 1 1 260px;
+  max-width: 440px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.ffd-field {
+  display: grid;
+  gap: 5px;
+}
+.ffd-label {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ffd-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ffd-toggle[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent-text, var(--accent));
+}
+.ffd-stepper {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.ffd-stepper b {
+  min-width: 40px;
+  padding: 0 6px;
+  font: 600 13.5px var(--font-numbers, Consolas, monospace);
+  text-align: center;
+  white-space: nowrap;
+}
+.ffd-step-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 16px;
+  cursor: pointer;
+}
+.ffd-step-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ffd-range {
+  width: 180px;
+  accent-color: var(--accent);
+}
+.ffd-value {
+  min-width: 62px;
+  font: 600 13px var(--font-numbers, Consolas, monospace);
+}
+.ffd-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.ffd-seg .btn {
+  border: 0;
+  background: none;
+}
+.ffd-seg .btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--ink) 12%, var(--panel));
+  color: var(--ink);
+  font-weight: 600;
+}
+.ffd-laps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.ffd-lap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 500 12.5px var(--font-numbers, Consolas, monospace);
+}
+.ffd-lap::before {
+  content: '';
+  width: 16px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--lane);
+}
+.ffd-number,
+#freeform-dialog .ffd-number {
+  flex: none;
+  width: 90px !important;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font: 500 13px var(--font-numbers, Consolas, monospace);
+  text-align: right;
+}
+.ffd-unit {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+.ffd-side {
+  width: 300px;
+}
+.ffd-side .elevation-chart {
+  width: 100%;
+  height: auto;
+  max-height: 90px;
+}
+.ffd-side h3,
+.ffd-side p {
+  display: none;
+}
+.ffd-issue {
+  justify-content: flex-start;
+  max-width: 460px;
+  height: auto;
+  min-height: 30px;
+  padding-block: 5px;
+  text-align: left;
+  white-space: normal;
+}
+/* The drawer explains each step, so the old hint line gives way. */
+#freeform-dialog #ff-help {
+  visibility: hidden;
+}
+/* The start card sits above the drawer. */
+#freeform-dialog .ff-start-card {
+  margin-bottom: 110px;
+}
+
+@media (max-width: 1180px) {
+  .ff-drawer {
+    flex-wrap: wrap;
+  }
+  .ffd-nav {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .ff-step {
+    padding-right: 8px;
+    font-size: 12px;
+  }
+}
+#freeform-dialog .ffd-issue {
+  display: block;
+  max-width: 420px;
+  height: auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.ffd-row:has(> .ffd-issue) {
+  flex: 1 1 320px;
+  min-width: 0;
+}

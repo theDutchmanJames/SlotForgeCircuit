@@ -453,3 +453,92 @@ test('Invalid SVG scales fail explicitly instead of producing incorrect physical
     assert.throws(() => C.svgSize(model, value), /SVG scale/);
   assert.throws(() => C.svg(circular(), only, 0), /SVG scale/);
 });
+const example = name =>
+  structuredClone(require('../integration/slotforge-timing/routed-examples/' + name + '.slotforge.json'));
+const svgMetadata = text =>
+  JSON.parse(
+    text
+      .match(/<metadata>(.*?)<\/metadata>/s)[1]
+      .replaceAll('&quot;', '"')
+      .replaceAll('&lt;', '<')
+      .replaceAll('&gt;', '>')
+      .replaceAll('&amp;', '&')
+  );
+const dxfMetadata = text => {
+  const lines = text.split(/\r?\n/),
+    at = lines.findIndex(l => l.startsWith('SlotForge Circuit metadata '));
+  assert.equal(lines[at - 1].trim(), '999');
+  assert.equal(lines[at - 2], 'SlotForge Circuit - routed construction geometry');
+  return JSON.parse(lines[at].slice('SlotForge Circuit metadata '.length));
+};
+test('The oval exports one routed profile copied from its definition, and no heights', () => {
+  const layout = example('closed-routed-oval'),
+    spec = Object.values(layout.definitions).find(d => d.parameters.routed).parameters.routed,
+    meta = svgMetadata(C.svg(layout, only));
+  assert.equal(meta.format, 'slotforge.cad');
+  assert.equal(meta.version, 1);
+  assert.deepEqual(meta.routedProfiles, [
+    {
+      slotWidthMm: spec.slotWidthMm,
+      slotDepthMm: spec.slotDepthMm,
+      conductor: spec.conductor,
+      conductorWidthMm: spec.conductorWidthMm,
+      conductorGapMm: spec.conductorGapMm,
+      recessDepthMm: spec.recessDepthMm,
+      conductorThicknessMm: spec.conductorThicknessMm,
+      boardThicknessMm: spec.boardThicknessMm,
+      laneCount: spec.laneCount,
+      laneSpacingMm: spec.laneSpacingMm,
+      roadWidthMm: 300,
+    },
+  ]);
+  assert.equal(meta.heights, undefined);
+});
+test('The figure eight exports spot heights: the bridge pass is above the lower pass at the crossing', () => {
+  const model = C.build(example('figure-eight-with-bridge')),
+    heights = model.heights;
+  assert.ok(heights.length > 20);
+  for (const h of heights) assert.ok(h.length === 3 && h.every(Number.isFinite));
+  const top = heights.reduce((a, b) => (b[2] > a[2] ? b : a));
+  assert.ok(top[2] > 100, 'the bridge is raised');
+  // Under the top of the bridge the other pass runs at ground level.
+  const below = heights.filter(h => Math.hypot(h[0] - top[0], h[1] - top[1]) < 300 && h[2] < 1);
+  assert.ok(below.length, 'a lower-pass sample lies near the bridge top');
+  assert.ok(model.messages.some(m => m.includes('XY projection') && m.includes('SlotForge Foundry')));
+});
+test('Spot heights follow the road surface within 0.5 mm when interpolated between neighbours', () => {
+  const F = require('./core.js'),
+    X = require('./track-exports.js'),
+    built = X.build(example('figure-eight-with-bridge')),
+    heights = C.build(example('figure-eight-with-bridge')).heights,
+    road = built.pieces.find(p => built.definitions[p.definitionId].parameters.type === 'freeform'),
+    d = built.definitions[road.definitionId],
+    key = q => q.map(v => Math.round(v * 1000) / 1000).join(',');
+  const kept = new Set(heights.map(h => key(h.slice(0, 2))));
+  for (const lane of d.geometry.lanePaths) {
+    const points = lane.segments[0].points.map(q => F.point(q, road)),
+      z = d.geometry.reference.heightsMm;
+    let a = 0,
+      worst = 0;
+    for (let j = 1; j < points.length; j++) {
+      if (!kept.has(key(points[j]))) continue;
+      let run = 0;
+      const runs = [0];
+      for (let k = a + 1; k <= j; k++) runs.push((run += F.dist(points[k - 1], points[k])));
+      for (let k = a + 1; k < j; k++)
+        worst = Math.max(worst, Math.abs(z[a] + ((z[j] - z[a]) * runs[k - a]) / run - z[k]));
+      a = j;
+    }
+    assert.equal(a, points.length - 1, 'the last sample of each lane is kept');
+    assert.ok(worst <= 0.5, 'interpolation error ' + worst.toFixed(3) + ' mm');
+  }
+});
+test('DXF and SVG carry identical Foundry metadata', () => {
+  for (const name of ['closed-routed-oval', 'figure-eight-with-bridge']) {
+    const svgMeta = svgMetadata(C.svg(example(name), undefined, 'compact')),
+      dxfMeta = dxfMetadata(C.dxf(example(name)));
+    for (const k of ['scaleDenominator', 'restoreFullSizePercent', 'svgAppearance', 'displayStrokeWidth'])
+      delete svgMeta[k];
+    assert.deepEqual(dxfMeta, svgMeta, name);
+  }
+});

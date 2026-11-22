@@ -295,6 +295,7 @@ body[data-routed-catalogue='true'] #routed-new-section {
 .routed-tools-menu > .btn {
   width: 100%;
   text-align: left;
+  justify-content: flex-start;
   white-space: normal;
   min-height: 32px;
 }

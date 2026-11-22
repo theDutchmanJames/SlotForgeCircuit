@@ -125,3 +125,52 @@ test('SQLite stays usable without an optional migration-time JSON recovery copy'
   assert.equal((await s.current()).data.title, raw().title);
   assert.equal((await (await open()).current()).data.title, raw().title);
 });
+test('A workspace file swapped by another program between two queued requests is checked again, not trusted', async t => {
+  const { root } = await setup(t),
+    store = require('./sqlite-store.cjs'),
+    a = path.join(root, 'a'),
+    b = path.join(root, 'b');
+  t.after(() => store.release(a));
+  for (const dir of [a, b]) await store.run(dir, 'init', []);
+  const saved = await store.run(a, 'putDesign', [DL.prepare(raw(), 'Only in A', true), null]);
+  store.release(b);
+  // The connection to A stays open (as it does while requests are queued); its file is replaced.
+  // Windows does not let another program replace a file that is open, so this part is POSIX only.
+  assert.equal((await store.run(a, 'summaries', [])).length, 1);
+  if (process.platform !== 'win32') {
+    await fs.rm(path.join(a, 'workspace.sqlite'));
+    await fs.copyFile(path.join(b, 'workspace.sqlite'), path.join(a, 'workspace.sqlite'));
+    assert.deepEqual(await store.run(a, 'summaries', []), [], 'the new file is read, not the old connection');
+  }
+  // Another program turning the open file into a foreign one is refused on the kept connection.
+  const db = new DatabaseSync(path.join(a, 'workspace.sqlite'));
+  db.exec('PRAGMA application_id=1');
+  db.close();
+  await assert.rejects(store.run(a, 'summaries', []), /Unsupported or damaged Circuit database/);
+  assert.ok(saved.id);
+});
+test('A damaged database file gives the recovery message, and unknown requests are refused', async t => {
+  const { root } = await setup(t),
+    store = require('./sqlite-store.cjs'),
+    dir = path.join(root, 'data');
+  t.after(() => store.release(dir));
+  await store.run(dir, 'init', []);
+  await store.run(dir, 'putDesign', [DL.prepare(raw(), 'Before damage', true), null]);
+  await assert.rejects(store.run(dir, 'dropEverything', []), { message: 'Unknown storage operation.', status: 400 });
+  store.release(dir);
+  // Overwrite the middle of the file (the table pages) with noise.
+  const file = path.join(dir, 'workspace.sqlite'),
+    bytes = await fs.readFile(file);
+  for (let i = 4096; i < bytes.length; i++) bytes[i] = (i * 31) & 255;
+  await fs.writeFile(file, bytes);
+  for (const method of ['list', 'init'])
+    await assert.rejects(store.run(dir, method, []), e => {
+      assert.equal(e.status, 500, method);
+      assert.match(
+        e.message,
+        /Cannot read or write the SQLite workspace\. Original retained; restore a verified backup/
+      );
+      return true;
+    });
+  store.release(dir);
+});

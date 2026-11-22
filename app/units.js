@@ -124,14 +124,16 @@
   // Settings card: Metric / Imperial. Changing it reloads so every view is redrawn in the new units.
   function settingsCard() {
     const card = document.createElement('section');
-    card.className = 'export-card units-card';
+    card.className = 'units-card ss-section';
     card.setAttribute('aria-labelledby', 'units-title');
     card.innerHTML = `<h2 id="units-title">Measurement units</h2>
-      <p>Choose how lengths are shown. Track pieces are defined in millimetres; with Imperial, number fields stay in mm and show the inch equivalent beside them.</p>
-      <div class="units-choice" role="radiogroup" aria-label="Measurement units">
-        <label><input type="radio" name="units" value="metric"> <strong>Metric</strong> <span>mm and m</span></label>
-        <label><input type="radio" name="units" value="imperial"> <strong>Imperial</strong> <span>inches and feet</span></label>
-      </div>`;
+      <div class="ss-sheet"><div class="ss-row">
+        <div class="ss-t"><b>Units</b><span class="ss-desc">Lengths, footprints, speeds and the PDF report: metric (mm and m) or imperial (inches and feet).</span></div>
+        <div class="ss-ctl"><div class="units-choice ss-seg" role="radiogroup" aria-label="Measurement units">
+          <label><input type="radio" name="units" value="metric"> Metric</label><label><input type="radio" name="units" value="imperial"> Imperial</label>
+        </div></div>
+      </div></div>
+      <p class="ss-note">Track pieces are defined in millimetres. With Imperial, number fields stay in mm and show the inch equivalent beside them.</p>`;
     card.dataset.units = 'raw';
     for (const radio of card.querySelectorAll('input')) {
       radio.checked = radio.value === system();

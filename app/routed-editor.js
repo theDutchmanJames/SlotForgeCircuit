@@ -191,7 +191,10 @@
         chosen =
           $('pack').value === R.ID ||
           h.packs().some(p => p.id === $('pack').value && p.pieces.length && p.pieces.every(d => d.parameters.routed));
-      $('custom').textContent = chosen ? '＋ Section' : '＋ Custom';
+      // The ＋ beside the pack card: a routed section for routed packs, a custom piece otherwise.
+      $('custom').textContent = '＋';
+      $('custom').title = chosen ? 'Add a routed section' : 'Make a piece from your own measurements';
+      $('custom').setAttribute('aria-label', chosen ? 'Add a routed section' : 'Make a custom piece');
       catalogueFoot.textContent = chosen
         ? 'Click a section to add it. End magnets align matching slot bundles. Select one section to edit its dimensions.'
         : plasticFoot;
@@ -247,19 +250,31 @@
       ]) {
         const host = $(id);
         host.replaceChildren();
-        const values = [
-          ...(material.planningSections
-            ? [['Planning-only sections (excluded from quantities)', material.planningSections]]
-            : []),
-          ['Routed design sections', material.sections],
-          ['Total slot length', metres(material.slotMm)],
-          ['Braid, including allowance', metres(material.orderBraidMm)],
-          ['Tape, including allowance', metres(material.orderTapeMm)],
-        ];
+        const st = model.routed.settings,
+          values = [
+            ...(material.planningSections
+              ? [['Planning-only sections (excluded from quantities)', material.planningSections]]
+              : []),
+            ['Routed design sections', material.sections],
+            ['Total slot length', metres(material.slotMm)],
+            ['Braid, including allowance', metres(material.orderBraidMm)],
+            ['Tape, including allowance', metres(material.orderTapeMm)],
+            ...(!compact && material.sectionAreaMm2
+              ? [['Board area of the pieces', (material.sectionAreaMm2 / 1e6).toFixed(2) + ' m²']]
+              : []),
+            ...(!compact && st ? [['Slot cutter', st.slotWidthMm + ' mm wide, ' + st.slotDepthMm + ' mm deep']] : []),
+          ];
         for (const [label, value] of values) {
           const row = document.createElement('p');
           row.className = compact ? 'fine' : 'routed-metric';
-          row.textContent = label + ': ' + value;
+          if (compact) row.textContent = label + ': ' + value;
+          else {
+            const name = document.createElement('span'),
+              amount = document.createElement('b');
+            name.textContent = label;
+            amount.textContent = value;
+            row.append(name, amount);
+          }
           host.append(row);
         }
       }

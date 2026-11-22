@@ -1,0 +1,57 @@
+/* Type Trio (SlotForge Restyle): Barlow Condensed titles, the plain system type for
+   everything you read, Roboto Mono for numbers that are data. Track artwork, the
+   canvas and PDF reports keep their own type. Loaded last. */
+@font-face {
+  font-family: 'SF Barlow Condensed';
+  src: url('fonts/barlowcondensed/BarlowCondensed-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SF Barlow Condensed';
+  src: url('fonts/barlowcondensed/BarlowCondensed-BoldItalic.ttf') format('truetype');
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'SF Roboto Mono';
+  src: url('fonts/robotomono/RobotoMono-Variable.ttf') format('truetype');
+  font-weight: 100 700;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  --font-title: 'SF Barlow Condensed', 'Bahnschrift', sans-serif;
+  --font-numbers: 'SF Roboto Mono', Consolas, monospace;
+}
+
+/* Titles: page, panel, card and window titles. Small grey group labels
+   ("Track at a glance", shortcut groups) are eyebrows and stay in the plain type. */
+html[data-theme] :is(h1, h2, h3):not(.inspector-overview > h2, .shortcut-groups h3) {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+/* Numbers that are data: counts, lengths, sizes, lap times, speeds, versions. */
+html[data-theme]
+  :is(
+    .metric-grid strong,
+    #footprint,
+    #zoom-level,
+    .lap-row strong,
+    .lap-row .lap-diff,
+    .lap-row .lap-speed,
+    .lane-row strong,
+    .slider-label output,
+    .sf-version
+  ) {
+  font-family: var(--font-numbers);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}

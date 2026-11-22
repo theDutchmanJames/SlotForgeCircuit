@@ -14,17 +14,6 @@
   font-size: 14px;
   margin-top: 0;
 }
-.cad-layer-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 11px 0;
-  line-height: 1.5;
-  font-size: 12px;
-}
-.cad-layer-option input {
-  flex: none;
-}
 .cad-preview {
   background: #fff;
   border: 1px solid var(--line);

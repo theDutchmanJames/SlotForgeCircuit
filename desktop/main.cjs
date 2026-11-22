@@ -49,24 +49,28 @@ if (!app.requestSingleInstanceLock()) {
   let origin = null;
   const automated = !!(process.env.SLOTFORGE_DESKTOP_SMOKE || process.env.SLOTFORGE_UI_TESTS);
   const trackFiles = createTrackFiles({ app, dialog, ipcMain, getWindow: () => win, log, automated });
-  // "A new version is available" (same design as Paddock): installed and portable apps ask GitHub
-  // by themselves, about 15 seconds after start and then at most every 12 hours. Development copies,
-  // automated runs and SLOTFORGE_NO_UPDATE_CHECK only check when asked in Settings.
+  // "A new version is available": installed and portable apps ask GitHub once, a few seconds
+  // after start; a newer version opens a window with What's new, Skip and Download. Development
+  // copies, automated runs and SLOTFORGE_NO_UPDATE_CHECK only check when asked in Settings.
   const updateCheck = new UpdateCheck({
     profile: app.getPath('userData'),
     current: app.getVersion(),
     homepage: require('../package.json').homepage,
     fetch: (url, init) => net.fetch(url, init),
     automatic: app.isPackaged && !automated && !process.env.SLOTFORGE_NO_UPDATE_CHECK,
+    // Which file replaces this copy: the portable app and an AppImage say so through these.
+    edition: {
+      platform: process.platform,
+      arch: process.arch,
+      portable: !!process.env.PORTABLE_EXECUTABLE_FILE,
+      appImage: !!process.env.APPIMAGE,
+    },
+    downloads: app.getPath('downloads'),
     onChange: () => {
       if (win && !win.isDestroyed()) win.webContents.send('update:changed');
     },
   });
-  let updateTimer = setTimeout(() => {
-    void updateCheck.tick();
-    updateTimer = setInterval(() => void updateCheck.tick(), 60 * 60 * 1000);
-    updateTimer.unref();
-  }, 15 * 1000);
+  let updateTimer = setTimeout(() => void updateCheck.startupCheck(), 5 * 1000);
   updateTimer.unref();
   ipcMain.handle('update:action', async (event, action, payload) => {
     // Only Circuit's own page may ask.
@@ -80,6 +84,16 @@ if (!app.requestSingleInstanceLock()) {
       if (action === 'check') return { ok: true, value: await updateCheck.check() };
       if (action === 'enable') return { ok: true, value: updateCheck.setEnabled(payload?.enabled) };
       if (action === 'skip') return { ok: true, value: updateCheck.skip(payload?.version) };
+      if (action === 'download') {
+        // Not awaited: progress and the result reach the window through update:changed.
+        updateCheck.startDownload().catch(() => {});
+        return { ok: true, value: updateCheck.status() };
+      }
+      if (action === 'cancel') return { ok: true, value: updateCheck.cancelDownload() };
+      if (action === 'show') {
+        shell.showItemInFolder(updateCheck.downloadedFile());
+        return { ok: true, value: { shown: true } };
+      }
       if (action === 'open') {
         await shell.openExternal(updateCheck.releaseUrl());
         return { ok: true, value: { opened: true } };
@@ -98,7 +112,6 @@ if (!app.requestSingleInstanceLock()) {
   const close = () => {
     if (!shutdown) {
       clearTimeout(updateTimer);
-      clearInterval(updateTimer);
       updateCheck.stop();
       shutdown = (async () => {
         try {
@@ -265,6 +278,39 @@ if (!app.requestSingleInstanceLock()) {
         event.preventDefault();
         external(url);
       }
+    });
+    // Windows the page opens (a track-pack gallery, the licence notices) stay pages to read. A link
+    // in one back into the app shows that section in the main window and closes the extra window,
+    // so there is never a second copy of the app editing the same workspace.
+    win.webContents.on('did-create-window', child => {
+      child.setSize(1200, 860);
+      child.center();
+      const intoApp = url => {
+        try {
+          const u = new URL(url);
+          return u.origin === origin && /^\/app\/(index\.html)?$/.test(u.pathname) ? u.hash || '#builder' : null;
+        } catch {
+          return null;
+        }
+      };
+      child.webContents.on('will-navigate', (event, url) => {
+        const hash = intoApp(url);
+        if (hash) {
+          event.preventDefault();
+          win.webContents.executeJavaScript(`location.hash = ${JSON.stringify(hash)}`).catch(() => {});
+          if (win.isMinimized()) win.restore();
+          win.focus();
+          child.close();
+        } else if (!sameOrigin(url)) {
+          event.preventDefault();
+          external(url);
+        }
+      });
+      child.webContents.setWindowOpenHandler(({ url }) => {
+        if (sameOrigin(url) && !intoApp(url)) child.loadURL(url);
+        else if (!sameOrigin(url)) external(url);
+        return { action: 'deny' };
+      });
     });
     win.webContents.on('render-process-gone', (_e, details) => log('Renderer stopped: ' + details.reason));
     // The page asks to stay when there are unsaved changes. Browsers show a prompt for this;

@@ -23,11 +23,27 @@
     packs = window.TRACK_PACKS;
   for (const pack of packs)
     for (const d of pack.pieces) if (d.parameters) defs[d.id] = { ...d, geometry: G.derive(d.parameters) };
+  // Track sheet and piece-list tabs (declared early: the first catalogue() runs during start-up).
+  const LANE_COLOURS = ['#e5484d', '#3b82f6', '#f5a524', '#30a46c', '#8e4ec6', '#12a594', '#e93d82', '#8d8d8d'],
+    TAB_NAMES = { 'Digital pieces': 'Digital' };
+  let trackSheetTab = 'overview',
+    trackSheetDirty = true,
+    catalogueTab = 'Straights';
+  try {
+    catalogueTab = localStorage.getItem('slotforge.catalogue-tab.v1') || 'Straights';
+  } catch {}
   let colourByPiece = false,
     pieceColourModel = window.PieceColours.build([]);
   try {
     colourByPiece = localStorage.getItem('slotforge.piece-colours.v1') === 'true';
   } catch {}
+  // Pit Board saved state: green tick when saved, yellow dot while saving, amber when it failed.
+  // state: 'clean' (saved), 'busy' (saving) or 'error' (not saved); the caller says which.
+  function saveState(state, text) {
+    const el = document.getElementById('save-state');
+    el.textContent = text;
+    el.dataset.state = state;
+  }
   let exportChoice = 'current',
     exportMenuGeneration = 0,
     exportSourceGeneration = 0;
@@ -119,7 +135,7 @@
     } catch {}
   }
   function snapshot() {
-    return JSON.stringify({
+    return F.Planning.snapshotText({
       items,
       planning,
       previewCar,
@@ -140,7 +156,7 @@
     future = [];
   }
   function restore(s) {
-    const p = JSON.parse(s);
+    const p = F.Planning.snapshotValue(s);
     librarySource = librarySource?.id === p.integrationState?.designId ? librarySource : p.librarySource || null;
     items = p.items;
     planning = F.Planning.validate(p.planning);
@@ -177,7 +193,7 @@
   function persist() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(persistNow, SAVE_DELAY);
-    $('save-state').textContent = DS.disk ? 'Saving to disk…' : 'Saving…';
+    saveState('busy', DS.disk ? 'Saving to disk…' : 'Saving…');
   }
   DS.deferred?.({ pending: () => !!saveTimer, run: persistNow });
   window.addEventListener('pagehide', () => saveTimer && persistNow());
@@ -187,24 +203,24 @@
     try {
       const raw = layout(false);
       if (DS.disk) {
-        $('save-state').textContent = 'Saving to disk…';
+        saveState('busy', 'Saving to disk…');
         DS.putCurrent(raw, librarySource)
           .then(() => {
             storageAvailable = true;
-            $('save-state').textContent = 'Saved to disk';
+            saveState('clean', 'Saved to disk');
           })
           .catch(e => {
             storageAvailable = false;
-            $('save-state').textContent = 'Not saved to disk';
+            saveState('error', 'Not saved to disk');
             say(e.message + ' Export JSON to keep these changes.', true);
           });
       } else {
         localStorage.setItem(STORAGE, JSON.stringify({ ...raw, editorState: { librarySource } }));
         storageAvailable = true;
-        $('save-state').textContent = 'Saved in browser';
+        saveState('clean', 'Saved in browser');
       }
     } catch (e) {
-      $('save-state').textContent = 'Saving unavailable';
+      saveState('error', 'Saving unavailable');
       storageAvailable = false;
       say(e.message, true);
     }
@@ -259,9 +275,9 @@
     try {
       const data = CP.serialize(customLibrary);
       if (DS.disk) {
-        $('save-state').textContent = 'Saving packs to disk…';
+        saveState('busy', 'Saving packs to disk…');
         await DS.putPacks(data);
-        $('save-state').textContent = 'Saved to disk';
+        saveState('clean', 'Saved to disk');
       } else {
         writeBrowserPacks(data);
         browserPackUnsaved = false;
@@ -269,7 +285,7 @@
       return true;
     } catch (e) {
       if (!DS.disk) browserPackUnsaved = true;
-      $('save-state').textContent = 'Packs not saved';
+      saveState('error', 'Packs not saved');
       say('Track packs were not saved: ' + e.message + ' Export a pack file to keep your changes.', true);
       return false;
     }
@@ -376,7 +392,8 @@
     const messages = I.compatibility(items, defs, network, ref).issues.map(i => i.message);
     if (integrationState.requiresLaneRemap)
       messages.unshift('Route topology has changed. Reconfirm lane mapping in SlotForge Timing.');
-    if (document.body.dataset.section !== 'export') $('timing-compatibility').textContent = messages.join(' ');
+    if (document.body.dataset.section !== 'export' && $('timing-compatibility'))
+      $('timing-compatibility').textContent = messages.join(' ');
   }
   function editTiming(fn) {
     checkpoint();
@@ -385,29 +402,38 @@
     carDistances = [];
     refresh();
   }
-  async function exportPNG(raw = layout(false)) {
+  async function pictureBlob(raw) {
+    const view = typeof shopView === 'object' ? shopView : { borders: true, size: 'large', background: 'transparent' },
+      picture = I.picture(raw, {
+        borders: view.borders,
+        maxDimension: { small: 800, poster: 2048 }[view.size] || 1600,
+      }),
+      url = URL.createObjectURL(new Blob([picture.svg], { type: 'image/svg+xml' }));
+    let blob;
     try {
-      const picture = I.picture(raw, { borders: $('picture-borders').checked }),
-        url = URL.createObjectURL(new Blob([picture.svg], { type: 'image/svg+xml' }));
-      let blob;
-      try {
-        const image = new Image();
-        image.src = url;
-        await image.decode();
-        const canvas = document.createElement('canvas');
-        canvas.width = picture.width;
-        canvas.height = picture.height;
-        canvas.getContext('2d').drawImage(image, 0, 0);
-        blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-      } finally {
-        URL.revokeObjectURL(url);
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = picture.width;
+      canvas.height = picture.height;
+      const context = canvas.getContext('2d');
+      if (view.background !== 'transparent') {
+        context.fillStyle = view.background === 'dark' ? '#15171c' : '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
       }
-      if (!blob || blob.size > 5 * 1024 * 1024) throw Error('Picture exceeds the 5 MiB limit.');
-      download(XM.filename(raw.title) + '.png', blob, 'image/png');
-      say('Transparent track picture exported.');
-    } catch (e) {
-      say(e.message, true);
+      context.drawImage(image, 0, 0);
+      blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    } finally {
+      URL.revokeObjectURL(url);
     }
+    if (!blob || blob.size > 5 * 1024 * 1024) throw Error('Picture exceeds the 5 MiB limit. Choose a smaller size.');
+    return { blob, width: picture.width, height: picture.height };
+  }
+  async function exportPNG(raw = layout(false)) {
+    const { blob } = await pictureBlob(raw);
+    download(XM.filename(raw.title) + '.png', blob, 'image/png');
+    say('Track picture saved.');
   }
   function download(name, text, type = 'application/json') {
     const a = document.createElement('a'),
@@ -492,7 +518,8 @@
     if (legendKey === colourLegendKey) return;
     colourLegendKey = legendKey;
     $('piece-colours').setAttribute('aria-pressed', String(colourByPiece));
-    $('piece-colours').textContent = 'Colour by piece: ' + (colourByPiece ? 'On' : 'Off');
+    // A Toggle Chip: the tick and aria-pressed show whether it is on.
+    $('piece-colours').textContent = 'Colour pieces by size';
     $('piece-colour-key').hidden = !colourByPiece;
     const pack = allPacks().find(p => p.id === $('pack').value);
     $('piece-colour-legend').replaceChildren();
@@ -808,6 +835,10 @@
         maxY = items.length ? Math.max(b[1] + b[3], g.y + g.widthMm) : g.y + g.widthMm;
       b = [minX, minY, maxX - minX, maxY - minY];
     }
+    fitTo(b);
+  }
+  // Shows the box b = [x, y, width, height] in the canvas with a margin.
+  function fitTo(b) {
     const r = $('canvas').getBoundingClientRect(),
       ratio = (r.width || 1000) / (r.height || 650);
     view.w = Math.max(b[2] + 300, (b[3] + 340) * ratio, 500);
@@ -816,6 +847,12 @@
     view.y = b[1] + b[3] / 2 - view.h / 2;
     updateView();
     renderCanvas();
+  }
+  // Zoom to selection (F): the selected pieces fill the view; with nothing selected, the whole track.
+  function fitSelection() {
+    const group = selection();
+    if (!group.length) return fit();
+    fitTo(F.bounds(group, defs));
   }
   function zoom(factor, atPoint) {
     const center = atPoint || [view.x + view.w / 2, view.y + view.h / 2],
@@ -906,6 +943,26 @@
         ? 'Visual planning uses approximate connection points. Guide slots and lap lengths are not calculated for these pieces.'
         : 'Per-lane circuit lengths appear when the track is connected into one loop.';
       $('lane-lengths').append(p);
+    }
+    // Pit Board facts: the track at a glance under its name, always in view. Hovering shows each lane.
+    {
+      const n = Number($('piece-total').textContent) || 0,
+        lanes = network.closed ? network.routes.length : 0;
+      $('track-facts').textContent = items.length
+        ? [
+            ff ? 'FreeForm circuit' : `${n} ${n === 1 ? 'piece' : 'pieces'}`,
+            $('length-total').textContent,
+            $('footprint').textContent,
+            lanes ? `${lanes} ${lanes === 1 ? 'lane' : 'lanes'}` : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')
+        : 'No pieces yet';
+      $('track-facts').title = network.closed
+        ? network.routes
+            .map((r, i) => `${integrationState.routeLabels[r.id] || 'Lane ' + (i + 1)}: ${meters(r.lengthMm)}`)
+            .join('\n')
+        : '';
     }
     const group = selection(),
       p = current();
@@ -1025,7 +1082,7 @@
         : network.closed
           ? items.some(p => defOf(p).parameters.laneChange)
             ? 'Straight-through preview · lane switching not simulated'
-            : 'Two cars · slot-following demonstration'
+            : 'One car per lane · slot-following demonstration'
           : network.reason;
     renderCanvas();
     updateInspector();
@@ -1033,6 +1090,7 @@
     if (playing) rebuildMotion();
     renderLapTimes();
     renderElevationProfile();
+    renderTrackSheet();
     if (saveLocal) persist();
   }
   // Lap time per lane from the Tune profile (same speed plan as Live Preview).
@@ -1072,6 +1130,237 @@
     }, 60);
   }
   // Side view of lane 1: height against distance, inside Heights & bridges.
+  // ---------------------------------------------------------------- Track sheet (the inspector's first section)
+  // Lap per lane, heights along the lap and checks at a glance; parts against what you own.
+  function renderTrackSheet() {
+    if (!$('track-sheet')) return;
+    // Hidden (another inspector section, the builder not shown): catch up when it appears.
+    if (!$('track-sheet').offsetParent) {
+      trackSheetDirty = true;
+      return;
+    }
+    trackSheetDirty = false;
+    for (const t of ['overview', 'parts']) {
+      $('ts-tab-' + t).setAttribute('aria-selected', String(t === trackSheetTab));
+      $('ts-' + t).hidden = t !== trackSheetTab;
+    }
+    // Lap per lane.
+    const lanes = $('ts-lanes'),
+      note = $('ts-lane-note');
+    lanes.replaceChildren();
+    note.textContent = '';
+    note.className = 'ts-note';
+    if (network.closed && network.routes.length) {
+      const lengths = network.routes.map(r => r.lengthMm),
+        longest = Math.max(...lengths),
+        shortest = Math.min(...lengths);
+      network.routes.forEach((r, i) => {
+        const row = document.createElement('div'),
+          name = document.createElement('span'),
+          bar = document.createElement('span'),
+          fill = document.createElement('i'),
+          value = document.createElement('b');
+        row.className = 'ts-lane';
+        name.textContent = integrationState.routeLabels[r.id] || 'Lane ' + (i + 1);
+        bar.className = 'ts-bar';
+        fill.style.width = ((r.lengthMm / longest) * 100).toFixed(1) + '%';
+        fill.style.background = LANE_COLOURS[i % LANE_COLOURS.length];
+        bar.append(fill);
+        value.textContent = meters(r.lengthMm);
+        row.append(name, bar, value);
+        lanes.append(row);
+      });
+      const diff = longest - shortest;
+      if (lengths.length > 1 && diff > Math.max(20, longest * 0.01)) {
+        const a = lengths.indexOf(longest),
+          label = i => integrationState.routeLabels[network.routes[i].id] || 'Lane ' + (i + 1);
+        note.textContent =
+          label(a) +
+          ' is ' +
+          meters(diff) +
+          ' longer than ' +
+          label(lengths.indexOf(shortest)) +
+          '. A crossover would even the lanes out.';
+        note.classList.add('warn');
+      } else if (lengths.length > 1) note.textContent = 'The lanes are within 1% of each other.';
+    } else
+      note.textContent = items.length
+        ? 'Lap lengths appear when the track is joined into one loop.'
+        : 'Add pieces to see each lane’s lap.';
+    // Heights along the lap (lane 1).
+    const heights = $('ts-heights'),
+      route = network.closed ? network.routes[0] : null,
+      profile = route && window.ElevationProfile.build(route, items, defs);
+    if (profile?.hasHeights)
+      heights.innerHTML =
+        window.ElevationProfile.svg(profile, { width: 300, height: 90 }) +
+        `<p class="ts-note">Highest ${Math.round(profile.maxMm)} mm · steepest ${profile.steepestPct.toFixed(1)}%</p>`;
+    else
+      heights.innerHTML = `<p class="ts-note">${route ? 'Flat: every piece is at table level.' : 'Join the track into one loop to see its heights.'}</p>`;
+    // Checks.
+    const issues = items.length ? I.compatibility(items, defs, network, integrationState.startFinish).issues : [],
+      checks = $('ts-checks');
+    checks.replaceChildren();
+    const list = document.createElement('ul');
+    list.className = 'ts-issues';
+    if (items.length && !network.closed) {
+      const li = document.createElement('li');
+      li.textContent = 'The track is not one closed loop yet.';
+      list.append(li);
+    }
+    for (const issue of issues.slice(0, 3)) {
+      const li = document.createElement('li');
+      li.textContent = issue.message;
+      list.append(li);
+    }
+    if (!list.children.length) {
+      const li = document.createElement('li');
+      li.className = 'ok';
+      li.textContent = items.length ? 'Nothing to check right now.' : 'Nothing placed yet.';
+      list.append(li);
+    }
+    checks.append(list);
+    $('ts-tab-overview').textContent = 'Overview';
+    // Parts against what you own.
+    const rows = window.DesignTools.inventory(items, defs, planning.owned || {}),
+      table = $('ts-parts-table');
+    table.replaceChildren();
+    if (!rows.length) {
+      const p = document.createElement('p');
+      p.className = 'ts-note';
+      p.textContent = 'Add pieces to see what the track needs.';
+      table.append(p);
+    } else {
+      const head = document.createElement('div');
+      head.className = 'ts-part ts-part-head';
+      for (const t of ['Piece', 'Need', 'Own', ''])
+        head.append(Object.assign(document.createElement('span'), { textContent: t }));
+      table.append(head);
+      for (const row of rows) {
+        const line = document.createElement('div'),
+          name = document.createElement('span'),
+          need = document.createElement('b'),
+          own = document.createElement('input'),
+          state = document.createElement('b');
+        line.className = 'ts-part';
+        name.className = 'ts-part-name';
+        name.textContent = row.name;
+        if (row.sku) name.append(Object.assign(document.createElement('small'), { textContent: row.sku }));
+        need.textContent = row.used;
+        own.type = 'number';
+        own.min = '0';
+        own.max = '100000';
+        own.step = '1';
+        own.value = String(row.owned);
+        own.className = 'ts-own';
+        own.setAttribute('aria-label', 'How many ' + row.name + ' you own');
+        own.onchange = () => {
+          // Kept to what the saved plan accepts (0–100,000), so a mistyped number is not an error.
+          const n = Math.min(100000, Math.max(0, Math.floor(Number(own.value) || 0)));
+          checkpoint();
+          planning = F.Planning.validate({ ...planning, owned: { ...(planning.owned || {}), [row.key]: n } });
+          persist();
+          renderTrackSheet();
+        };
+        state.className = row.missing ? 'ts-buy' : 'ts-have';
+        state.textContent = row.missing ? 'buy ' + row.missing : '✓';
+        line.append(name, need, own, state);
+        table.append(line);
+      }
+    }
+    const short = rows.filter(r => r.missing),
+      pieces = short.reduce((n, r) => n + r.missing, 0);
+    $('ts-parts-summary').textContent = !rows.length
+      ? ''
+      : short.length
+        ? 'To buy: ' +
+          pieces +
+          (pieces === 1 ? ' piece' : ' pieces') +
+          ' of ' +
+          short.length +
+          (short.length === 1 ? ' kind.' : ' kinds.')
+        : 'You own everything this track needs.';
+    $('ts-copy-list').disabled = $('ts-save-list').disabled = !short.length;
+    $('ts-tab-parts').textContent = short.length ? 'Parts · buy ' + pieces : 'Parts';
+  }
+  function trackSheetShopping() {
+    return window.DesignTools.inventory(items, defs, planning.owned || {}).filter(r => r.missing);
+  }
+
+  // ---------------------------------------------------------------- Piece list: the pack card, options and folder tabs
+  function renderPackCard() {
+    const p = allPacks().find(x => x.id === $('pack').value) || packs[0];
+    if (!p || !$('pack-card')) return;
+    const mark = wbMark(p);
+    mark.classList.add('lb-mark');
+    mark.id = 'pack-card-mark';
+    $('pack-card-mark').replaceWith(mark);
+    $('pack-card-name').textContent = p.name;
+    const n = p.pieces.filter(d => d.geometry || d.referencePlan).length;
+    $('pack-card-facts').textContent = [
+      p.id === F.Routed.ID ? 'Routed wood' : customLibrary.packs.includes(p) ? 'Your pack' : p.modelScale,
+      n + (n === 1 ? ' piece' : ' pieces'),
+    ]
+      .filter(Boolean)
+      .join(' · ');
+    $('pack-card').title = $('pack-info').textContent;
+    $('pack-card').setAttribute('aria-label', 'Track pack: ' + p.name + '. Choose another pack');
+    const menu = $('pack-menu');
+    menu.replaceChildren();
+    for (const [label, list] of [
+      ['Built-in', packs],
+      ['Your packs', customLibrary.packs],
+    ]) {
+      if (!list.length) continue;
+      const heading = document.createElement('p');
+      heading.className = 'menu-label';
+      heading.textContent = label;
+      menu.append(heading);
+      for (const q of list) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'menuitem');
+        b.className = 'lb-pack-item';
+        if (q === p) b.setAttribute('aria-current', 'true');
+        const m = wbMark(q);
+        m.classList.add('lb-mark', 'small');
+        b.append(m, document.createTextNode(q.name + (q.inLibrary === false ? ' (draft)' : '')));
+        b.onclick = () => {
+          $('pack').value = q.id;
+          $('pack').onchange();
+        };
+        menu.append(b);
+      }
+    }
+  }
+  function updateFilterBadge() {
+    const n = [$('buildable').checked, $('search-all').checked, $('mirror-new').checked, colourByPiece].filter(
+        Boolean
+      ).length,
+      badge = $('catalogue-filter-count');
+    badge.textContent = String(n);
+    badge.hidden = !n;
+  }
+  function renderCatalogueTabs(list, active) {
+    const host = $('catalogue-tabs');
+    host.replaceChildren(
+      ...list.map(f => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('role', 'tab');
+        b.dataset.folder = f.name;
+        b.setAttribute('aria-selected', String(f.name === active));
+        b.title = f.name + ' · ' + f.pieces.length;
+        b.append(
+          TAB_NAMES[f.name] || f.name,
+          Object.assign(document.createElement('span'), { textContent: f.pieces.length })
+        );
+        return b;
+      })
+    );
+    host.hidden = list.length < 2;
+  }
+
   function renderElevationProfile() {
     let box = $('elevation-profile');
     if (!box) {
@@ -1205,24 +1494,122 @@
     $('pack-info').textContent = text;
     $('pack-info').title = p.planningNote || '';
   }
+  // Recently used pieces, per pack: the Recent row above the catalogue.
+  let recentPieces = {};
+  try {
+    const saved = JSON.parse(localStorage.getItem('slotforge.recent-pieces.v1'));
+    if (saved && typeof saved === 'object')
+      for (const [k, v] of Object.entries(saved))
+        if (Array.isArray(v)) recentPieces[k] = v.filter(x => typeof x === 'string').slice(0, 6);
+  } catch {}
+  function rememberPiece(packId, id) {
+    recentPieces = {
+      ...recentPieces,
+      [packId]: [id, ...(recentPieces[packId] || []).filter(x => x !== id)].slice(0, 6),
+    };
+    try {
+      localStorage.setItem('slotforge.recent-pieces.v1', JSON.stringify(recentPieces));
+    } catch {}
+  }
+  // A click on a piece in the catalogue (or the Recent row): add it, or plan with its artwork.
+  function place(d, pack) {
+    if (d.geometry) {
+      if (d.parameters.routed && pack.id === F.Routed.ID) {
+        if (items.length >= 500) {
+          say('This first iteration supports up to 500 placed pieces.', true);
+          return;
+        }
+        add(routedCatalogueDefinition(d), CP.preferredFlip(d, mirrorNew));
+      } else add(d);
+    } else if (d.referencePlan) {
+      const intendedDesign = integrationState.designId;
+      referenceQueue = referenceQueue.then(() =>
+        integrationState.designId === intendedDesign ? placeReference(d, { automatic: true }) : undefined
+      );
+    } else openReference(d);
+    rememberPiece(pack.id, d.id);
+    if (!$('search').value.trim()) catalogue();
+  }
+  function pieceThumb(d) {
+    if (d.asset && !(colourByPiece && window.PieceColours.eligible(d))) {
+      const img = document.createElement('img');
+      img.src = d.asset;
+      img.alt = '';
+      img.loading = 'lazy';
+      return img;
+    }
+    const image = svg('svg', {
+      viewBox: paletteBounds(d)
+        .map((v, i) => (i < 2 ? v - 15 : v + 30))
+        .join(' '),
+    });
+    image.innerHTML = paletteBody(d);
+    return image;
+  }
   function catalogue() {
     updatePieceColours();
     if (routedUI) routedUI.render();
     showPackInfo();
+    renderPackCard();
+    updateFilterBadge();
     const pack = allPacks().find(p => p.id === $('pack').value) || packs[0],
       query = $('search').value.trim().toLowerCase(),
       only = $('buildable').checked;
-    const list = pack.pieces.filter(
-      d => (!only || d.geometry || d.referencePlan) && (!query || (d.name + ' ' + d.sku).toLowerCase().includes(query))
-    );
-    $('catalogue-count').textContent = list.length + ' pieces';
+    const matches = d =>
+      (!only || d.geometry || d.referencePlan) && (!query || (d.name + ' ' + d.sku).toLowerCase().includes(query));
+    const list = pack.pieces.filter(matches);
+    // All packs: the search looks through every pack (not the routed templates), one folder per pack.
+    const everywhere = query && $('search-all').checked;
+    const folders = everywhere
+      ? allPacks()
+          .filter(p => p.id !== F.Routed.ID)
+          .map(p => ({ name: p.name, pieces: p.pieces.filter(matches), pack: p }))
+          .filter(f => f.pieces.length)
+      : CF.group(list).map(f => ({ ...f, pack }));
+    const found = folders.reduce((n, f) => n + f.pieces.length, 0);
+    // Without a search, one folder at a time behind tabs; a search shows every folder that matches.
+    const tabbed = !query,
+      tabs = tabbed ? folders.filter(f => f.pieces.length) : [],
+      tab = tabs.find(f => f.name === catalogueTab) || tabs[0] || null;
+    renderCatalogueTabs(tabs, tab?.name);
+    $('catalogue-count').textContent = everywhere
+      ? `${found} pieces · ${folders.length} ${folders.length === 1 ? 'pack' : 'packs'}`
+      : list.length + ' pieces';
     $('catalogue').replaceChildren();
-    for (const folder of CF.group(list)) {
+    const recent = query
+      ? []
+      : (recentPieces[pack.id] || [])
+          .map(id => list.find(d => d.id === id))
+          .filter(Boolean)
+          .slice(0, 6);
+    if (recent.length) {
+      const row = document.createElement('div');
+      row.className = 'recent-pieces';
+      row.setAttribute('role', 'group');
+      row.setAttribute('aria-label', 'Recently used pieces');
+      const label = document.createElement('span');
+      label.className = 'recent-label';
+      label.textContent = 'Recent';
+      row.append(label);
+      for (const d of recent) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'recent-piece';
+        b.title = 'Add ' + d.name + (d.sku ? ' · ' + d.sku : '');
+        b.setAttribute('aria-label', 'Add ' + d.name);
+        b.append(pieceThumb(d));
+        b.onclick = () => place(d, pack);
+        row.append(b);
+      }
+      $('catalogue').append(row);
+    }
+    for (const folder of folders) {
       if (query && !folder.pieces.length) continue;
+      if (tabbed && tab && folder !== tab) continue;
       const details = document.createElement('details');
-      details.className = 'catalogue-folder';
-      const key = pack.id + ':' + folder.name;
-      details.open = query ? !!folder.pieces.length : (folderState[key] ?? folder.name === 'Straights');
+      details.className = 'catalogue-folder' + (tabbed ? ' lb-flat' : '');
+      const key = folder.pack.id + ':' + folder.name;
+      details.open = tabbed || (query ? !!folder.pieces.length : (folderState[key] ?? folder.name === 'Straights'));
       const heading = document.createElement('summary');
       heading.textContent = folder.name;
       const count = document.createElement('span');
@@ -1230,7 +1617,7 @@
       heading.append(count);
       details.append(heading);
       details.ontoggle = () => {
-        if (query || !details.isConnected) return;
+        if (query || tabbed || !details.isConnected) return;
         folderState[key] = details.open;
         try {
           localStorage.setItem('slotforge.catalogue-folders.v1', JSON.stringify(folderState));
@@ -1256,21 +1643,7 @@
           : d.referencePlan
             ? 'Add visual planning piece · approximate'
             : 'Plan with reference artwork';
-        if (d.asset && !(colourByPiece && window.PieceColours.eligible(d))) {
-          const img = document.createElement('img');
-          img.src = d.asset;
-          img.alt = '';
-          img.loading = 'lazy';
-          button.append(img);
-        } else {
-          const image = svg('svg', {
-            viewBox: paletteBounds(d)
-              .map((v, i) => (i < 2 ? v - 15 : v + 30))
-              .join(' '),
-          });
-          image.innerHTML = paletteBody(d);
-          button.append(image);
-        }
+        button.append(pieceThumb(d));
         const words = document.createElement('span'),
           name = document.createElement('strong'),
           small = document.createElement('small');
@@ -1289,30 +1662,15 @@
         if (!d.geometry) small.className = 'reference';
         words.append(name, small);
         button.append(words);
-        button.onclick = () => {
-          if (d.geometry) {
-            if (d.parameters.routed && pack.id === F.Routed.ID) {
-              if (items.length >= 500) {
-                say('This first iteration supports up to 500 placed pieces.', true);
-                return;
-              }
-              add(routedCatalogueDefinition(d), CP.preferredFlip(d, mirrorNew));
-            } else add(d);
-          } else if (d.referencePlan) {
-            const intendedDesign = integrationState.designId;
-            referenceQueue = referenceQueue.then(() =>
-              integrationState.designId === intendedDesign ? placeReference(d, { automatic: true }) : undefined
-            );
-          } else openReference(d);
-        };
+        button.onclick = () => place(d, folder.pack);
         contents.append(button);
       }
     }
-    if (!list.length) {
+    if (!(everywhere ? found : list.length)) {
       const n = document.createElement('div');
       n.className = 'no-results';
       n.textContent = customLibrary.packs.some(p => p.id === $('pack').value)
-        ? 'This pack is empty. Choose “＋ Custom” to add its first piece.'
+        ? 'This pack is empty. Choose ＋ beside the pack to add its first piece.'
         : only
           ? 'No buildable pieces match. Turn off “Buildable only” to see reference artwork.'
           : 'No matching pieces.';
@@ -1517,6 +1875,12 @@
     refresh();
     say(position === 'front' ? 'Selection brought to front.' : 'Selection sent to back.');
   }
+  // How far Rotate and R turn the selection (the field beside Rotate), 15° unless changed.
+  let rotateStep = 15;
+  try {
+    const saved = Number(localStorage.getItem('slotforge.rotate-step.v1'));
+    if (saved >= 0.1 && saved <= 180) rotateStep = saved;
+  } catch {}
   function rotate(sign = 1) {
     const group = selection();
     if (!group.length || selectionLocked()) return;
@@ -1528,7 +1892,7 @@
       F.repositionGroup(
         group,
         { x: center[0], y: center[1], angle: 0, flip: false },
-        { x: center[0], y: center[1], angle: 15 * sign, flip: false }
+        { x: center[0], y: center[1], angle: rotateStep * sign, flip: false }
       )
     );
     refresh();
@@ -2079,7 +2443,8 @@
       f.family.value = from.family;
       f.color.value = from.color;
     } else f.family.value = 'custom';
-    $('piece-dialog').showModal();
+    if (document.body.dataset.section === 'packs') dockPieceForm();
+    else $('piece-dialog').showModal();
     updateCustom();
   }
   function createCustom(e) {
@@ -2096,6 +2461,11 @@
     defs[d.id] = d;
     persistCustom();
     $('piece-dialog').close();
+    if (wbEditing()) {
+      wbView.pack = activePack().id;
+      wbView.piece = d.id;
+      undockPieceForm();
+    }
     if (customToBuilder) {
       $('pack').value = activePack().id;
       $('search').value = '';
@@ -2113,12 +2483,8 @@
     if (raw?.format === 'slotforge.layout')
       throw Error('This is a complete track. Use Import track JSON under Import & Export → Tracks.');
     const p = CP.importPack(raw, customLibrary);
-    if (document.body.dataset.section === 'packs') {
-      $('packs-search').value = '';
-      $('packs-filter')
-        .querySelectorAll('[data-pack-filter]')
-        .forEach(b => b.setAttribute('aria-pressed', String(b.dataset.packFilter === 'own')));
-    }
+    wbView.pack = p.id; // the Track Packs workbench shows the new pack
+    wbView.piece = '';
     customLibrary.packs.push(p);
     customLibrary.activePackId = p.id;
     for (const d of p.pieces) defs[d.id] = d;
@@ -2127,8 +2493,8 @@
     $('search').value = '';
     catalogue();
     if (document.body.dataset.section === 'export') {
-      $('export-pack-select').value = p.id;
-      updateExportNote('export-pack-select', 'export-pack-note', 'export-custom');
+      exportChoice = 'pack:' + p.id;
+      populateExportTracks();
     }
     if (await saving)
       say(
@@ -2247,30 +2613,7 @@
     $('pdf-error').textContent = '';
     $('pdf-download').textContent = 'Generating PDF…';
     try {
-      const picture = pdfDiagram(pdfSnapshot),
-        url = URL.createObjectURL(new Blob([picture.svg], { type: 'image/svg+xml' }));
-      let data;
-      try {
-        const image = new Image();
-        image.src = url;
-        await image.decode();
-        const canvas = document.createElement('canvas');
-        canvas.width = picture.width;
-        canvas.height = picture.height;
-        const context = canvas.getContext('2d');
-        context.fillStyle = '#fff';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.drawImage(image, 0, 0);
-        data = canvas.toDataURL('image/jpeg', 0.95);
-      } finally {
-        URL.revokeObjectURL(url);
-      }
-      await window.PdfLibrary.load();
-      const result = window.TrackPDF.create(
-        pdfSnapshot,
-        { data, width: picture.width, height: picture.height },
-        { orientation: $('pdf-orientation').value }
-      );
+      const result = await makePdf(pdfSnapshot, $('pdf-orientation').value);
       download(XM.filename(result.title) + '.pdf', result.bytes, 'application/pdf');
       $('pdf-dialog').close();
       say('PDF downloaded: ' + result.title + ' · ' + result.pages + ' ' + (result.pages === 1 ? 'page' : 'pages'));
@@ -2296,6 +2639,7 @@
       id = e.target.closest('[data-id]')?.getAttribute('data-id');
     const openFolder = folderId => {
       $('tab-layout').click();
+      window.BuilderLayout?.reveal(folderId); // the inspector rail shows that folder's section
       const folder = $(folderId);
       if (!folder) return;
       folder.open = true;
@@ -2483,10 +2827,15 @@
     if (drag.type === 'select') {
       if (!drag.moved && Math.hypot(e.clientX - drag.startClient[0], e.clientY - drag.startClient[1]) < 3) return;
       drag.moved = true;
-      const hits = items.filter(p => F.inSelectionBox(p, defOf(p), drag.start, pos)).map(p => p.id);
-      setSelection([...drag.base, ...hits]);
-      renderCanvas();
-      updateInspector();
+      const hits = items.filter(p => F.inSelectionBox(p, defOf(p), drag.start, pos)).map(p => p.id),
+        chosen = [...drag.base, ...hits],
+        key = chosen.join(',');
+      // Redraw only when the set changes; the inspector follows once, when the box is let go.
+      if (key !== drag.hitKey) {
+        drag.hitKey = key;
+        setSelection(chosen);
+        renderCanvas();
+      }
       const box = $('selection-box');
       box.hidden = false;
       box.style.display = 'block';
@@ -2576,7 +2925,10 @@
         setSelection(drag.previous, drag.previousPrimary);
         renderCanvas();
         updateInspector();
-      } else $('status').textContent = selectedIds.size ? selectedIds.size + ' pieces selected' : 'Ready';
+      } else {
+        if (drag.moved) updateInspector();
+        $('status').textContent = selectedIds.size ? selectedIds.size + ' pieces selected' : 'Ready';
+      }
     }
     const pointerId = drag.pointerId;
     drag = null;
@@ -2630,6 +2982,8 @@
       save,
       rotate,
       rotateBack: () => rotate(-1),
+      fitSelection,
+      toggleSidebars: () => window.BuilderLayout?.toggleSidebars(),
       mirror,
       remove,
       escape: () => select(null),
@@ -2652,6 +3006,94 @@
   };
   $('undo').onclick = undo;
   $('redo').onclick = redo;
+  // Undo history: the last steps in words; choosing one undoes back to before it.
+  function describeStep(a, b) {
+    let x, y;
+    try {
+      x = JSON.parse(a);
+      y = JSON.parse(b);
+    } catch {
+      return 'Change';
+    }
+    const was = new Map(x.items.map(p => [p.id, p])),
+      now = new Set(y.items.map(p => p.id));
+    const pieces = k => `${k} ${k === 1 ? 'piece' : 'pieces'}`;
+    const added = y.items.filter(p => !was.has(p.id)).length,
+      removed = x.items.filter(p => !now.has(p.id)).length;
+    if (added && removed) return `Replaced ${pieces(removed)}`;
+    if (added) return `Added ${pieces(added)}`;
+    if (removed) return `Removed ${pieces(removed)}`;
+    let mirrored = 0,
+      turned = 0,
+      moved = 0,
+      changed = 0;
+    for (const p of y.items) {
+      const q = was.get(p.id);
+      if (!!q.flip !== !!p.flip) mirrored++;
+      else if (q.angle !== p.angle) turned++;
+      else if (q.x !== p.x || q.y !== p.y) moved++;
+      else if (JSON.stringify(q) !== JSON.stringify(p)) changed++;
+    }
+    if (mirrored) return `Mirrored ${pieces(mirrored)}`;
+    if (turned) return `Rotated ${pieces(turned)}`;
+    if (moved) return `Moved ${pieces(moved)}`;
+    if (changed) return `Changed ${pieces(changed)}`;
+    if (x.title !== y.title) return 'Renamed the track';
+    return 'Changed settings';
+  }
+  $('undo-history').addEventListener('click', () => {
+    const menu = $('undo-menu');
+    menu.replaceChildren();
+    const steps = Math.min(history.length, 15);
+    if (!steps) {
+      const none = document.createElement('p');
+      none.className = 'menu-label';
+      none.textContent = 'Nothing to undo';
+      menu.append(none);
+      return;
+    }
+    const head = document.createElement('p');
+    head.className = 'menu-label';
+    head.textContent = 'Undo back to before';
+    menu.append(head);
+    for (let k = 1; k <= steps; k++) {
+      const i = history.length - k,
+        after = k === 1 ? snapshot() : history[i + 1];
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.setAttribute('role', 'menuitem');
+      item.textContent = describeStep(history[i], after);
+      item.onclick = () => {
+        for (let n = 0; n < k; n++) undo();
+        say(k === 1 ? 'Undone: ' + item.textContent + '.' : `Undid ${k} steps.`);
+      };
+      menu.append(item);
+    }
+  });
+  Menus.attach($('undo-history'), $('undo-menu'));
+  $('undo-menu').addEventListener('click', e => {
+    if (e.target.closest('[role="menuitem"]')) {
+      $('undo-menu').hidden = true;
+      $('undo-history').setAttribute('aria-expanded', 'false');
+    }
+  });
+  $('fit-selection').onclick = fitSelection;
+  $('rotate-step').value = String(rotateStep);
+  $('rotate-step').onchange = () => {
+    const v = Number($('rotate-step').value);
+    if (!(v >= 0.1 && v <= 180)) {
+      say('Enter a rotation step from 0.1° to 180°.', true);
+      $('rotate-step').value = String(rotateStep);
+      return;
+    }
+    rotateStep = v;
+    try {
+      localStorage.setItem('slotforge.rotate-step.v1', String(v));
+    } catch {}
+    $('rotate').title = `Rotate ${v}° (R); Shift+R rotates back`;
+  };
+  $('rotate').title = `Rotate ${rotateStep}° (R); Shift+R rotates back`;
+  $('search-all').onchange = catalogue;
   $('rotate').onclick = e => rotate(e.shiftKey ? -1 : 1);
   $('mirror').onclick = mirror;
   $('duplicate').onclick = duplicate;
@@ -2695,7 +3137,6 @@
   $('save').onclick = save;
   $('builder-pdf').onclick = () => openPdfReport(layout());
   $('builder-cad').onclick = () => cadUI.open(layout());
-  $('print').onclick = () => exportSelectedTrack('pdf');
   $('csv').onclick = () => exportCSV();
   $('new').onclick = () => confirmReplace(newTrack);
   $('demo').onclick = () => confirmReplace(example);
@@ -2717,6 +3158,76 @@
   };
   $('search').oninput = catalogue;
   $('buildable').onchange = catalogue;
+  // The pack card opens the pack list; the options button opens the piece-list options.
+  Menus.attach($('pack-card'), $('pack-menu'));
+  {
+    const button = $('catalogue-filter'),
+      menu = $('catalogue-filter-menu'),
+      close = focus => {
+        menu.hidden = true;
+        button.setAttribute('aria-expanded', 'false');
+        if (focus) button.focus();
+      };
+    button.onclick = e => {
+      e.stopPropagation();
+      const open = menu.hidden;
+      menu.hidden = !open;
+      button.setAttribute('aria-expanded', String(open));
+      if (open) menu.querySelector('input, button')?.focus();
+    };
+    document.addEventListener('pointerdown', e => {
+      if (!menu.hidden && !menu.contains(e.target) && !button.contains(e.target)) close(false);
+    });
+    menu.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        close(true);
+      }
+    });
+    $('mirror-new').addEventListener('change', updateFilterBadge);
+  }
+  $('catalogue-tabs').onclick = e => {
+    const b = e.target.closest('[data-folder]');
+    if (!b) return;
+    catalogueTab = b.dataset.folder;
+    try {
+      localStorage.setItem('slotforge.catalogue-tab.v1', catalogueTab);
+    } catch {}
+    catalogue();
+    $('catalogue-tabs').querySelector('[aria-selected="true"]')?.focus();
+  };
+  // The track sheet: it skips its work while hidden and catches up when it is shown.
+  new ResizeObserver(() => {
+    if (trackSheetDirty && $('track-sheet').offsetParent) renderTrackSheet();
+  }).observe($('track-sheet'));
+  for (const t of ['overview', 'parts'])
+    $('ts-tab-' + t).onclick = () => {
+      trackSheetTab = t;
+      renderTrackSheet();
+    };
+  $('ts-edit-heights').onclick = () => BuilderLayout.rail()?.select('heights', true);
+  $('ts-find-problems').onclick = () =>
+    [...document.querySelectorAll('#tools-menu [role=menuitem]')]
+      .find(b => /^Find problems/.test(b.textContent))
+      ?.click();
+  $('ts-copy-list').onclick = async () => {
+    const list = trackSheetShopping()
+      .map(r => r.missing + ' × ' + r.name + (r.sku ? ' (' + r.sku + ')' : ''))
+      .join('\n');
+    try {
+      await navigator.clipboard.writeText(title + ' · shopping list\n' + list);
+      say('Shopping list copied.');
+    } catch (e) {
+      say('Could not copy the list: ' + e.message, true);
+    }
+  };
+  $('ts-save-list').onclick = () =>
+    download(
+      XM.filename(title) + '-shopping-list.csv',
+      window.DesignTools.shoppingCSV(window.DesignTools.inventory(items, defs, planning.owned || {})),
+      'text/csv;charset=utf-8'
+    );
   $('custom').onclick = () => {
     if (
       $('pack').value === F.Routed.ID ||
@@ -2946,7 +3457,7 @@
   if (loaded) {
     // Just read from storage: nothing to save until something changes.
     refresh(false);
-    $('save-state').textContent = DS.disk ? 'Saved to disk' : 'Saved in browser';
+    saveState('clean', DS.disk ? 'Saved to disk' : 'Saved in browser');
     fit();
   } else {
     example();
@@ -3003,30 +3514,10 @@
     say(count + ' borders added. Road and borders are selected together.');
   };
 
-  function renderPackControls() {
-    const select = $('custom-pack-select');
-    select.replaceChildren();
-    for (const p of customLibrary.packs) {
-      const o = document.createElement('option');
-      o.value = p.id;
-      o.textContent = p.name + (p.inLibrary ? '' : ' (draft)');
-      select.append(o);
-    }
-    select.value = activePack().id;
-    $('custom-pack-name').value = activePack().name;
-    $('editing-pack-name').textContent = activePack().name;
-    $('pack-contents-title').textContent = 'Pieces in ' + activePack().name;
-    $('custom-pack-status').textContent =
-      activePack().pieces.length +
-      ' pieces · ' +
-      (activePack().inLibrary ? 'Saved to Track Pack Library' : 'Draft pack');
-    populateExportSelect('export-pack-select');
-    updateExportNote('export-pack-select', 'export-pack-note', 'export-custom');
-  }
-  async function saveToLibrary() {
+  function renderPackControls() {}
+  async function saveToLibrary(p = activePack()) {
     try {
-      const p = activePack();
-      p.name = CP.name($('custom-pack-name').value);
+      p.name = CP.name(p.name);
       p.pieces = p.pieces.map(d => ({ ...d, pack: p.name }));
       for (const d of p.pieces) defs[d.id] = d;
       p.inLibrary = true;
@@ -3035,173 +3526,368 @@
       say(e.message, true);
     }
   }
-  function renderTrackPacks() {
-    const query = $('packs-search').value.trim().toLowerCase(),
-      filter = $('packs-filter').querySelector('[aria-pressed="true"]')?.dataset.packFilter || 'all';
-    const own = customLibrary.packs,
-      built = packs,
-      groups = [
-        {
-          id: 'builtin',
-          title: 'Built-in packs',
-          description: 'Manufacturer catalogues and routed wood templates, ready to use.',
-          packs: built,
-        },
-        {
-          id: 'own',
-          title: 'Your packs',
-          description: 'Imported collections and pieces you create. Drafts stay here while you work.',
-          packs: own,
-        },
-      ];
-    const host = $('pack-library');
-    host.replaceChildren();
-    let shown = 0;
-    $('packs-count').textContent = built.length + ' built-in · ' + own.length + ' of your own';
-    for (const group of groups) {
-      if (filter !== 'all' && filter !== group.id) continue;
-      const matches = group.packs.filter(p =>
-        (p.name + ' ' + (p.modelScale || '') + ' ' + (p.trackSystem || '')).toLowerCase().includes(query)
+  // ---------------------------------------------------------------- Track Packs: the Workbench
+  // Packs as tabs; the pack's pieces on the left; the chosen piece drawn large with its size in the
+  // middle; its facts and actions on the right. In your own packs the piece editor opens in place.
+  const WB_VIEW = 'slotforge.workbench.v1';
+  const wbView = (() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(WB_VIEW) || '{}') || {};
+      return { pack: typeof v.pack === 'string' ? v.pack : '', piece: typeof v.piece === 'string' ? v.piece : '' };
+    } catch {
+      return { pack: '', piece: '' };
+    }
+  })();
+  function keepWbView() {
+    try {
+      localStorage.setItem(WB_VIEW, JSON.stringify(wbView));
+    } catch {}
+  }
+  function wbEl(tag, className, text) {
+    const e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function wbOwn(p) {
+    return customLibrary.packs.includes(p);
+  }
+  function wbPack() {
+    const all = allPacks();
+    return all.find(p => p.id === wbView.pack) || all.find(p => p.id === $('pack').value) || all[0];
+  }
+  function wbMark(p) {
+    const mark = wbEl('span', 'wb-mark');
+    if (wbOwn(p)) mark.textContent = '✎';
+    else if (p.id === F.Routed.ID) mark.textContent = 'RW';
+    else
+      mark.textContent = (
+        p.name
+          .replace(/[^A-Za-z0-9 ]/g, ' ')
+          .trim()
+          .split(/\s+/)[0] || '?'
+      )
+        .slice(0, 3)
+        .toUpperCase();
+    let hash = 0;
+    for (const c of p.id) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
+    mark.style.setProperty('--wb-hue', String(hash % 360));
+    mark.setAttribute('aria-hidden', 'true');
+    return mark;
+  }
+  // Build with this pack: the builder's piece list shows it.
+  function useInBuilder(p) {
+    $('pack').value = p.id;
+    $('search').value = '';
+    if (!p.pieces.some(d => d.geometry || d.referencePlan)) $('buildable').checked = false;
+    catalogue();
+    location.hash = 'builder';
+    routeSection();
+    say(p.name + ' selected. Choose a piece to add to your track.');
+  }
+  function wbKind(d) {
+    const t = d.parameters?.type || '';
+    if (d.parameters?.foldOverride) return 'Planning fold';
+    if (d.parameters?.laneChange) return 'Lane changer';
+    if (t.endsWith('border')) return 'Border';
+    if (t === 'reference' || !d.geometry) return 'Reference';
+    if (t === 'routed-spline' || d.parameters?.routed) return 'Routed section';
+    return t ? t[0].toUpperCase() + t.slice(1) : 'Piece';
+  }
+  function wbFacts(d) {
+    const q = d.parameters || {},
+      mm = v => (Number.isFinite(+v) ? Math.round(+v * 10) / 10 + ' mm' : ''),
+      facts = [];
+    if (d.geometry?.centrelineLengthMm) facts.push(['Length', mm(d.geometry.centrelineLengthMm)]);
+    else if (q.lengthMm) facts.push(['Length', mm(q.lengthMm)]);
+    if (q.widthMm) facts.push(['Width', mm(q.widthMm)]);
+    if (q.angleDeg) facts.push(['Angle', Math.round(q.angleDeg * 10) / 10 + '°']);
+    if (q.innerRadiusMm) facts.push(['Inner radius', mm(q.innerRadiusMm)]);
+    const lanes = d.geometry?.lanePaths?.length || 0;
+    if (lanes) facts.push(['Lanes', String(lanes)]);
+    if (q.laneSpacingMm && lanes > 1) facts.push(['Lane spacing', mm(q.laneSpacingMm)]);
+    if (d.family)
+      facts.push([
+        'Connector',
+        d.family === 'custom'
+          ? 'Unbranded'
+          : allPacks()
+              .find(p => p.id === d.family)
+              ?.name.split(' / ')[0] ||
+            (/routed/.test(d.family) ? 'Routed wood' : d.family.replace(/^slotforge\./, '').replace(/\.v\d+$/, '')),
+      ]);
+    const placed = items.filter(p => p.definitionId === d.id).length;
+    facts.push(['In this track', placed ? placed + (placed === 1 ? ' placed' : ' placed') : 'not used']);
+    return facts;
+  }
+  function wbDrawing(d) {
+    if (!d.geometry) {
+      if (d.asset || d.referenceImage) {
+        const img = wbEl('img', 'wb-reference');
+        img.src = d.asset || d.referenceImage;
+        img.alt = d.name;
+        return img;
+      }
+      return wbEl('p', 'wb-message', 'This reference item has no drawing.');
+    }
+    const b = paletteBounds(d),
+      pad = Math.max(b[2], b[3]) * 0.16 + 20,
+      text = Math.max(b[2], b[3]) * 0.045 + 6,
+      view = [b[0] - pad, b[1] - pad, b[2] + pad * 2 + text * 3.5, b[3] + pad * 2],
+      image = svg('svg', { viewBox: view.join(' '), class: 'wb-drawing', role: 'img', 'aria-label': d.name }),
+      gap = pad * 0.45,
+      w = Math.round(b[2]),
+      h = Math.round(b[3]);
+    // The footprint, drawn as dimension lines above and to the right of the piece.
+    image.innerHTML =
+      paletteBody(d) +
+      `<g class="wb-dim" stroke-width="${text / 7}" font-size="${text}">` +
+      `<path d="M${b[0]} ${b[1] - gap - text / 2}v${text}M${b[0] + b[2]} ${b[1] - gap - text / 2}v${text}M${b[0]} ${b[1] - gap}H${b[0] + b[2]}"/>` +
+      `<text x="${b[0] + b[2] / 2}" y="${b[1] - gap - text * 0.6}" text-anchor="middle">${w} mm</text>` +
+      `<path d="M${b[0] + b[2] + gap - text / 2} ${b[1]}h${text}M${b[0] + b[2] + gap - text / 2} ${b[1] + b[3]}h${text}M${b[0] + b[2] + gap} ${b[1]}V${b[1] + b[3]}"/>` +
+      `<text x="${b[0] + b[2] + gap + text * 0.5}" y="${b[1] + b[3] / 2}" dominant-baseline="middle">${h} mm</text></g>`;
+    return image;
+  }
+  function renderWbPacks(current) {
+    const host = $('wb-packs'),
+      inBuilder = $('pack').value;
+    const tab = p => {
+      const b = wbEl('button', 'wb-pack');
+      b.type = 'button';
+      b.dataset.pack = p.id;
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-selected', String(p === current));
+      b.title = p.name + (p.id === inBuilder ? ' · in the builder now' : '');
+      const name = wbEl('span', 'wb-pack-name', p.name.split(' / ')[0]);
+      b.append(wbMark(p), name);
+      if (p.id === inBuilder) b.append(wbEl('span', 'wb-live'));
+      return b;
+    };
+    const own = customLibrary.packs;
+    host.replaceChildren(...packs.map(tab), ...(own.length ? [wbEl('span', 'wb-pack-gap')] : []), ...own.map(tab));
+    // Bring the chosen tab into view without scrolling the page itself.
+    const on = host.querySelector('[aria-selected="true"]');
+    if (on) {
+      const left = on.offsetLeft - host.offsetLeft,
+        right = left + on.offsetWidth;
+      if (left < host.scrollLeft) host.scrollLeft = left - 8;
+      else if (right > host.scrollLeft + host.clientWidth) host.scrollLeft = right - host.clientWidth + 8;
+    }
+  }
+  function renderWbPackBar(p) {
+    const bar = $('wb-pack-bar'),
+      own = wbOwn(p),
+      routed = p.id === F.Routed.ID,
+      shareable = p.pieces.some(d => d.parameters),
+      left = wbEl('div', 'wb-pack-title'),
+      actions = wbEl('div', 'wb-pack-actions');
+    if (own) {
+      const name = wbEl('input', 'wb-pack-rename');
+      name.id = 'wb-pack-name';
+      name.value = p.name;
+      name.maxLength = 100;
+      name.setAttribute('aria-label', 'Pack name');
+      name.onchange = () => {
+        try {
+          p.name = CP.name(name.value);
+          p.pieces = p.pieces.map(d => ({ ...d, pack: p.name }));
+          for (const d of p.pieces) defs[d.id] = d;
+          persistCustom();
+        } catch (e) {
+          name.value = p.name;
+          say(e.message, true);
+        }
+      };
+      left.append(name);
+    } else left.append(wbEl('h2', '', p.name));
+    const facts = [
+      own
+        ? p.inLibrary
+          ? 'Your pack · saved'
+          : 'Your pack · draft'
+        : routed
+          ? 'Routed wood'
+          : p.modelScale || 'Built-in',
+      p.pieces.length + (p.pieces.length === 1 ? ' piece' : ' pieces'),
+      $('pack').value === p.id ? 'in the builder now' : '',
+    ].filter(Boolean);
+    left.append(wbEl('p', 'wb-pack-facts', facts.join(' · ')));
+    const button = (label, run, cls = 'btn') => {
+      const b = wbEl('button', cls, label);
+      b.type = 'button';
+      b.onclick = run;
+      return b;
+    };
+    if (own && !p.inLibrary)
+      actions.append(
+        button('Save to my library', async () => {
+          customLibrary.activePackId = p.id;
+          await saveToLibrary(p);
+        })
       );
-      if (!matches.length) continue;
-      const section = document.createElement('section');
-      section.className = 'pack-hub-group';
-      const heading = document.createElement('h2');
-      heading.textContent = group.title + ' · ' + matches.length;
-      const description = document.createElement('p');
-      description.className = 'fine';
-      description.textContent = group.description;
-      const grid = document.createElement('div');
-      grid.className = 'pack-hub-grid';
-      section.append(heading, description, grid);
-      host.append(section);
-      for (const p of matches) {
-        shown++;
-        const custom = group.id === 'own',
-          routed = p.id === F.Routed.ID,
-          card = document.createElement('article');
-        card.className = 'pack-hub-card';
-        card.dataset.packId = p.id;
-        const art = document.createElement('div');
-        art.className = 'pack-hub-art';
-        art.setAttribute('aria-hidden', 'true');
-        const curve = p.pieces.find(d => (d.parameters || d.geometry?.parameters)?.type === 'curve'),
-          straight = p.pieces.find(d => (d.parameters || d.geometry?.parameters)?.type === 'straight'),
-          samples = [...new Set([curve, straight, ...p.pieces].filter(Boolean))].slice(0, 2);
-        for (const d of samples) {
-          try {
-            if (d.asset && !custom) {
-              const img = document.createElement('img');
-              img.src = d.asset;
-              img.alt = '';
-              img.loading = 'lazy';
-              art.append(img);
-            } else {
-              const definition = d.geometry ? d : { ...d, geometry: G.derive(d.parameters) },
-                preview = svg('svg', {
-                  viewBox: paletteBounds(definition)
-                    .map((v, i) => (i < 2 ? v - 15 : v + 30))
-                    .join(' '),
-                });
-              preview.innerHTML = paletteBody(definition);
-              art.append(preview);
-            }
-          } catch {
-            /* A missing preview must not hide the pack's management controls. */
-          }
-        }
-        if (!art.children.length) {
-          const empty = document.createElement('span');
-          empty.className = 'pack-hub-placeholder';
-          empty.textContent = '＋';
-          art.append(empty);
-        }
-        const body = document.createElement('div');
-        body.className = 'pack-hub-body';
-        const badge = document.createElement('span');
-        badge.className = 'pack-hub-badge';
-        badge.textContent = custom
-          ? p.inLibrary
-            ? 'Saved pack'
-            : 'Draft pack'
-          : routed
-            ? 'Routed wood'
-            : p.modelScale || 'Manufacturer pack';
-        const title = document.createElement('h3');
-        title.textContent = p.name;
-        const info = document.createElement('p');
-        info.className = 'pack-hub-info';
-        info.textContent =
-          p.pieces.length +
-          ' ' +
-          (p.pieces.length === 1 ? 'piece' : 'pieces') +
-          (p.trackSystem === 'slotless'
-            ? ' · Slotless planning'
-            : routed
-              ? ' · Editable slots and surfaces'
-              : custom
-                ? ' · Your piece collection'
-                : ' · Roads, borders and accessories');
-        const actions = document.createElement('div');
-        actions.className = 'pack-hub-actions';
-        const use = document.createElement('button');
-        use.className = 'btn primary';
-        use.textContent = 'Use in builder';
-        use.disabled = !p.pieces.length;
-        use.onclick = () => {
-          $('pack').value = p.id;
-          $('search').value = '';
-          if (!p.pieces.some(d => d.geometry || d.referencePlan)) $('buildable').checked = false;
-          catalogue();
-          location.hash = 'builder';
-          routeSection();
-          say(p.name + ' selected. Choose a piece to add to your track.');
-        };
-        const open = document.createElement('button');
-        open.className = custom && !p.pieces.length ? 'btn primary' : 'btn';
-        open.textContent = custom
-          ? p.pieces.length
-            ? 'Edit pack'
-            : 'Add pieces'
-          : routed
-            ? 'Configure'
-            : 'Browse pieces';
-        open.onclick = () => {
-          if (custom) {
-            customLibrary.activePackId = p.id;
-            persistCustom();
-            location.hash = 'custom';
-            routeSection();
-          } else location.href = p.gallery;
-        };
-        const output = document.createElement('button');
-        output.className = 'btn quiet';
-        output.textContent = 'Export pack';
-        output.disabled = !p.pieces.some(d => d.parameters);
-        if (output.disabled)
-          output.title = 'This pack has reference artwork only. There are no supported piece definitions to export.';
-        output.onclick = () => exportPack(p.id);
-        if (p.pieces.length) actions.append(use, open, output);
-        else actions.append(open);
-        body.append(badge, title, info, actions);
-        card.append(art, body);
-        grid.append(card);
+    if (routed) actions.append(button('Configure in Routed Wood', () => (location.href = '#routed')));
+    if (!own && !routed && p.gallery)
+      // In its own window: the app stays as it is, with any save still running.
+      actions.append(button('Open the gallery', () => window.open(p.gallery, '_blank'), 'btn quiet'));
+    const exportButton = button('Export pack', () => downloadPack(p.id));
+    exportButton.disabled = !shareable;
+    if (!shareable) exportButton.title = 'This pack has reference artwork only, so there is nothing to share.';
+    actions.append(exportButton);
+    const use = button($('pack').value === p.id ? 'In the builder' : 'Build with this pack', () => useInBuilder(p));
+    use.disabled = !p.pieces.length;
+    actions.append(use);
+    bar.replaceChildren(left, actions);
+  }
+  function renderWbBin(p) {
+    const host = $('wb-bin'),
+      query = $('packs-search').value.trim().toLowerCase(),
+      list = p.pieces.filter(d => !query || (d.name + ' ' + (d.sku || '')).toLowerCase().includes(query)),
+      groups = CF.group(list).filter(g => g.pieces.length),
+      parts = [];
+    for (const g of groups) {
+      parts.push(wbEl('p', 'wb-label', g.name + ' · ' + g.pieces.length));
+      for (const d of g.pieces) {
+        const row = wbEl('button', 'wb-piece');
+        row.type = 'button';
+        row.dataset.piece = d.id;
+        row.setAttribute('role', 'option');
+        row.setAttribute('aria-selected', String(d.id === wbView.piece));
+        const art = wbEl('span', 'wb-thumb');
+        try {
+          art.append(pieceThumb(d));
+        } catch {}
+        const words = wbEl('span', 'wb-piece-text');
+        words.append(wbEl('strong', '', d.name), wbEl('small', '', d.sku || wbKind(d)));
+        row.append(art, words);
+        parts.push(row);
       }
     }
-    $('packs-empty').hidden = shown !== 0;
-    $('packs-result').textContent = shown + ' ' + (shown === 1 ? 'pack' : 'packs') + ' shown';
+    if (!parts.length)
+      parts.push(
+        wbEl(
+          'p',
+          'wb-message',
+          query
+            ? 'No pieces match “' + query + '”.'
+            : wbOwn(p)
+              ? 'No pieces yet. Make the first one.'
+              : 'This pack is empty.'
+        )
+      );
+    host.replaceChildren(...parts);
+    $('wb-new-piece').hidden = !wbOwn(p) || (p.pieces.every(d => d.parameters?.routed) && p.pieces.length > 0);
+    return list;
+  }
+  function renderWbPiece(p, d) {
+    const stage = $('wb-stage'),
+      ins = $('wb-inspector');
+    if (!d) {
+      stage.replaceChildren(
+        wbEl('p', 'wb-message', wbOwn(p) ? 'Choose ＋ New piece to start this pack.' : 'Choose a piece on the left.')
+      );
+      ins.replaceChildren(wbEl('h2', '', p.name), wbEl('p', 'wb-note', 'Pick a piece to see its measurements.'));
+      return;
+    }
+    stage.replaceChildren(wbDrawing(d));
+    if (d.geometry) {
+      const b = paletteBounds(d);
+      stage.append(wbEl('p', 'wb-stage-note', 'Footprint ' + Math.round(b[2]) + ' × ' + Math.round(b[3]) + ' mm'));
+    }
+    const own = wbOwn(p),
+      head = wbEl('div', 'wb-ins-head');
+    head.append(
+      wbEl('span', 'wb-tag', wbKind(d) + (d.sku ? ' · ' + d.sku : '')),
+      wbEl('h2', '', d.name),
+      wbEl(
+        'p',
+        'wb-ins-sub',
+        p.name +
+          ' · ' +
+          (d.status === 'user-defined' ? 'your measurements' : d.geometry ? 'nominal' : 'reference, approximate')
+      )
+    );
+    const facts = wbEl('div', 'wb-facts');
+    facts.dataset.units = 'raw';
+    for (const [label, value] of wbFacts(d)) {
+      const f = wbEl('div', 'wb-fact');
+      f.append(wbEl('span', '', label), wbEl('b', '', value));
+      facts.append(f);
+    }
+    const target = customLibrary.packs.find(x => x.id === customLibrary.activePackId) || customLibrary.packs[0];
+    const note = wbEl(
+      'p',
+      'wb-note',
+      own
+        ? 'Your piece. Copy & adjust makes a new version; tracks keep the version they use.'
+        : 'Built-in pieces keep their measurements. To change one, copy it into one of your packs.'
+    );
+    const button = (label, cls, run) => {
+      const b = wbEl('button', cls, label);
+      b.type = 'button';
+      b.onclick = run;
+      return b;
+    };
+    const copy = button(own ? 'Copy & adjust' : 'Copy & adjust into ' + (target?.name || 'My packs'), 'btn', () => {
+      if (d.parameters?.routed) return routedUI.createFrom(d, own ? p.id : target.id);
+      if (!own && target) customLibrary.activePackId = target.id;
+      openCustom(d);
+    });
+    copy.hidden = !d.parameters || d.parameters.type === 'reference';
+    const add = button('Add to the track', 'btn primary wb-add', () => {
+      location.hash = 'builder';
+      routeSection();
+      updateView();
+      place(d, p);
+    });
+    const tools = wbEl('div', 'wb-ins-tools');
+    tools.append(copy);
+    if (own) {
+      const remove = button('Delete from pack', 'btn quiet danger', () => {
+        customLibrary.activePackId = p.id;
+        askDeletePackPieces([d.id]);
+      });
+      tools.append(remove);
+    }
+    ins.replaceChildren(head, facts, note, tools, add);
+  }
+  function renderWorkbench() {
+    if (wbEditing()) return;
+    const p = wbPack();
+    if (!p) return;
+    wbView.pack = p.id;
+    if (wbOwn(p)) customLibrary.activePackId = p.id;
+    renderWbPacks(p);
+    renderWbPackBar(p);
+    const list = renderWbBin(p),
+      d = list.find(x => x.id === wbView.piece) || list[0] || null;
+    wbView.piece = d?.id || '';
+    $('wb-bin')
+      .querySelectorAll('[data-piece]')
+      .forEach(b => b.setAttribute('aria-selected', String(b.dataset.piece === wbView.piece)));
+    renderWbPiece(p, d);
+    keepWbView();
+  }
+  // The piece editor in place: the piece window's form moves into the workbench while you edit.
+  const wbEditing = () => $('piece-form').parentElement === $('wb-editor');
+  function dockPieceForm() {
+    const editor = $('wb-editor');
+    editor.append($('piece-form'));
+    editor.hidden = false;
+    $('packs-view').classList.add('wb-editing');
+    $('piece-form').elements.name?.focus({ preventScroll: true });
+  }
+  function undockPieceForm() {
+    if (!wbEditing()) return;
+    $('piece-dialog').append($('piece-form'));
+    $('wb-editor').hidden = true;
+    $('packs-view').classList.remove('wb-editing');
+    renderWorkbench();
+  }
+  function renderTrackPacks() {
+    if (document.body.dataset.section === 'packs') renderWorkbench();
   }
 
-  function updateCustomSelection() {
-    const members = activePack().pieces;
-    const count = customPieceSelection.size;
-    $('custom-select-all').checked = !!members.length && count === members.length;
-    $('custom-select-all').indeterminate = count > 0 && count < members.length;
-    $('custom-select-all').disabled = !members.length;
-    $('custom-selection-count').textContent = count + ' selected';
-    $('custom-delete-selected').disabled = !count;
-    $('custom-delete-selected').textContent = count ? 'Delete selected (' + count + ')' : 'Delete selected';
-  }
+  function updateCustomSelection() {}
   function askDeletePackPieces(ids) {
     const pack = activePack(),
       chosen = new Set(ids),
@@ -3244,7 +3930,7 @@
       renderCustomLibrary();
       renderTrackPacks();
       catalogue();
-      $('save-state').textContent = DS.disk ? 'Saved to disk' : 'Saved in browser';
+      saveState('clean', DS.disk ? 'Saved to disk' : 'Saved in browser');
       say(
         request.ids.length +
           ' ' +
@@ -3264,94 +3950,27 @@
     }
   }
   let customPage = 0;
-  function renderCustomLibrary() {
-    const host = $('custom-library');
-    host.replaceChildren();
-    $('custom-pages').hidden = true;
-    const pack = activePack(),
-      members = pack.pieces;
-    if (customSelectionPack !== pack.id) {
-      customPieceSelection.clear();
-      customSelectionPack = pack.id;
-      customPage = 0;
-    }
-    customPieceSelection = new Set([...customPieceSelection].filter(id => members.some(d => d.id === id)));
-    updateCustomSelection();
-    if (!members.length) {
-      const empty = document.createElement('div');
-      empty.className = 'custom-empty';
-      empty.innerHTML =
-        '<h2>This pack has no pieces yet</h2><p>Choose “Add track piece to this pack” to add straights, curves, borders or lane changers to this set.</p>';
-      host.append(empty);
-      return;
-    }
-    customPage = Math.min(customPage, Math.max(0, Math.floor((members.length - 1) / 24) * 24));
-    pageControls($('custom-pages'), customPage, members.length, 24, value => {
-      customPage = value;
-      renderCustomLibrary();
-    });
-    for (const d of members.slice(customPage, customPage + 24)) {
-      const card = document.createElement('article');
-      card.className = 'export-card custom-piece';
-      card.dataset.pieceId = d.id;
-      const pick = document.createElement('label');
-      pick.className = 'check';
-      const box = document.createElement('input');
-      box.type = 'checkbox';
-      box.checked = customPieceSelection.has(d.id);
-      box.setAttribute('aria-label', 'Select ' + d.name);
-      box.onchange = () => {
-        if (box.checked) customPieceSelection.add(d.id);
-        else customPieceSelection.delete(d.id);
-        updateCustomSelection();
-      };
-      pick.append(box, document.createTextNode(' Select piece'));
-      card.append(pick);
-      const preview = svg('svg', {
-        viewBox: paletteBounds(d)
-          .map((v, i) => (i < 2 ? v - 15 : v + 30))
-          .join(' '),
-        'aria-label': d.name,
-      });
-      preview.innerHTML = paletteBody(d);
-      const name = document.createElement('h2');
-      name.textContent = d.name;
-      const info = document.createElement('p');
-      info.textContent =
-        (d.parameters.foldOverride ? 'Planning-only fold override · ' : '') +
-        d.parameters.widthMm +
-        ' mm wide · ' +
-        (d.parameters.laneChange
-          ? 'Lane changer · ' + d.parameters.laneChange
-          : d.parameters.type === 'reference'
-            ? 'Reference picture'
-            : d.parameters.type.endsWith('border')
-              ? 'Border'
-              : d.geometry.lanePaths.length + ' lanes');
-      const actions = document.createElement('div');
-      actions.className = 'view-actions';
-      const addButton = document.createElement('button');
-      addButton.className = 'btn primary';
-      addButton.textContent = 'Use in builder';
-      addButton.onclick = () => {
-        location.hash = 'builder';
-        routeSection();
-        updateView();
-        add(d);
-      };
-      const copy = document.createElement('button');
-      copy.className = 'btn';
-      copy.textContent = 'Copy & adjust';
-      copy.onclick = () => (d.parameters.routed ? routedUI.createFrom(d, activePack().id) : openCustom(d));
-      copy.hidden = d.parameters.type === 'reference';
-      const removeButton = document.createElement('button');
-      removeButton.className = 'btn';
-      removeButton.textContent = 'Delete from pack';
-      removeButton.setAttribute('aria-label', 'Delete ' + d.name + ' from pack');
-      removeButton.onclick = () => askDeletePackPieces([d.id]);
-      actions.append(addButton, copy, removeButton);
-      card.append(preview, name, info, actions);
-      host.append(card);
+  // The old "Edit your pack" page is now part of the Track Packs workbench.
+  function renderCustomLibrary() {}
+  function syncSaveChoices(existing) {
+    const show = !$('design-copy-label').hidden && !$('design-copy').disabled,
+      copy = $('design-copy').checked;
+    $('design-save-choices').hidden = !show;
+    for (const b of $('design-save-choices').querySelectorAll('[data-copy]'))
+      b.setAttribute('aria-checked', String((b.dataset.copy === 'true') === copy));
+    if (existing)
+      $('design-save-update-note').textContent =
+        'Replaces “' + existing.title + '”, saved ' + garageAgo(existing.updatedAt).toLowerCase() + '.';
+    $('design-save-note').hidden = show;
+  }
+  function showSavePreview() {
+    try {
+      const current = layout(false),
+        facts = DL.summarize({ layout: current });
+      $('design-save-facts').textContent = [garageKind(facts), garageNumbers(facts)].filter(Boolean).join(' · ');
+      $('design-save-picture').innerHTML = items.length ? I.picture(current, { maxDimension: 360 }).svg : '';
+    } catch {
+      $('design-save-picture').replaceChildren();
     }
   }
   async function openDesignSave() {
@@ -3361,11 +3980,16 @@
     $('design-name').value = title;
     $('design-save-error').textContent = '';
     $('design-save-submit').disabled = true;
+    $('design-save-choices').hidden = true;
+    $('design-save-note').hidden = false;
+    showSavePreview();
     $('save-design-dialog').showModal();
     try {
       const records = await DL.summaries();
       if (generation !== designSaveGeneration || !$('save-design-dialog').open) return;
       const existing = records.find(r => r.id === integrationState.designId);
+      // Its saved copy was deleted (or moved to the Bin): this save starts a new one.
+      if (!existing && librarySource && !records.some(r => r.id === librarySource.id)) librarySource = null;
       if (existing && !librarySource && existing.designRevision === layout(false).design.revision)
         librarySource = DL.source(existing);
       const unknown = !!existing && librarySource?.id !== existing.id;
@@ -3378,11 +4002,12 @@
           : 'This saves a new design in your library.';
       $('design-copy-label').hidden = !existing;
       $('design-save-submit').textContent = unknown
-        ? 'Save new copy'
+        ? 'Save as a new track'
         : existing
-          ? 'Update saved design'
-          : 'Save design';
+          ? 'Update saved track'
+          : 'Save track';
       $('design-save-submit').disabled = false;
+      syncSaveChoices(existing);
     } catch (e) {
       if (generation === designSaveGeneration && $('save-design-dialog').open)
         $('design-save-error').textContent = e.message;
@@ -3397,21 +4022,13 @@
     buttons.forEach(b => (b.disabled = true));
     try {
       const record = await DL.save(
-          layout(false),
-          $('design-name').value,
-          $('design-copy').checked,
-          librarySource?.id === integrationState.designId ? librarySource.revision : null
-        ),
-        imported = I.importLayout(record.layout);
-      checkpoint();
-      librarySource = DL.source(record);
-      title = imported.title;
-      integrationState = imported.state;
-      $('track-name').value = title;
-      refresh();
+        layout(false),
+        $('design-name').value,
+        $('design-copy').checked,
+        librarySource?.id === integrationState.designId ? librarySource.revision : null
+      );
+      afterLibrarySave(record);
       $('save-design-dialog').close();
-      say('“' + title + '” saved to your Track Library.');
-      if (document.body.dataset.section === 'library') renderDesignLibrary();
     } catch (error) {
       $('design-save-error').textContent = error.message;
     } finally {
@@ -3419,10 +4036,20 @@
       buttons.forEach(b => (b.disabled = false));
     }
   }
+  function afterLibrarySave(record) {
+    const imported = I.importLayout(record.layout);
+    checkpoint();
+    librarySource = DL.source(record);
+    title = imported.title;
+    integrationState = imported.state;
+    $('track-name').value = title;
+    refresh();
+    say('“' + title + '” saved to your Track Library.');
+    if (document.body.dataset.section === 'library') renderDesignLibrary();
+  }
   function designDownload(record) {
     downloadTrack(record.layout);
   }
-  let libraryOffset = 0;
   function pageControls(host, offset, total, limit, change) {
     host.replaceChildren();
     host.hidden = total <= limit;
@@ -3430,136 +4057,546 @@
     const previous = document.createElement('button'),
       next = document.createElement('button'),
       label = document.createElement('span');
-    previous.className = next.className = 'btn';
-    previous.textContent = 'Previous';
-    next.textContent = 'Next';
+    // Control Strip pager: quiet square buttons around the page count.
+    previous.className = next.className = 'btn ghost sm icon';
+    previous.textContent = '‹';
+    next.textContent = '›';
+    previous.setAttribute('aria-label', 'Previous page');
+    next.setAttribute('aria-label', 'Next page');
+    previous.title = 'Previous page';
+    next.title = 'Next page';
+    label.className = 'strip-page';
     previous.disabled = offset === 0;
     next.disabled = offset + limit >= total;
     previous.onclick = () => change(Math.max(0, offset - limit));
     next.onclick = () => change(offset + limit);
     label.textContent = 'Page ' + (Math.floor(offset / limit) + 1) + ' of ' + Math.ceil(total / limit);
     label.setAttribute('aria-live', 'polite');
-    host.append(previous, label, next);
+    host.append(label, previous, next);
   }
-  async function renderDesignLibrary() {
+  // ---------------------------------------------------------------- Track Library: the Garage
+  // What's on the bench (the builder's track) on top, then every saved track as a picture card,
+  // filtered by kind, system or star and sorted by date, name, lap or footprint.
+  const GARAGE_VIEW = 'slotforge.library-view.v1',
+    GARAGE_PAGE = 48;
+  let garageAll = [],
+    garageShown = GARAGE_PAGE,
+    garageBin = [],
+    garageBinOpen = false,
+    renameDesign = null,
+    garagePending = null;
+  const garageView = (() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(GARAGE_VIEW) || '{}');
+      return { filter: typeof v.filter === 'string' ? v.filter : 'all', sort: v.sort || 'recent' };
+    } catch {
+      return { filter: 'all', sort: 'recent' };
+    }
+  })();
+  function keepGarageView() {
+    try {
+      localStorage.setItem(GARAGE_VIEW, JSON.stringify(garageView));
+    } catch {}
+  }
+  function garageLength(mm) {
+    return Units.system() === 'imperial' ? Units.inches(mm) : (mm / 1000).toFixed(1) + ' m';
+  }
+  function garageKind(r) {
+    if (r.kind === 'routed') return 'Routed wood';
+    if (r.kind === 'freeform') return 'FreeForm';
+    const systems = r.systems || [];
+    return systems.length ? systems[0] + (systems.length > 1 ? ' +' + (systems.length - 1) : '') : 'Sectional';
+  }
+  function garageFacts(r) {
+    return [
+      garageKind(r),
+      r.laneCount ? r.laneCount + (r.laneCount === 1 ? ' lane' : ' lanes') : r.pieceCount ? 'open layout' : 'empty',
+      r.lapMm ? garageLength(r.lapMm) + ' lap' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+  function garageNumbers(r) {
+    return [
+      r.laneCount ? r.laneCount + (r.laneCount === 1 ? ' lane' : ' lanes') : r.pieceCount ? 'open layout' : 'empty',
+      r.lapMm ? garageLength(r.lapMm) + ' lap' : '',
+      garageSize(r),
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+  function garageSize(r) {
+    return r.sizeMm ? garageLength(r.sizeMm[0]) + ' × ' + garageLength(r.sizeMm[1]) : '';
+  }
+  function garageAgo(iso) {
+    const t = new Date(iso).getTime();
+    if (!Number.isFinite(t)) return '';
+    const s = Math.max(0, (Date.now() - t) / 1000);
+    if (s < 60) return 'Just now';
+    if (s < 3600) return Math.round(s / 60) + ' min ago';
+    if (s < 86400) return Math.round(s / 3600) + (Math.round(s / 3600) === 1 ? ' hour ago' : ' hours ago');
+    const days = Math.floor(s / 86400);
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return days + ' days ago';
+    return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function garageMatches(r, filter) {
+    if (filter === 'all') return true;
+    if (filter === 'fav') return !!r.favourite;
+    if (filter.startsWith('sys:')) return (r.systems || []).includes(filter.slice(4));
+    return r.kind === filter;
+  }
+  const garageSorts = {
+    recent: (a, b) => b.updatedAt.localeCompare(a.updatedAt),
+    name: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base', numeric: true }),
+    long: (a, b) => (b.lapMm || 0) - (a.lapMm || 0),
+    short: (a, b) => (a.lapMm || Infinity) - (b.lapMm || Infinity),
+    small: (a, b) =>
+      (a.sizeMm ? a.sizeMm[0] * a.sizeMm[1] : Infinity) - (b.sizeMm ? b.sizeMm[0] * b.sizeMm[1] : Infinity),
+  };
+  function garageChips() {
+    const host = $('garage-chips'),
+      chips = [['all', 'All', garageAll.length]],
+      favourites = garageAll.filter(r => r.favourite).length;
+    if (favourites) chips.push(['fav', '★ Favourites', favourites]);
+    for (const [kind, label] of [
+      ['sectional', 'Sectional'],
+      ['routed', 'Routed wood'],
+      ['freeform', 'FreeForm'],
+    ]) {
+      const n = garageAll.filter(r => r.kind === kind).length;
+      if (n && n < garageAll.length) chips.push([kind, label, n]);
+    }
+    const systems = new Map();
+    for (const r of garageAll) for (const s of r.systems || []) systems.set(s, (systems.get(s) || 0) + 1);
+    if (systems.size > 1)
+      for (const [name, n] of [...systems].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])))
+        chips.push(['sys:' + name, name, n]);
+    if (!chips.some(c => c[0] === garageView.filter)) garageView.filter = 'all';
+    host.replaceChildren(
+      ...chips.map(([key, label, n], i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className =
+          'garage-chip' + (key.startsWith('sys:') && !chips[i - 1]?.[0].startsWith('sys:') ? ' first-system' : '');
+        b.dataset.filter = key;
+        b.setAttribute('aria-pressed', String(key === garageView.filter && !garageBinOpen));
+        const count = document.createElement('span');
+        count.className = 'garage-chip-count';
+        count.textContent = n;
+        b.append(label, count);
+        return b;
+      })
+    );
+    host.hidden = chips.length < 2;
+  }
+  async function garageOpen(id) {
+    try {
+      const fresh = await DL.get(id);
+      confirmReplace(() => {
+        try {
+          applyImport(fresh.layout, DL.source(fresh));
+          location.hash = 'builder';
+          routeSection();
+        } catch (e) {
+          say(e.message, true);
+        }
+      });
+    } catch (e) {
+      say(e.message, true);
+    }
+  }
+  function garageMenu(r, x, y) {
+    Menus.context(
+      x,
+      y,
+      [
+        { label: 'Open in builder', action: () => garageOpen(r.id) },
+        { label: 'Rename…', action: () => garageRename(r), shortcut: 'F2' },
+        { label: 'Duplicate', action: () => garageDuplicate(r) },
+        { label: r.favourite ? 'Remove the star' : 'Add a star', action: () => garageStar(r) },
+        'separator',
+        {
+          label: 'Export…',
+          action: () => {
+            setTransferKind('tracks');
+            exportChoice = 'saved:' + r.id;
+            location.hash = 'export';
+            routeSection();
+          },
+        },
+        {
+          label: 'Download track file',
+          action: async () => {
+            try {
+              designDownload(await DL.get(r.id));
+            } catch (e) {
+              say(e.message, true);
+            }
+          },
+        },
+        'separator',
+        {
+          label: DL.hasBin() ? 'Move to the Bin' : 'Delete…',
+          action: () => garageDelete(r),
+          danger: true,
+          shortcut: 'Del',
+        },
+      ],
+      'Actions for ' + r.title
+    );
+  }
+  async function garageStar(r) {
+    try {
+      await DL.favourite(r.id, !r.favourite);
+      say(r.favourite ? '“' + r.title + '” no longer starred.' : '“' + r.title + '” starred.');
+      // A star does not change the track, so the loaded list is updated in place.
+      r.favourite = !r.favourite;
+      renderDesignLibrary(false);
+    } catch (e) {
+      say(e.message, true);
+    }
+  }
+  async function garageDuplicate(r) {
+    try {
+      const fresh = await DL.get(r.id),
+        name = (r.title.length > 93 ? r.title.slice(0, 93) : r.title) + ' copy',
+        copy = await DL.save(fresh.layout, name, true);
+      say('“' + copy.layout.title + '” added to your Track Library.');
+      renderDesignLibrary();
+    } catch (e) {
+      say(e.message, true);
+    }
+  }
+  function garageRename(r) {
+    renameDesign = r;
+    $('rename-design-name').value = r.title;
+    $('rename-design-error').textContent = '';
+    $('rename-design-dialog').showModal();
+    $('rename-design-name').select();
+  }
+  function garageDelete(r) {
+    garagePending = null;
+    deleteDesignId = r.id;
+    deleteDesignRevision = r.revision;
+    $('delete-design-name').textContent = r.title;
+    const bin = DL.hasBin();
+    $('delete-design-heading').textContent = bin ? 'Move to the Bin?' : 'Delete saved track?';
+    $('delete-design-note').textContent = bin
+      ? 'You can restore it from the Bin later. A layout already open in the builder and downloaded files are kept.'
+      : 'This removes it from the library for good. A layout already open in the builder and downloaded files are kept.';
+    $('delete-design-confirm').textContent = bin ? 'Move to the Bin' : 'Delete saved track';
+    $('delete-design-dialog').showModal();
+  }
+  function garagePicture(host, r, generation) {
+    host.textContent = r.pieceCount ? '' : 'Empty design';
+    if (!r.pieceCount) return null;
+    host.classList.add('loading');
+    return { record: r, picture: host, generation };
+  }
+  function garageCard(r) {
+    const card = document.createElement('article');
+    card.className = 'garage-card';
+    card.dataset.id = r.id;
+    card.dataset.kind = r.kind || 'sectional';
+    const onBench = librarySource?.id === r.id && items.length;
+    if (onBench) card.classList.add('on-bench');
+    const picture = document.createElement('button');
+    picture.type = 'button';
+    picture.className = 'garage-picture';
+    picture.setAttribute('aria-label', 'Open ' + r.title + ' in the builder');
+    picture.onclick = () => garageOpen(r.id);
+    const frame = document.createElement('span');
+    frame.className = 'garage-frame';
+    picture.append(frame);
+    if (onBench) {
+      const badge = document.createElement('span');
+      badge.className = 'garage-badge';
+      badge.textContent = 'On the bench';
+      picture.append(badge);
+    }
+    const body = document.createElement('div');
+    body.className = 'garage-card-body';
+    const head = document.createElement('div');
+    head.className = 'garage-card-head';
+    const name = document.createElement('h3');
+    name.textContent = r.title;
+    name.title = r.title;
+    const star = document.createElement('button');
+    star.type = 'button';
+    star.className = 'garage-star';
+    star.textContent = r.favourite ? '★' : '☆';
+    star.setAttribute('aria-pressed', String(!!r.favourite));
+    star.setAttribute('aria-label', (r.favourite ? 'Remove the star from ' : 'Star ') + r.title);
+    star.title = r.favourite ? 'Starred' : 'Add a star';
+    star.onclick = () => garageStar(r);
+    head.append(name, star);
+    const system = document.createElement('p');
+    system.className = 'garage-system';
+    system.textContent = garageKind(r);
+    system.title = r.systems?.join(', ') || garageKind(r);
+    const facts = document.createElement('p');
+    facts.className = 'garage-facts';
+    facts.dataset.units = 'raw';
+    facts.textContent = garageNumbers(r);
+    const when = document.createElement('p');
+    when.className = 'garage-when';
+    when.textContent = garageAgo(r.updatedAt);
+    when.title = 'Saved ' + new Date(r.updatedAt).toLocaleString();
+    const actions = document.createElement('div');
+    actions.className = 'garage-card-actions';
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className = 'btn sm';
+    open.textContent = 'Open';
+    open.onclick = () => garageOpen(r.id);
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.className = 'btn sm icon garage-more-actions';
+    more.textContent = '⋯';
+    more.setAttribute('aria-label', 'More actions for ' + r.title);
+    more.title = 'Rename, duplicate, export, delete';
+    more.setAttribute('aria-haspopup', 'menu');
+    more.onclick = e => {
+      e.stopPropagation();
+      const b = more.getBoundingClientRect();
+      garageMenu(r, b.left, b.bottom + 4);
+    };
+    actions.append(open, more);
+    body.append(head, system, facts, when, actions);
+    card.append(picture, body);
+    card.oncontextmenu = e => {
+      e.preventDefault();
+      garageMenu(r, e.clientX, e.clientY);
+    };
+    card.onkeydown = e => {
+      if (e.target.closest('input, select, textarea')) return;
+      if (e.key === 'F2') {
+        e.preventDefault();
+        garageRename(r);
+      } else if (e.key === 'Delete') {
+        e.preventDefault();
+        garageDelete(r);
+      }
+    };
+    return { card, frame };
+  }
+  function renderGarageBench() {
+    const bench = $('garage-bench');
+    // With a track on the bench, the bench does the saving; the heading's button steps aside.
+    $('library-save-current').hidden = !!items.length;
+    if (!items.length) {
+      bench.hidden = true;
+      return;
+    }
+    let current, summary;
+    try {
+      current = layout(false);
+      summary = DL.summarize({ layout: current });
+    } catch {
+      bench.hidden = true;
+      return;
+    }
+    const linked = librarySource ? garageAll.find(r => r.id === librarySource.id) : null,
+      changed = linked && linked.designRevision !== current.design.revision;
+    bench.hidden = false;
+    bench.dataset.state = linked ? (changed ? 'changed' : 'saved') : 'new';
+    $('garage-bench-name').textContent = title;
+    $('garage-bench-facts').dataset.units = 'raw';
+    $('garage-bench-facts').textContent = [garageFacts(summary), garageSize(summary)].filter(Boolean).join(' · ');
+    $('garage-bench-state').textContent = 'On the bench now';
+    $('garage-bench-note').textContent = linked
+      ? changed
+        ? 'Changed since you saved it ' + garageAgo(linked.updatedAt).toLowerCase() + '.'
+        : 'Saved in your library. Nothing new to save.'
+      : 'Not in your library yet.';
+    $('garage-save-changes').hidden = !!linked && !changed;
+    $('garage-save-changes').textContent = linked ? 'Save changes' : 'Save to library';
+    $('garage-save-changes').classList.toggle('primary', !linked || changed);
+    try {
+      const svg = I.picture(current, { maxDimension: 640 }).svg,
+        image = document.createElement('img');
+      image.alt = '';
+      image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      $('garage-bench-picture').replaceChildren(image);
+    } catch {
+      $('garage-bench-picture').replaceChildren();
+    }
+  }
+  async function garageSaveChanges() {
+    const linked = librarySource ? garageAll.find(r => r.id === librarySource.id) : null;
+    if (!linked) return openDesignSave();
+    const button = $('garage-save-changes');
+    button.disabled = true;
+    try {
+      const record = await DL.save(
+        layout(false),
+        title,
+        false,
+        librarySource?.id === integrationState.designId ? librarySource.revision : null
+      );
+      afterLibrarySave(record);
+    } catch (e) {
+      say(e.message, true);
+    } finally {
+      button.disabled = false;
+    }
+  }
+  async function renderGarageBin() {
+    const panel = $('garage-bin-panel'),
+      list = $('garage-bin-list');
+    panel.hidden = !garageBinOpen;
+    $('garage-bin').setAttribute('aria-pressed', String(garageBinOpen));
+    if (!garageBinOpen) return;
+    list.replaceChildren(
+      ...garageBin.map(r => {
+        const row = document.createElement('div');
+        row.className = 'garage-bin-row';
+        const text = document.createElement('div');
+        const name = document.createElement('strong');
+        name.textContent = r.title;
+        const facts = document.createElement('span');
+        facts.className = 'garage-facts';
+        facts.dataset.units = 'raw';
+        facts.textContent = garageFacts(r) + ' · deleted ' + garageAgo(r.deletedAt).toLowerCase();
+        text.append(name, facts);
+        const restore = document.createElement('button');
+        restore.type = 'button';
+        restore.className = 'btn sm';
+        restore.textContent = 'Restore';
+        restore.onclick = async () => {
+          restore.disabled = true;
+          try {
+            const back = await DL.restore(r.id, r.deletedAt);
+            say('“' + back.layout.title + '” is back in your Track Library.');
+            renderDesignLibrary();
+          } catch (e) {
+            restore.disabled = false;
+            say(e.message, true);
+          }
+        };
+        const purge = document.createElement('button');
+        purge.type = 'button';
+        purge.className = 'btn sm quiet danger';
+        purge.textContent = 'Delete for good';
+        purge.onclick = () =>
+          garageConfirm(
+            'Delete “' + r.title + '” for good?',
+            'It leaves the Bin and cannot be restored.',
+            'Delete for good',
+            async () => {
+              await DL.purge(r.id, r.deletedAt);
+              renderDesignLibrary();
+            }
+          );
+        row.append(text, restore, purge);
+        return row;
+      })
+    );
+    if (!garageBin.length) {
+      const empty = document.createElement('p');
+      empty.className = 'fine';
+      empty.textContent = 'The Bin is empty.';
+      list.append(empty);
+    }
+    $('garage-empty-bin').hidden = !garageBin.length;
+  }
+  function garageConfirm(heading, note, label, run) {
+    deleteDesignId = null;
+    garagePending = run;
+    $('delete-design-heading').textContent = heading;
+    $('delete-design-name').textContent = '';
+    $('delete-design-note').textContent = note;
+    $('delete-design-confirm').textContent = label;
+    $('delete-design-dialog').showModal();
+  }
+  // Saved-track pictures by revision, shared by the Track Library and the Print Shop, so a page
+  // drawn again does not ask the workspace for the same pictures again.
+  var previewMemo; // var: start-up may draw the library before this line runs
+  async function cachedPreview(r) {
+    const key = r.id + ':' + r.revision;
+    previewMemo ||= new Map();
+    if (previewMemo.has(key)) return previewMemo.get(key);
+    const result = await DL.preview(r.id);
+    if (result.revision === r.revision) {
+      previewMemo.set(key, result);
+      while (previewMemo.size > 400) previewMemo.delete(previewMemo.keys().next().value);
+    }
+    return result;
+  }
+  // refetch false (search, sort, filters, Show more, the Bin toggle, a star): reuse the loaded list.
+  async function renderDesignLibrary(refetch = true) {
     const generation = ++libraryRender,
       host = $('design-library');
-    host.replaceChildren();
-    $('design-library-status').textContent = 'Loading saved designs…';
-    $('design-pages').hidden = true;
+    $('design-library-status').textContent = garageAll.length ? '' : 'Loading saved tracks…';
     try {
-      const page = await DL.page({ query: $('design-search').value.trim(), offset: libraryOffset, limit: 24 });
-      if (generation !== libraryRender) return;
-      if (!page.items.length && libraryOffset && page.total) {
-        libraryOffset = Math.max(0, Math.floor((page.total - 1) / 24) * 24);
-        return renderDesignLibrary();
+      const fresh = refetch || !garageAll.length;
+      if (fresh) {
+        const all = await DL.summaries();
+        if (generation !== libraryRender) return;
+        garageAll = all;
       }
-      $('design-library-status').textContent = page.total
-        ? libraryOffset +
-          1 +
-          '–' +
-          Math.min(page.total, libraryOffset + 24) +
-          ' of ' +
-          page.total +
-          ' matching saved designs'
-        : $('design-search').value.trim()
-          ? 'No tracks match this search.'
-          : '';
-      $('design-library-empty').hidden = !!(page.total || $('design-search').value.trim());
-      pageControls($('design-pages'), libraryOffset, page.total, 24, value => {
-        libraryOffset = value;
-        renderDesignLibrary();
-      });
-      const previews = [];
-      for (const record of page.items) {
-        const card = document.createElement('article');
-        card.className = 'custom-card design-card';
-        const picture = document.createElement('div');
-        picture.className = 'design-thumbnail';
-        picture.textContent = record.pieceCount ? 'Loading preview…' : 'Empty design';
-        card.append(picture);
-        const name = document.createElement('h2');
-        name.textContent = record.title;
-        card.append(name);
-        const info = document.createElement('p');
-        info.className = 'fine';
-        const date = new Date(record.updatedAt);
-        info.textContent =
-          record.pieceCount +
-          ' placed pieces · ' +
-          (record.laneCount ? record.laneCount + ' lanes · closed circuit' : 'Open / drawing-only layout') +
-          (Number.isNaN(date.getTime()) ? '' : ' · Saved ' + date.toLocaleString());
-        card.append(info);
-        const actions = document.createElement('div');
-        actions.className = 'view-actions';
-        const open = document.createElement('button');
-        open.className = 'btn primary';
-        open.textContent = 'Open in builder';
-        open.onclick = async () => {
-          try {
-            const fresh = await DL.get(record.id);
-            confirmReplace(() => {
-              try {
-                applyImport(fresh.layout, DL.source(fresh));
-              } catch (e) {
-                say(e.message, true);
-              }
-            });
-          } catch (e) {
-            say(e.message, true);
-          }
-        };
-        const downloadButton = document.createElement('button');
-        downloadButton.className = 'btn';
-        downloadButton.textContent = 'Export track JSON';
-        downloadButton.onclick = async () => {
-          try {
-            designDownload(await DL.get(record.id));
-          } catch (e) {
-            say(e.message, true);
-          }
-        };
-        const remove = document.createElement('button');
-        remove.className = 'btn quiet';
-        remove.textContent = 'Delete';
-        remove.onclick = () => {
-          deleteDesignId = record.id;
-          deleteDesignRevision = record.revision;
-          $('delete-design-name').textContent = record.title;
-          $('delete-design-dialog').showModal();
-        };
-        const exportButton = document.createElement('button');
-        exportButton.className = 'btn';
-        exportButton.textContent = 'Export…';
-        exportButton.onclick = () => {
-          setTransferKind('tracks');
-          exportChoice = 'saved:' + record.id;
-          location.hash = 'export';
-          routeSection();
-        };
-        actions.append(open, exportButton, downloadButton, remove);
-        card.append(actions);
-        host.append(card);
-        if (record.pieceCount) previews.push({ record, picture });
+      if (fresh && DL.hasBin()) {
+        try {
+          garageBin = await DL.bin();
+        } catch {
+          garageBin = [];
+        }
+        if (generation !== libraryRender) return;
       }
-      // Two bounded requests at a time; abandoned pages cannot populate the new page.
+      $('garage-bin').hidden = !DL.hasBin() || (!garageBin.length && !garageBinOpen);
+      $('garage-bin-count').textContent = garageBin.length ? String(garageBin.length) : '';
+      if (fresh) renderGarageBench();
+      garageChips();
+      renderGarageBin();
+      const query = $('design-search').value.trim().toLowerCase(),
+        shown = garageAll
+          .filter(r => garageMatches(r, garageView.filter))
+          .filter(r => !query || r.title.toLowerCase().includes(query))
+          .sort((a, b) => garageSorts[garageView.sort](a, b) || garageSorts.recent(a, b));
+      const systems = new Set(garageAll.flatMap(r => r.systems || [])).size,
+        total = garageAll.length;
+      $('garage-count').textContent = !total
+        ? 'No saved tracks yet'
+        : shown.length === total
+          ? total + (total === 1 ? ' track' : ' tracks') + (systems > 1 ? ' · ' + systems + ' systems' : '')
+          : shown.length + ' of ' + total + ' tracks';
+      $('design-library-status').textContent =
+        total && !shown.length ? (query ? 'No tracks match “' + query + '”.' : 'No tracks in this group.') : '';
+      $('design-library-empty').hidden = !!total;
+      $('garage-sort').value = garageView.sort;
+      host.hidden = garageBinOpen;
+      $('garage-more').hidden = garageBinOpen || shown.length <= garageShown;
+      $('garage-more').textContent = 'Show ' + Math.min(GARAGE_PAGE, shown.length - garageShown) + ' more';
+      const cards = [],
+        previews = [];
+      for (const r of shown.slice(0, garageShown)) {
+        const { card, frame } = garageCard(r);
+        cards.push(card);
+        const job = garagePicture(frame, r, generation);
+        if (job) previews.push(job);
+      }
+      host.replaceChildren(...cards);
+      // Two bounded requests at a time; abandoned renders cannot fill the new cards.
       async function loadPreviews() {
         while (previews.length && generation === libraryRender) {
           const { record, picture } = previews.shift();
           try {
-            const result = await DL.preview(record.id);
+            const result = await cachedPreview(record);
             if (generation !== libraryRender) return;
+            picture.classList.remove('loading');
             if (result.revision !== record.revision) {
               picture.textContent = 'Track updated — reopen this page';
               continue;
             }
             const image = document.createElement('img');
-            image.alt = record.title;
+            image.alt = '';
             image.loading = 'lazy';
             image.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(result.svg);
             picture.replaceChildren(image);
           } catch (e) {
             if (generation === libraryRender) {
+              picture.classList.remove('loading');
               picture.textContent = 'Preview unavailable';
               picture.title = e.message;
             }
@@ -3573,15 +4610,90 @@
     }
   }
 
+  // railKey: the side-list item to show; another page sending you here (Library → Export…)
+  // lands on the export section of that kind, even if Import was picked last time.
+  // ---------------------------------------------------------------- Import & Export: the Print Shop
+  // Left: what to export (the track on the bench, library tracks, packs, the whole workspace) with
+  // Import at the bottom. Middle: the output itself. Right: the format's options and its Save button.
+  const SHOP_VIEW = 'slotforge.print-shop.v1',
+    TRACK_FORMATS = ['slotforge', 'pdf', 'png', 'csv', 'cad'],
+    PICTURE_SIZES = { small: 800, large: 1600, poster: 2048 },
+    SHOP_FORMATS = {
+      slotforge: {
+        tab: 'Track file',
+        title: 'Track file',
+        save: 'Save track file',
+        note: 'The complete, editable track. Open it again with Import, or load it in SlotForge Timing.',
+      },
+      pdf: {
+        tab: 'PDF report',
+        title: 'PDF report',
+        save: 'Save PDF',
+        note: 'A printable A4 report with the track drawing, lane lengths and the parts list.',
+      },
+      png: {
+        tab: 'Picture',
+        title: 'Picture',
+        save: 'Save PNG',
+        note: 'A picture of the track for sharing, a forum post or a track database.',
+      },
+      csv: {
+        tab: 'Parts list',
+        title: 'Parts list',
+        save: 'Save CSV',
+        note: 'Every piece with its product code and quantity, ready for a spreadsheet.',
+      },
+      cad: {
+        tab: 'Drawing',
+        title: 'Drawing and panels',
+        save: 'Choose layers and save…',
+        note: 'Full-size SVG or DXF of routed track for CAD, and cut files for each table panel.',
+      },
+      pack: {
+        tab: 'Pack file',
+        title: 'Track pack file',
+        save: 'Save pack file',
+        note: 'The pack’s pieces, to share or to add on another computer. It holds no layout.',
+      },
+      backup: {
+        tab: 'Workspace backup',
+        title: 'Workspace backup',
+        save: 'Save backup',
+        note: 'Everything in one file: the open track, every library track and your own packs.',
+      },
+    };
+  const shopView = (() => {
+    const pick = (value, list, fallback) => (list.includes(value) ? value : fallback);
+    let v = {};
+    try {
+      v = JSON.parse(localStorage.getItem(SHOP_VIEW) || '{}') || {};
+    } catch {}
+    return {
+      format: pick(v.format, TRACK_FORMATS, 'pdf'),
+      orientation: pick(v.orientation, ['portrait', 'landscape'], 'portrait'),
+      size: pick(v.size, Object.keys(PICTURE_SIZES), 'large'),
+      background: pick(v.background, ['transparent', 'white', 'dark'], 'transparent'),
+      borders: v.borders !== false,
+    };
+  })();
+  let shopModel = null;
+  function keepShopView() {
+    try {
+      localStorage.setItem(SHOP_VIEW, JSON.stringify(shopView));
+    } catch {}
+  }
+  const shopKind = () => (exportChoice === 'backup' ? 'backup' : exportChoice.startsWith('pack:') ? 'pack' : 'track');
+  const shopFormat = () => (shopKind() === 'track' ? shopView.format : shopKind());
+  const shopEl = (tag, className, text) => {
+    const e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const shopMessage = text => shopEl('p', 'shop-message', text);
+  // Other pages send people here for a track (Library → Export…).
   function setTransferKind(kind) {
-    const packs = kind === 'packs';
-    $('transfer-tracks').hidden = packs;
-    $('transfer-packs').hidden = !packs;
-    document
-      .querySelectorAll('[data-transfer-kind]')
-      .forEach(button =>
-        button.setAttribute('aria-pressed', String(button.dataset.transferKind === (packs ? 'packs' : 'tracks')))
-      );
+    if (kind === 'tracks' && shopKind() !== 'track') exportChoice = 'current';
   }
   function exportButtons(disabled) {
     document
@@ -3591,54 +4703,486 @@
           (b.disabled = disabled || !exportTrackAvailable || (b.hasAttribute('data-cad-export') && !exportCadAvailable))
       );
   }
-  function showExportTrack(model) {
-    exportTrackAvailable = !!model.pieces.length;
-    exportCadAvailable = model.routed.sections > 0;
-    $('cad-export-note').textContent = exportCadAvailable
-      ? model.routed.sections +
-        ' routed sections available.' +
-        (model.pieces.length > model.routed.sections ? ' Non-routed pieces are excluded.' : '')
-      : 'This track has no routed sections. Use PDF or PNG for a picture of modular track pieces.';
-    $('export-summary').textContent = model.title + ' · ' + model.pieces.length + ' placed pieces';
-    $('export-source-note').textContent =
-      exportChoice === 'current'
-        ? 'Current builder track, including changes not yet saved to the library.'
-        : 'Saved library snapshot. Your current builder track is kept in place.';
-    const preview = $('export-track-preview');
-    preview.replaceChildren();
-    if (model.pieces.length) preview.innerHTML = I.picture(model.layout, { maxDimension: 500 }).svg;
-    else preview.textContent = 'This track is empty.';
+  function shopPack() {
+    return exportChoice.startsWith('pack:') ? allPacks().find(p => p.id === exportChoice.slice(5)) : null;
+  }
+  function updateShopSave() {
+    const f = shopFormat(),
+      save = $('shop-save'),
+      copy = $('shop-copy');
+    save.textContent = SHOP_FORMATS[f].save;
+    copy.hidden = f !== 'png';
+    if (shopKind() === 'track') {
+      save.setAttribute('data-track-export', '');
+      save.toggleAttribute('data-cad-export', f === 'cad');
+      exportButtons(!exportTrackAvailable);
+    } else {
+      save.removeAttribute('data-track-export');
+      save.removeAttribute('data-cad-export');
+      save.disabled = f === 'pack' && !shopPack()?.pieces.some(d => d.parameters);
+    }
+  }
+  function renderShopTabs() {
+    const host = $('shop-formats'),
+      list = shopKind() === 'track' ? TRACK_FORMATS : [shopKind()];
+    host.replaceChildren(
+      ...list.map(f => {
+        const b = shopEl('button', 'btn sm', SHOP_FORMATS[f].tab);
+        b.type = 'button';
+        b.dataset.format = f;
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-selected', String(f === shopFormat()));
+        return b;
+      })
+    );
+  }
+  function shopChoice(label, key, options) {
+    const group = shopEl('div', 'shop-group'),
+      bar = shopEl('div', 'pack-hub-filters');
+    bar.setAttribute('role', 'group');
+    bar.setAttribute('aria-label', label);
+    for (const [value, text] of options) {
+      const b = shopEl('button', 'btn sm', text);
+      b.type = 'button';
+      b.dataset.shopOption = key;
+      b.setAttribute('aria-pressed', String(shopView[key] === value));
+      b.onclick = () => {
+        shopView[key] = value;
+        keepShopView();
+        renderShopOptions();
+        renderShopStage();
+      };
+      bar.append(b);
+    }
+    group.append(shopEl('p', 'shop-label', label), bar);
+    return group;
+  }
+  function renderShopOptions() {
+    const f = shopFormat(),
+      host = $('shop-options-body');
+    $('shop-format-title').textContent = SHOP_FORMATS[f].title;
+    $('shop-format-note').textContent = SHOP_FORMATS[f].note;
+    host.replaceChildren();
+    if (f === 'pdf')
+      host.append(
+        shopChoice('Page', 'orientation', [
+          ['portrait', 'A4 portrait'],
+          ['landscape', 'A4 landscape'],
+        ])
+      );
+    if (f === 'png') {
+      const group = shopEl('div', 'shop-group'),
+        label = shopEl('label', 'shop-check'),
+        box = document.createElement('input');
+      box.type = 'checkbox';
+      box.id = 'picture-borders';
+      box.checked = shopView.borders;
+      box.onchange = () => {
+        shopView.borders = box.checked;
+        keepShopView();
+        renderShopStage();
+      };
+      label.append(box, ' Borders and kerbs');
+      group.append(shopEl('p', 'shop-label', 'Include'), label);
+      host.append(
+        shopChoice('Size', 'size', [
+          ['small', 'Small'],
+          ['large', 'Large'],
+          ['poster', 'Poster'],
+        ]),
+        shopChoice('Background', 'background', [
+          ['transparent', 'Transparent'],
+          ['white', 'White'],
+          ['dark', 'Dark'],
+        ]),
+        group
+      );
+    }
+  }
+  function shopTable(head, rows) {
+    const table = shopEl('table', 'shop-table'),
+      tr = document.createElement('tr');
+    for (const h of head) tr.append(shopEl('th', '', h));
+    table.append(tr);
+    for (const row of rows) {
+      const r = document.createElement('tr');
+      for (const cell of row) r.append(shopEl('td', '', String(cell)));
+      table.append(r);
+    }
+    return table;
+  }
+  const shopMetres = mm => (mm / 1000).toFixed(2) + ' m';
+  function shopPdfPage(model) {
+    const wrap = shopEl('div', 'shop-paper-wrap'),
+      page = shopEl('div', 'shop-paper ' + shopView.orientation);
+    page.dataset.units = 'raw';
+    page.append(
+      shopEl('h3', '', model.title),
+      shopEl(
+        'p',
+        'shop-paper-sub',
+        model.pieces.length +
+          ' placed pieces · ' +
+          (model.summary.invalidFreeform
+            ? 'draft needs attention'
+            : model.summary.planning
+              ? 'approximate visual layout'
+              : shopMetres(model.summary.length) + (model.summary.freeform ? ' reference slot' : ' track centreline'))
+      )
+    );
+    const picture = shopEl('div', 'shop-paper-picture');
+    picture.innerHTML = pdfDiagram(model.layout).svg;
+    page.append(picture);
+    const lanes = model.layout.track?.lanes || [];
+    if (lanes.length)
+      page.append(
+        shopTable(
+          ['Lane', 'Length'],
+          lanes.map((l, i) => [l.label || 'Lane ' + (i + 1), shopMetres(l.lengthMm)])
+        )
+      );
+    const room = shopView.orientation === 'portrait' ? 9 : 2,
+      rows = model.inventory.map(({ d, count }) => [d.sku || 'Custom', d.name, count]);
+    page.append(shopTable(['Product code', 'Piece', 'Qty'], rows.slice(0, room)));
+    if (rows.length > room)
+      page.append(
+        shopEl('p', 'shop-paper-more', '+ ' + (rows.length - room) + ' more parts continue on the next page')
+      );
+    const foot = shopEl('div', 'shop-paper-foot');
+    foot.append(shopEl('span', '', 'SlotForge Circuit'), shopEl('span', '', new Date().toLocaleDateString()));
+    page.append(foot);
+    wrap.append(page, shopEl('p', 'shop-caption', 'Preview of the first page. The PDF has the same content.'));
+    $('shop-meta').textContent = 'A4 ' + shopView.orientation + ' · ' + model.inventory.length + ' kinds of parts';
+    return wrap;
+  }
+  function shopPicture(model) {
+    const picture = I.picture(model.layout, {
+        borders: shopView.borders,
+        maxDimension: PICTURE_SIZES[shopView.size],
+      }),
+      box = shopEl('div', 'shop-canvas'),
+      img = document.createElement('img');
+    box.dataset.background = shopView.background;
+    img.alt = 'Picture of ' + model.title;
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(picture.svg);
+    box.append(img);
+    $('shop-meta').textContent =
+      picture.width + ' × ' + picture.height + ' px · ' + shopView.background + ' background';
+    return box;
+  }
+  function shopParts(model) {
+    const box = shopEl('div', 'shop-sheet');
+    box.dataset.units = 'raw';
+    box.append(
+      shopTable(
+        ['Piece', 'Product code', 'Pack', 'Qty', 'mm per piece'],
+        model.inventory.map(({ d, count }) => {
+          const length = XM.pieceLength(d);
+          return [d.name, d.sku || '', d.pack, count, length == null ? '' : Number(length).toFixed(1)];
+        })
+      )
+    );
+    const total = model.inventory.reduce((n, r) => n + r.count, 0);
+    $('shop-meta').textContent = model.inventory.length + ' rows · ' + total + ' pieces in all';
+    return box;
+  }
+  function shopDrawing(model) {
+    if (!exportCadAvailable) {
+      $('shop-meta').textContent = '';
+      return shopMessage(
+        'This track has no routed sections, so there is nothing to cut. Use PDF report or Picture for sectional track.'
+      );
+    }
+    const box = shopEl('div', 'shop-drawing'),
+      img = document.createElement('img');
+    img.alt = '';
+    img.src =
+      'data:image/svg+xml;charset=utf-8,' +
+      encodeURIComponent(I.picture(model.layout, { borders: false, maxDimension: 1400 }).svg);
+    box.append(img);
+    $('shop-meta').textContent =
+      model.routed.sections +
+      ' routed sections' +
+      (model.pieces.length > model.routed.sections ? ' · other pieces are left out' : '') +
+      ' · layers and panels in the next step';
+    return box;
+  }
+  function shopTrackFile(model) {
+    const box = shopEl('div', 'shop-file'),
+      file = XM.portableJSON(model.layout),
+      head = shopEl('div', 'shop-file-head');
+    head.innerHTML =
+      '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="m10 13-2 2 2 2M14 13l2 2-2 2"/></svg>';
+    const name = shopEl('div');
+    name.append(
+      shopEl('strong', '', XM.filename(model.title) + '.slotforge.json'),
+      shopEl('span', '', Math.max(1, Math.round(file.bytes / 1024)) + ' KB')
+    );
+    head.append(name);
+    const list = shopEl('ul', 'shop-file-list'),
+      ws = model.layout.workspace || {};
+    for (const line of [
+      model.pieces.length + ' placed pieces',
+      model.definitions && Object.keys(model.definitions).length + ' piece shapes, so it opens without the pack',
+      ws.spaceGuide ? 'The table and its size' : '',
+      'Heights, timing line and preview car',
+      file.geometryIncluded ? 'Slot geometry for other apps' : 'Compact: slot geometry is rebuilt when opened',
+    ].filter(Boolean))
+      list.append(shopEl('li', '', line));
     const notes = model.layout.compatibility.issues.map(issue => issue.message);
     if (model.layout.timing.requiresLaneRemap) notes.unshift('Reconfirm lane mapping in SlotForge Timing.');
-    $('timing-compatibility').textContent = notes.join(' ');
-    $('export-contract').textContent = 'Integration contract ' + model.layout.integration.contractVersion + '.';
-    exportButtons(!model.pieces.length);
+    const timing = shopEl('p', 'shop-timing' + (notes.length ? ' warn' : ''));
+    timing.id = 'timing-compatibility';
+    timing.textContent = notes.length ? notes.join(' ') : 'Ready for SlotForge Timing.';
+    box.append(head, list, shopEl('p', 'shop-label', 'SlotForge Timing'), timing);
+    $('shop-meta').textContent = 'Integration contract ' + model.layout.integration.contractVersion;
+    return box;
+  }
+  function shopPackPreview() {
+    const p = shopPack();
+    if (!p) return shopMessage('This pack is no longer available. Choose another on the left.');
+    const pieces = p.pieces.filter(d => d.parameters),
+      box = shopEl('div', 'shop-sheet');
+    box.append(
+      shopTable(
+        ['Piece', 'Product code', 'Type'],
+        pieces.map(d => [d.name, d.sku || '', d.parameters.type])
+      )
+    );
+    const excluded = p.pieces.length - pieces.length;
+    $('shop-meta').textContent =
+      pieces.length +
+      (pieces.length === 1 ? ' piece' : ' pieces') +
+      (excluded ? ' · ' + excluded + ' reference-only items are left out' : '');
+    return pieces.length ? box : shopMessage('This pack has no pieces to share yet.');
+  }
+  async function shopBackupPreview(stage) {
+    const generation = exportSourceGeneration,
+      box = shopEl('div', 'shop-file'),
+      list = shopEl('ul', 'shop-file-list');
+    let tracks = 0;
+    try {
+      tracks = (await DL.summaries()).length;
+    } catch {}
+    if (generation !== exportSourceGeneration || shopKind() !== 'backup') return;
+    const head = shopEl('div', 'shop-file-head');
+    head.innerHTML =
+      '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="6" rx="1.5"/><rect x="4" y="14" width="16" height="6" rx="1.5"/><path d="M8 7h.01M8 17h.01"/></svg>';
+    const name = shopEl('div');
+    name.append(shopEl('strong', '', 'SlotForge-workspace-backup.json'), shopEl('span', '', 'Everything in one file'));
+    head.append(name);
+    for (const line of [
+      'The open track: ' + title,
+      tracks + (tracks === 1 ? ' track' : ' tracks') + ' from your Track Library',
+      customLibrary.packs.length + (customLibrary.packs.length === 1 ? ' pack' : ' packs') + ' of your own',
+    ])
+      list.append(shopEl('li', '', line));
+    box.append(
+      head,
+      list,
+      shopEl(
+        'p',
+        'shop-timing',
+        'Bring it back with Import: tracks and packs you don’t have yet are added, nothing is replaced.'
+      )
+    );
+    $('shop-meta').textContent = '';
+    stage.replaceChildren(box);
+  }
+  function renderShopStage() {
+    const stage = $('shop-stage'),
+      f = shopFormat();
+    stage.dataset.format = f;
+    $('shop-meta').textContent = '';
+    if (f === 'pack') return stage.replaceChildren(shopPackPreview());
+    if (f === 'backup') {
+      stage.replaceChildren(shopMessage('Counting what goes in…'));
+      return void shopBackupPreview(stage);
+    }
+    const model = shopModel;
+    if (!model) return;
+    if (!model.pieces.length)
+      return stage.replaceChildren(shopMessage('This track is empty. Add pieces in the builder first.'));
+    try {
+      stage.replaceChildren(
+        f === 'pdf'
+          ? shopPdfPage(model)
+          : f === 'png'
+            ? shopPicture(model)
+            : f === 'csv'
+              ? shopParts(model)
+              : f === 'cad'
+                ? shopDrawing(model)
+                : shopTrackFile(model)
+      );
+    } catch (e) {
+      stage.replaceChildren(shopMessage(e.message));
+    }
+  }
+  function shopSource(value, name, facts, art) {
+    const b = shopEl('button', 'shop-source');
+    b.type = 'button';
+    b.dataset.choice = value;
+    b.setAttribute('role', 'option');
+    b.setAttribute('aria-selected', String(value === exportChoice));
+    const pic = shopEl('span', 'shop-thumb');
+    if (art) pic.append(art);
+    const text = shopEl('span', 'shop-source-text');
+    text.append(shopEl('strong', '', name), shopEl('span', '', facts));
+    text.lastChild.dataset.units = 'raw';
+    b.append(pic, text);
+    return { button: b, pic };
+  }
+  function shopIcon(path) {
+    const s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('class', 'shop-icon');
+    s.innerHTML = path;
+    return s;
+  }
+  function shopImage(svg) {
+    const img = document.createElement('img');
+    img.alt = '';
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    return img;
+  }
+  var shopPreviewObserver = null;
+  function renderShopSources(records) {
+    const host = $('shop-sources'),
+      parts = [],
+      previews = [],
+      generation = exportMenuGeneration;
+    const group = (label, list) => {
+      if (!list.length) return;
+      const g = shopEl('div', 'shop-group-list');
+      g.setAttribute('role', 'group');
+      g.setAttribute('aria-label', label);
+      g.append(shopEl('p', 'shop-label', label), ...list);
+      parts.push(g);
+    };
+    let bench = null;
+    try {
+      bench = items.length ? shopImage(I.picture(layout(false), { maxDimension: 240 }).svg) : null;
+    } catch {}
+    group('On the bench', [
+      shopSource('current', title, items.length ? items.length + ' placed pieces' : 'empty', bench).button,
+    ]);
+    group(
+      'From the library',
+      records.map(r => {
+        const s = shopSource(
+          'saved:' + r.id,
+          r.title,
+          [
+            r.laneCount ? r.laneCount + (r.laneCount === 1 ? ' lane' : ' lanes') : '',
+            r.lapMm ? garageLength(r.lapMm) : '',
+          ]
+            .filter(Boolean)
+            .join(' · ') || r.pieceCount + ' pieces'
+        );
+        if (r.pieceCount) previews.push({ r, pic: s.pic });
+        return s.button;
+      })
+    );
+    group('Everything', [
+      shopSource(
+        'backup',
+        'Workspace backup',
+        'all tracks and packs',
+        shopIcon(
+          '<rect x="4" y="4" width="16" height="6" rx="1.5"/><rect x="4" y="14" width="16" height="6" rx="1.5"/>'
+        )
+      ).button,
+    ]);
+    const packIcon = '<path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="m4 7 8 4 8-4M12 11v10"/>';
+    group(
+      'Track packs',
+      allPacks()
+        .filter(p => p.pieces.some(d => d.parameters))
+        .map(p => {
+          const n = p.pieces.filter(d => d.parameters).length;
+          return shopSource('pack:' + p.id, p.name, n + (n === 1 ? ' piece' : ' pieces'), shopIcon(packIcon)).button;
+        })
+    );
+    host.replaceChildren(...parts);
+    host.setAttribute('role', 'listbox');
+    host.setAttribute('aria-label', 'What to export');
+    host.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+    shopPreviewObserver?.disconnect();
+    const queue = [],
+      byPic = new Map(previews.map(p => [p.pic, p]));
+    let running = false;
+    const drain = async () => {
+      if (running) return;
+      running = true;
+      while (queue.length && generation === exportMenuGeneration) {
+        const { r, pic } = queue.shift();
+        try {
+          const result = await cachedPreview(r);
+          if (generation === exportMenuGeneration && result.svg) pic.replaceChildren(shopImage(result.svg));
+        } catch {}
+      }
+      running = false;
+    };
+    const take = pic => {
+      const job = byPic.get(pic);
+      if (!job) return;
+      byPic.delete(pic);
+      queue.push(job);
+    };
+    if (typeof IntersectionObserver === 'function') {
+      shopPreviewObserver = new IntersectionObserver(
+        entries => {
+          for (const e of entries)
+            if (e.isIntersecting) {
+              shopPreviewObserver.unobserve(e.target);
+              take(e.target);
+            }
+          drain();
+        },
+        { root: host, rootMargin: '200px 0px' }
+      );
+      for (const { pic } of previews) shopPreviewObserver.observe(pic);
+    } else {
+      for (const { pic } of previews) take(pic);
+      drain();
+    }
   }
   async function loadExportTrack() {
     const generation = ++exportSourceGeneration;
     exportTrackAvailable = false;
     exportCadAvailable = false;
-    exportButtons(true);
+    shopModel = null;
     $('export-source-error').textContent = '';
-    $('export-summary').textContent = 'Loading selected track…';
-    $('export-track-preview').replaceChildren();
+    $('shop-sources')
+      .querySelectorAll('[data-choice]')
+      .forEach(b => b.setAttribute('aria-selected', String(b.dataset.choice === exportChoice)));
+    renderShopTabs();
+    renderShopOptions();
+    updateShopSave();
+    if (shopKind() !== 'track') return renderShopStage();
+    $('shop-stage').replaceChildren(shopMessage('Loading the track…'));
     try {
       const model = await XM.resolveSource(exportChoice, () => layout(), DL.get);
       if (generation !== exportSourceGeneration) return;
       showExportTrack(model);
     } catch (e) {
       if (generation !== exportSourceGeneration) return;
-      $('export-summary').textContent = 'Selected track unavailable';
-      $('export-source-note').textContent = 'Choose another track to export.';
+      $('shop-stage').replaceChildren(shopMessage('This track is unavailable. Choose another on the left.'));
       $('export-source-error').textContent = e.message;
     }
   }
+  function showExportTrack(model) {
+    exportTrackAvailable = !!model.pieces.length;
+    exportCadAvailable = model.routed.sections > 0;
+    shopModel = model;
+    renderShopStage();
+    updateShopSave();
+  }
   async function populateExportTracks() {
-    const generation = ++exportMenuGeneration,
-      select = $('export-track-select');
+    const generation = ++exportMenuGeneration;
     ++exportSourceGeneration;
     exportTrackAvailable = false;
-    select.disabled = true;
     exportButtons(true);
     let records = [],
       libraryError = '';
@@ -3648,34 +5192,214 @@
       libraryError = e.message;
     }
     if (generation !== exportMenuGeneration) return;
-    select.replaceChildren();
-    const current = document.createElement('option');
-    current.value = 'current';
-    current.textContent = 'Current builder track — ' + title;
-    select.append(current);
-    if (records.length) {
-      const group = document.createElement('optgroup');
-      group.label = 'Saved in Track Library';
-      for (const record of records) {
-        const option = document.createElement('option');
-        option.value = 'saved:' + record.id;
-        option.textContent = String(record.title || 'Unnamed saved track');
-        const date = new Date(record.updatedAt);
-        if (!Number.isNaN(date.getTime())) option.textContent += ' · ' + date.toLocaleString();
-        group.append(option);
-      }
-      select.append(group);
+    let missing = '';
+    if (exportChoice.startsWith('saved:') && !records.some(r => 'saved:' + r.id === exportChoice)) {
+      exportChoice = 'current';
+      missing = 'That saved track is no longer in the library, so the track on the bench is shown.';
     }
-    if (exportChoice !== 'current' && !records.some(r => 'saved:' + r.id === exportChoice)) {
-      const missing = document.createElement('option');
-      missing.value = exportChoice;
-      missing.textContent = 'Saved track unavailable — select another';
-      select.append(missing);
-    }
-    select.value = exportChoice;
-    select.disabled = false;
+    if (exportChoice.startsWith('pack:') && !shopPack()) exportChoice = 'current';
+    renderShopSources(records);
     await loadExportTrack();
-    if (generation === exportMenuGeneration && libraryError) $('export-source-error').textContent = libraryError;
+    if (generation === exportMenuGeneration && (libraryError || missing))
+      $('export-source-error').textContent = libraryError || missing;
+  }
+  async function makePdf(raw, orientation) {
+    const picture = pdfDiagram(raw),
+      url = URL.createObjectURL(new Blob([picture.svg], { type: 'image/svg+xml' }));
+    let data;
+    try {
+      const image = new Image();
+      image.src = url;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = picture.width;
+      canvas.height = picture.height;
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0);
+      data = canvas.toDataURL('image/jpeg', 0.95);
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+    await window.PdfLibrary.load();
+    return window.TrackPDF.create(raw, { data, width: picture.width, height: picture.height }, { orientation });
+  }
+  async function savePdf(raw) {
+    const save = $('shop-save');
+    save.textContent = 'Making the PDF…';
+    try {
+      const result = await makePdf(raw, shopView.orientation);
+      download(XM.filename(result.title) + '.pdf', result.bytes, 'application/pdf');
+      say('PDF saved: ' + result.title + ' · ' + result.pages + ' ' + (result.pages === 1 ? 'page' : 'pages'));
+    } finally {
+      save.textContent = SHOP_FORMATS[shopFormat()].save;
+    }
+  }
+  async function copyPicture() {
+    const model = shopModel;
+    if (!model?.pieces.length) return;
+    exportButtons(true);
+    try {
+      const { blob } = await pictureBlob(model.layout);
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      say('Picture copied. Paste it into a message or a document.');
+    } catch (e) {
+      say('Could not copy the picture: ' + e.message, true);
+    } finally {
+      exportButtons(false);
+    }
+  }
+  async function saveBackup(errorTarget = null) {
+    try {
+      const bundle = DS.disk
+        ? await DS.exportBundle()
+        : { ...(await browserBundle()), current: layout(false), customLibrary: CP.serialize(customLibrary) };
+      bundle.current = layout(false);
+      bundle.customLibrary = CP.serialize(customLibrary);
+      download('SlotForge-workspace-backup.json', JSON.stringify(bundle));
+      try {
+        localStorage.setItem('slotforge.last-backup.v1', new Date().toISOString());
+      } catch {}
+      say('Complete workspace backup downloaded.');
+      if (document.body.dataset.section === 'settings') renderSdWork();
+    } catch (e) {
+      if (errorTarget) errorTarget.textContent = e.message;
+      say(e.message, true);
+    }
+  }
+  // ---- Import: one way in for every SlotForge file, reviewed before anything changes.
+  async function shopImportFile(file) {
+    if (!file) return;
+    if (file.size > 256 * 1024 * 1024) return say('That file is larger than 256 MB.', true);
+    let raw;
+    try {
+      raw = JSON.parse(await file.text());
+    } catch {
+      return say('Could not read ' + file.name + ': it is not a SlotForge file.', true);
+    }
+    reviewImport(raw, file.name, file.size);
+  }
+  function reviewImport(raw, name, size) {
+    const dialog = $('import-review'),
+      actions = $('import-review-actions'),
+      picture = $('import-review-picture'),
+      small = size <= 5 * 1024 * 1024;
+    $('import-review-error').textContent = '';
+    picture.replaceChildren();
+    const button = (label, primary, run) => {
+      const b = shopEl('button', primary ? 'btn primary' : 'btn', label);
+      b.type = 'button';
+      b.onclick = async () => {
+        actions.querySelectorAll('button').forEach(x => (x.disabled = true));
+        try {
+          await run();
+        } catch (e) {
+          $('import-review-error').textContent = e.message;
+        } finally {
+          actions.querySelectorAll('button').forEach(x => (x.disabled = false));
+        }
+      };
+      return b;
+    };
+    const cancel = shopEl('button', 'btn', 'Cancel');
+    cancel.type = 'button';
+    cancel.onclick = () => dialog.close();
+    const show = (kind, heading, facts, note, art, buttons) => {
+      $('import-review-kind').textContent = kind;
+      $('import-review-title').textContent = heading;
+      $('import-review-facts').textContent = facts;
+      $('import-review-note').textContent = note;
+      if (art) picture.append(art);
+      picture.hidden = !art;
+      actions.replaceChildren(cancel, ...buttons);
+      dialog.showModal();
+    };
+    try {
+      if (raw?.format === 'slotforge.layout') {
+        if (!small) throw Error('Track files must be smaller than 5 MB.');
+        const prepared = I.prepare(raw),
+          facts = DL.summarize({ layout: prepared }),
+          art = prepared.pieces.length ? shopImage(I.picture(raw, { maxDimension: 600 }).svg) : null;
+        return show(
+          'TRACK',
+          prepared.title,
+          [garageKind(facts), garageNumbers(facts)].join(' · '),
+          'Open it to keep working on it, or add it to your Track Library and leave the builder as it is.',
+          art,
+          [
+            button('Add to library', false, async () => {
+              const record = await DL.save(raw, prepared.title, true);
+              dialog.close();
+              say('“' + record.layout.title + '” added to your Track Library.');
+              if (document.body.dataset.section === 'export') populateExportTracks();
+            }),
+            button('Open in builder', true, async () => {
+              dialog.close();
+              importTrack(raw);
+              location.hash = 'builder';
+            }),
+          ]
+        );
+      }
+      if (raw?.format === 'slotforge.custom-pack') {
+        if (!small) throw Error('Track pack files must be smaller than 5 MB.');
+        const count = raw.pieces?.length || 0;
+        return show(
+          'TRACK PACK',
+          raw.name || 'Track pack',
+          count + (count === 1 ? ' piece' : ' pieces'),
+          'It joins My packs in Track Packs. Your track stays as it is.',
+          shopIcon('<path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="m4 7 8 4 8-4M12 11v10"/>'),
+          [
+            button('Add to My packs', true, async () => {
+              // Import first: a pack that cannot be read keeps the window open with the reason.
+              await importPack(raw);
+              dialog.close();
+            }),
+          ]
+        );
+      }
+      if (raw?.format === 'slotforge.workspace-transfer') {
+        const tracks = raw.designs?.length || 0,
+          packs = raw.customLibrary?.packs?.length || 0,
+          made = new Date(raw.createdAt);
+        return show(
+          'WORKSPACE BACKUP',
+          'Workspace backup',
+          tracks +
+            (tracks === 1 ? ' track · ' : ' tracks · ') +
+            packs +
+            (packs === 1 ? ' pack' : ' packs') +
+            (Number.isNaN(made.getTime()) ? '' : ' · made ' + made.toLocaleDateString()),
+          DS.disk
+            ? 'Tracks and packs you don’t have yet are added. Nothing you already have is replaced.'
+            : 'Adding a backup needs the desktop app’s disk storage.',
+          shopIcon(
+            '<rect x="4" y="4" width="16" height="6" rx="1.5"/><rect x="4" y="14" width="16" height="6" rx="1.5"/>'
+          ),
+          DS.disk && DS.mode !== 'unavailable'
+            ? [
+                button('Add to this workspace', true, async () => {
+                  const result = await DS.importBundle(raw);
+                  dialog.close();
+                  say(
+                    result.tracksAdded +
+                      (result.tracksAdded === 1 ? ' track and ' : ' tracks and ') +
+                      result.packsAdded +
+                      (result.packsAdded === 1 ? ' pack added.' : ' packs added.') +
+                      (result.packsAdded ? ' Restart Circuit to see the new packs.' : '')
+                  );
+                  if (document.body.dataset.section === 'export') populateExportTracks();
+                }),
+              ]
+            : []
+        );
+      }
+      throw Error('This is not a SlotForge track, track pack or workspace backup.');
+    } catch (e) {
+      say('Could not import ' + name + ': ' + e.message, true);
+    }
   }
   async function exportSelectedTrack(format) {
     const choice = exportChoice,
@@ -3690,7 +5414,7 @@
       resolved = true;
       if (!model.pieces.length) throw Error('Add pieces to this track before exporting.');
       exportButtons(true);
-      if (format === 'pdf') openPdfReport(model.layout);
+      if (format === 'pdf') await savePdf(model.layout);
       else if (format === 'slotforge') downloadTrack(model.layout);
       else if (format === 'png') await exportPNG(model.layout);
       else if (format === 'csv') exportCSV(model.layout);
@@ -3707,11 +5431,14 @@
   }
 
   function routeSection() {
+    if (location.hash === '#custom') {
+      wbView.pack = activePack().id;
+      wbView.piece = '';
+      window.history.replaceState(null, '', location.pathname + location.search + '#packs');
+    }
     if (location.hash === '#plugins')
       window.history.replaceState(null, '', location.pathname + location.search + '#packs');
-    const section = ['custom', 'packs', 'export', 'library', 'settings', 'routed', 'freeform'].includes(
-      location.hash.slice(1)
-    )
+    const section = ['packs', 'export', 'library', 'settings', 'routed', 'freeform'].includes(location.hash.slice(1))
       ? location.hash.slice(1)
       : 'builder';
     finishDrag(true);
@@ -3719,27 +5446,24 @@
     document.body.dataset.section = section;
     $('builder-view').hidden = section !== 'builder';
     document.querySelector('.projectbar').hidden = section !== 'builder';
-    $('custom-view').hidden = section !== 'custom';
     $('export-view').hidden = section !== 'export';
     $('packs-view').hidden = section !== 'packs';
     $('library-view').hidden = section !== 'library';
     $('settings-view').hidden = section !== 'settings';
     $('routed-view').hidden = section !== 'routed';
     $('freeform-view').hidden = section !== 'freeform';
+    if (section !== 'packs') undockPieceForm();
     if (section === 'freeform' && freeformUI) freeformUI.enter();
     document.querySelectorAll('.sf-nav-link').forEach(a => {
       // Editing a custom pack happens inside Track Packs.
-      if (a.dataset.section === (section === 'custom' ? 'packs' : section)) a.setAttribute('aria-current', 'page');
+      if (a.dataset.section === section) a.setAttribute('aria-current', 'page');
       else a.removeAttribute('aria-current');
     });
+    if (section === 'settings') syncSettingsDashboard();
     if (section === 'library') renderDesignLibrary();
     else {
       ++libraryRender;
       clearTimeout(designSearchTimer);
-    }
-    if (section === 'custom') {
-      renderPackControls();
-      renderCustomLibrary();
     }
     if (section === 'packs') renderTrackPacks();
     if (section === 'export') {
@@ -3769,23 +5493,118 @@
     const p = current();
     if (p && defOf(p).parameters.type === 'reference') openReference(defOf(p), p);
   };
-  $('custom-create').onclick = () => {
+  // Track Packs workbench: pick a pack, pick a piece; ＋ New piece edits in place.
+  $('wb-packs').onclick = e => {
+    const b = e.target.closest('[data-pack]');
+    if (!b || b.dataset.pack === wbView.pack) return;
+    wbView.pack = b.dataset.pack;
+    wbView.piece = '';
+    $('packs-search').value = '';
+    renderWorkbench();
+  };
+  $('wb-bin').onclick = e => {
+    const b = e.target.closest('[data-piece]');
+    if (!b) return;
+    wbView.piece = b.dataset.piece;
+    // Picking a piece only moves the selection and redraws the stage; the bin's thumbnails stay.
+    const p = wbPack(),
+      d = p?.pieces.find(x => x.id === wbView.piece);
+    if (wbEditing() || !p || !d) renderWorkbench();
+    else {
+      $('wb-bin')
+        .querySelectorAll('[data-piece]')
+        .forEach(x => x.setAttribute('aria-selected', String(x.dataset.piece === wbView.piece)));
+      renderWbPiece(p, d);
+      keepWbView();
+    }
+    $('wb-bin')
+      .querySelector(`[data-piece="${CSS.escape(wbView.piece)}"]`)
+      ?.focus({ preventScroll: true });
+  };
+  $('wb-bin').onkeydown = e => {
+    if (!['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+    const list = [...$('wb-bin').querySelectorAll('[data-piece]')],
+      at = list.indexOf(document.activeElement);
+    if (at < 0) return;
+    e.preventDefault();
+    list[Math.max(0, Math.min(list.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))].click();
+  };
+  $('wb-new-piece').onclick = () => {
     const pack = activePack();
     if (pack.pieces.length && pack.pieces.every(d => d.parameters.routed)) routedUI.createInPack(pack);
     else openCustom();
   };
-  $('export-timing').onclick = () => exportSelectedTrack('slotforge');
-  $('export-import').onclick = openTrackFile;
-  $('transfer-pack-import').onclick = () => $('pack-file').click();
-  document
-    .querySelectorAll('[data-transfer-kind]')
-    .forEach(button => (button.onclick = () => setTransferKind(button.dataset.transferKind)));
-  $('export-png').onclick = () => exportSelectedTrack('png');
-  $('export-cad').onclick = () => exportSelectedTrack('cad');
-  $('export-track-select').onchange = () => {
-    exportChoice = $('export-track-select').value;
+  $('wb-editor').addEventListener('click', e => {
+    if (e.target.closest('[data-close="piece-dialog"]')) undockPieceForm();
+  });
+  $('wb-editor').addEventListener('keydown', e => {
+    if (e.key === 'Escape') undockPieceForm();
+  });
+  $('shop-sources').onclick = e => {
+    const b = e.target.closest('[data-choice]');
+    if (!b || b.dataset.choice === exportChoice) return;
+    exportChoice = b.dataset.choice;
     loadExportTrack();
   };
+  $('shop-sources').onkeydown = e => {
+    if (!['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+    const list = [...$('shop-sources').querySelectorAll('[data-choice]')],
+      at = list.indexOf(document.activeElement);
+    if (at < 0) return;
+    e.preventDefault();
+    const next = list[Math.max(0, Math.min(list.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))];
+    next.focus();
+    next.click();
+  };
+  $('shop-formats').onclick = e => {
+    const b = e.target.closest('[data-format]');
+    if (!b || shopKind() !== 'track' || b.dataset.format === shopView.format) return;
+    shopView.format = b.dataset.format;
+    keepShopView();
+    renderShopTabs();
+    renderShopOptions();
+    renderShopStage();
+    updateShopSave();
+  };
+  $('shop-save').onclick = () => {
+    const f = shopFormat();
+    if (f === 'pack') downloadPack(exportChoice.slice(5));
+    else if (f === 'backup') saveBackup();
+    else exportSelectedTrack(f);
+  };
+  $('shop-copy').onclick = copyPicture;
+  $('export-import').onclick = () => $('shop-file').click();
+  $('shop-drop').onclick = () => $('shop-file').click();
+  $('shop-file').onchange = () => {
+    const file = $('shop-file').files[0];
+    $('shop-file').value = '';
+    shopImportFile(file);
+  };
+  // Drop a SlotForge file anywhere in Circuit: it is reviewed before anything changes.
+  {
+    const overlay = $('shop-drop-overlay'),
+      hasFiles = e => [...(e.dataTransfer?.types || [])].includes('Files');
+    document.body.append(overlay);
+    addEventListener('dragover', e => {
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      overlay.hidden = false;
+    });
+    addEventListener('dragleave', e => {
+      if (!e.relatedTarget) overlay.hidden = true;
+    });
+    addEventListener('drop', e => {
+      overlay.hidden = true;
+      if (!hasFiles(e)) return;
+      e.preventDefault();
+      const file = e.dataTransfer.files[0];
+      if (!file) return;
+      if (!/\.(json|slotforge)$/i.test(file.name))
+        return say('Drop a SlotForge file (.json or .slotforge): a track, a track pack or a workspace backup.', true);
+      shopImportFile(file);
+    });
+  }
   $('set-timing-line').onclick = () => {
     const p = current();
     if (!p || !defOf(p).geometry.lanePaths.length) {
@@ -3801,18 +5620,6 @@
   };
   $('travel-direction').onchange = () =>
     editTiming(() => (integrationState.direction = Number($('travel-direction').value)));
-  $('export-csv').onclick = () => exportSelectedTrack('csv');
-  $('export-custom').onclick = () => downloadPack($('export-pack-select').value);
-  $('custom-pack-select').onchange = () => {
-    customLibrary.activePackId = $('custom-pack-select').value;
-    persistCustom();
-  };
-  $('save-custom-pack').onclick = saveToLibrary;
-  $('custom-select-all').onchange = () => {
-    customPieceSelection = new Set($('custom-select-all').checked ? activePack().pieces.map(d => d.id) : []);
-    renderCustomLibrary();
-  };
-  $('custom-delete-selected').onclick = () => askDeletePackPieces([...customPieceSelection]);
   $('delete-pack-pieces-confirm').onclick = confirmDeletePackPieces;
   $('delete-pack-pieces-dialog').addEventListener('cancel', e => {
     if (deletePackBusy) e.preventDefault();
@@ -3820,10 +5627,6 @@
   $('delete-pack-pieces-dialog').addEventListener('close', () => {
     if (!deletePackBusy) deletePackPieces = null;
   });
-  $('new-custom-pack').onclick = () => {
-    $('new-pack-form').reset();
-    $('new-pack-dialog').showModal();
-  };
   $('new-pack-form').onsubmit = async e => {
     e.preventDefault();
     try {
@@ -3833,32 +5636,21 @@
       customLibrary.activePackId = p.id;
       const saving = persistCustom();
       $('new-pack-dialog').close();
-      location.hash = 'custom';
+      wbView.pack = p.id;
+      wbView.piece = '';
+      location.hash = 'packs';
       routeSection();
       if (await saving) say('Pack created. Add pieces, then save it to the library.');
     } catch (e) {
       say(e.message, true);
     }
   };
-  $('packs-import').onclick = () => $('pack-file').click();
-  $('packs-create').onclick = () => $('new-custom-pack').click();
-  $('packs-search').oninput = renderTrackPacks;
-  $('packs-filter')
-    .querySelectorAll('[data-pack-filter]')
-    .forEach(
-      button =>
-        (button.onclick = () => {
-          $('packs-filter')
-            .querySelectorAll('[data-pack-filter]')
-            .forEach(b => b.setAttribute('aria-pressed', String(b === button)));
-          renderTrackPacks();
-        })
-    );
-  $('packs-clear-search').onclick = () => {
-    $('packs-search').value = '';
-    $('packs-filter').querySelector('[data-pack-filter=all]').click();
+  $('packs-import').onclick = () => $('shop-file').click();
+  $('packs-create').onclick = () => {
+    $('new-pack-form').reset();
+    $('new-pack-dialog').showModal();
   };
-  $('export-pack-select').onchange = () => updateExportNote('export-pack-select', 'export-pack-note', 'export-custom');
+  $('packs-search').oninput = renderWorkbench;
   $('pack-export-choice').onchange = () =>
     updateExportNote('pack-export-choice', 'pack-export-note', 'pack-export-download');
   $('pack-export-download').onclick = () => downloadPack($('pack-export-choice').value);
@@ -3872,28 +5664,111 @@
   };
   let designSearchTimer;
   $('design-search').oninput = () => {
-    libraryOffset = 0;
-    ++libraryRender;
+    garageShown = GARAGE_PAGE;
     clearTimeout(designSearchTimer);
-    designSearchTimer = setTimeout(renderDesignLibrary, 150);
+    designSearchTimer = setTimeout(() => renderDesignLibrary(false), 150);
+  };
+  $('garage-sort').onchange = () => {
+    garageView.sort = garageSorts[$('garage-sort').value] ? $('garage-sort').value : 'recent';
+    keepGarageView();
+    renderDesignLibrary(false);
+  };
+  $('garage-chips').onclick = e => {
+    const chip = e.target.closest('[data-filter]');
+    if (!chip) return;
+    garageView.filter = chip.dataset.filter;
+    garageBinOpen = false;
+    garageShown = GARAGE_PAGE;
+    keepGarageView();
+    renderDesignLibrary(false);
+  };
+  $('garage-more').onclick = () => {
+    garageShown += GARAGE_PAGE;
+    renderDesignLibrary(false);
+  };
+  $('garage-bin').onclick = () => {
+    garageBinOpen = !garageBinOpen;
+    renderDesignLibrary(false);
+  };
+  $('garage-empty-bin').onclick = () =>
+    garageConfirm(
+      'Empty the Bin?',
+      'Every track in the Bin is deleted for good. This cannot be undone.',
+      'Empty the Bin',
+      async () => {
+        await DL.purge(null);
+        garageBinOpen = false;
+        renderDesignLibrary();
+      }
+    );
+  $('garage-continue').onclick = () => {
+    location.hash = 'builder';
+    routeSection();
+  };
+  $('garage-save-changes').onclick = garageSaveChanges;
+  $('garage-save-as').onclick = openDesignSave;
+  $('delete-design-dialog').addEventListener('close', () => (garagePending = null));
+  $('garage-storage').onclick = () => $('storage-open').click();
+  $('rename-design-form').onsubmit = async e => {
+    e.preventDefault();
+    const r = renameDesign,
+      name = $('rename-design-name').value.trim();
+    if (!r) return;
+    if (name === r.title) return $('rename-design-dialog').close();
+    $('rename-design-submit').disabled = true;
+    try {
+      const fresh = await DL.get(r.id),
+        record = await DL.save(fresh.layout, name, false, fresh.revision);
+      // The open copy follows its saved track's new name.
+      if (librarySource?.id === record.id && librarySource.revision === fresh.revision) {
+        librarySource = DL.source(record);
+        if (record.layout.design.revision === layout(false).design.revision || title === r.title) {
+          title = record.layout.title;
+          $('track-name').value = title;
+          refresh();
+        }
+      }
+      $('rename-design-dialog').close();
+      say('Renamed to “' + record.layout.title + '”.');
+      renderDesignLibrary();
+    } catch (error) {
+      $('rename-design-error').textContent = error.message;
+    } finally {
+      $('rename-design-submit').disabled = false;
+    }
   };
   $('save-design-form').onsubmit = saveDesign;
   $('save-design-dialog').addEventListener('cancel', e => {
     if (designSaveBusy) e.preventDefault();
   });
   $('design-copy').onchange = () => {
-    $('design-save-submit').textContent = $('design-copy').checked ? 'Save new copy' : 'Update saved design';
+    $('design-save-submit').textContent = $('design-copy').checked ? 'Save as a new track' : 'Update saved track';
+    syncSaveChoices();
+  };
+  $('design-save-choices').onclick = e => {
+    const b = e.target.closest('[data-copy]');
+    if (!b) return;
+    $('design-copy').checked = b.dataset.copy === 'true';
+    $('design-copy').dispatchEvent(new Event('change'));
   };
   $('delete-design-confirm').onclick = async () => {
-    if (!deleteDesignId) return;
+    const pending = garagePending;
+    if (!deleteDesignId && !pending) return;
     const id = deleteDesignId;
     $('delete-design-confirm').disabled = true;
     try {
+      if (pending) {
+        await pending();
+        garagePending = null;
+        $('delete-design-dialog').close();
+        return;
+      }
+      const title = $('delete-design-name').textContent;
       await DL.remove(id, deleteDesignRevision);
       deleteDesignId = null;
       $('delete-design-dialog').close();
       renderDesignLibrary();
-      say('Saved design deleted.');
+      say(DL.hasBin() ? '“' + title + '” moved to the Bin.' : 'Saved track deleted.');
     } catch (e) {
       say(e.message, true);
     } finally {
@@ -3928,10 +5803,11 @@
   }
   $('storage-open').textContent =
     DS.mode === 'disk' ? 'Storage: disk' : DS.disk ? 'Storage: unavailable' : 'Storage: browser';
+  // The Pit Wall's storage light reads this: disk, browser or unavailable.
+  $('storage-open').dataset.storage = DS.mode === 'disk' ? 'disk' : DS.disk ? 'unavailable' : 'browser';
   $('storage-open').onclick = storageDetails;
   if (DS.mode === 'disk')
-    $('library-storage-note').textContent =
-      'Saved as files on this computer, independently of browser data. Updates preserve the data folder. Use Storage to download a complete workspace backup or transfer old browser saves.';
+    $('library-storage-note').textContent = 'Saved on this computer, apart from browser data. Updates keep it.';
   async function browserBundle() {
     const raw = localStorage.getItem(STORAGE),
       saved = localStorage.getItem(CP.STORAGE),
@@ -3955,19 +5831,7 @@
       $('storage-error').textContent = e.message;
     }
   };
-  $('storage-export').onclick = async () => {
-    try {
-      const bundle = DS.disk
-        ? await DS.exportBundle()
-        : { ...(await browserBundle()), current: layout(false), customLibrary: CP.serialize(customLibrary) };
-      bundle.current = layout(false);
-      bundle.customLibrary = CP.serialize(customLibrary);
-      download('SlotForge-workspace-backup.json', JSON.stringify(bundle));
-      say('Complete workspace backup downloaded.');
-    } catch (e) {
-      $('storage-error').textContent = e.message;
-    }
-  };
+  $('storage-export').onclick = () => saveBackup($('storage-error'));
   async function importWorkspace(value) {
     $('storage-error').textContent = '';
     const controls = [...$('storage-dialog').querySelectorAll('button')];
@@ -4011,6 +5875,7 @@
       await DS.quit();
       $('storage-error').textContent = 'Local app stopped. You can close this tab. Use the launcher to start it again.';
       $('storage-open').textContent = 'Storage: stopped';
+      $('storage-open').dataset.storage = 'stopped';
     } catch (e) {
       $('storage-error').textContent = e.message;
     }
@@ -4050,7 +5915,9 @@
       persistCustom();
       $('pack').value = id;
       catalogue();
-      location.hash = 'custom';
+      wbView.pack = id;
+      wbView.piece = '';
+      location.hash = 'packs';
       routeSection();
     },
     table: () => {
@@ -4376,8 +6243,287 @@
   $('help-shortcuts').onclick = () => CircuitHelp.shortcuts();
   $('help-welcome').onclick = () => CircuitHelp.welcome(welcomeChoices);
   CircuitHelp.condense();
-  $('settings-view').insertBefore(Units.settingsCard(), $('app-theme-settings'));
   Units.start();
-  UpdateUI.start({ settings: $('settings-view'), before: $('app-theme-settings'), say });
+  // ---------------------------------------------------------------- Settings: the dashboard
+  // One screen of cards, each showing its current state with quick controls: Look, Units, Your
+  // saved work, Updates, Building, Shortcuts and About. The theme presets, the colour editor and
+  // the update card are the existing parts, moved into their cards.
+  const LAST_BACKUP = 'slotforge.last-backup.v1';
+  const sdEl = (tag, className, text) => {
+    const e = document.createElement(tag);
+    if (className) e.className = className;
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const SD_ICONS = {
+    look: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z"/>',
+    units: '<path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/>',
+    work: '<rect x="4" y="4" width="16" height="6" rx="1.5"/><rect x="4" y="14" width="16" height="6" rx="1.5"/><path d="M8 7h.01M8 17h.01"/>',
+    updates: '<path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v5h-5"/>',
+    building: '<path d="M4 7h16M4 12h10M4 17h7"/>',
+    keys: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M8 14h8"/>',
+    about: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
+  };
+  function sdCard(key, title, { wide = false, link = null } = {}) {
+    const card = sdEl('section', 'sd-card' + (wide ? ' sd-wide' : ''));
+    card.id = 'sd-' + key;
+    const head = sdEl('div', 'sd-top'),
+      h = sdEl('h2', '', title);
+    h.id = 'sd-' + key + '-title';
+    card.setAttribute('aria-labelledby', h.id);
+    head.innerHTML = `<svg class="sd-icon" viewBox="0 0 24 24" aria-hidden="true">${SD_ICONS[key]}</svg>`;
+    head.append(h);
+    if (link) {
+      const a = sdEl('button', 'sd-link', link.text);
+      a.type = 'button';
+      a.onclick = link.run;
+      if (link.id) a.id = link.id;
+      head.append(a);
+    }
+    card.append(head);
+    return card;
+  }
+  function sdSwitch(id, label, on, change) {
+    const row = sdEl('label', 'sd-toggle'),
+      box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'ss-switch';
+    box.id = id;
+    box.checked = on;
+    box.onchange = () => change(box.checked);
+    row.append(sdEl('span', '', label), box);
+    return row;
+  }
+  function sdSeg(label, options, value, change) {
+    const row = sdEl('div', 'sd-toggle'),
+      bar = sdEl('div', 'pack-hub-filters');
+    bar.setAttribute('role', 'group');
+    bar.setAttribute('aria-label', label);
+    for (const [v, text] of options) {
+      const b = sdEl('button', 'btn sm', text);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(v === value));
+      b.onclick = () => {
+        bar.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        change(v);
+      };
+      bar.append(b);
+    }
+    row.append(sdEl('span', '', label), bar);
+    return row;
+  }
+  function sdWelcomeSeen() {
+    try {
+      return localStorage.getItem('slotforge.welcome.v1') === 'seen';
+    } catch {
+      return false;
+    }
+  }
+  // Coming back to Settings: the switches follow changes made in the builder or FreeForm.
+  function syncSettingsDashboard() {
+    if (!$('sd-work')) return;
+    $('sd-piece-colours').checked = colourByPiece;
+    $('sd-ff-snap').checked = $('ff-snap')?.getAttribute('aria-pressed') === 'true';
+    $('sd-welcome').checked = !sdWelcomeSeen();
+    $('sd-building')
+      .querySelectorAll('[aria-label="Rotate step"] button')
+      .forEach(b => b.setAttribute('aria-pressed', String(parseFloat(b.textContent) === rotateStep)));
+    renderSdWork();
+  }
+  function sdWhen(iso) {
+    if (!iso) return 'never';
+    const t = new Date(iso).getTime();
+    return Number.isFinite(t) ? garageAgo(iso).toLowerCase() : 'never';
+  }
+  async function renderSdWork() {
+    const card = $('sd-work');
+    if (!card) return;
+    let tracks = 0,
+      binned = 0;
+    try {
+      tracks = (await DL.summaries()).length;
+      binned = DL.hasBin() ? (await DL.bin()).length : 0;
+    } catch {}
+    const own = customLibrary.packs.length,
+      pieces = customLibrary.packs.reduce((n, p) => n + p.pieces.length, 0);
+    let last = null;
+    try {
+      last = localStorage.getItem(LAST_BACKUP);
+    } catch {}
+    const big = $('sd-work-big');
+    big.replaceChildren();
+    for (const [n, word] of [
+      [tracks, tracks === 1 ? 'track' : 'tracks'],
+      [own, own === 1 ? 'pack' : 'packs'],
+      [pieces, pieces === 1 ? 'own piece' : 'own pieces'],
+    ]) {
+      const part = sdEl('span', 'sd-stat');
+      part.append(sdEl('b', '', String(n)), sdEl('span', '', word));
+      big.append(part);
+    }
+    $('sd-work-facts').textContent =
+      (DS.mode === 'disk' ? 'Saved on this computer' : DS.disk ? 'Disk storage unavailable' : 'Saved in this browser') +
+      (binned ? ' · ' + binned + ' in the Bin' : '') +
+      ' · last backup ' +
+      sdWhen(last);
+    $('sd-work-path').textContent = DS.directory || '';
+    $('sd-work-path').hidden = !DS.directory;
+  }
+  function buildSettingsDashboard() {
+    const host = $('settings-dashboard');
+    // Look: the theme presets, and the colour editor behind "Your own colours".
+    const look = sdCard('look', 'Look', {
+      wide: true,
+      link: {
+        text: 'Your own colours',
+        id: 'sd-colours-toggle',
+        run: () => {
+          const open = $('sd-colours').hidden;
+          $('sd-colours').hidden = !open;
+          $('sd-colours-toggle').setAttribute('aria-expanded', String(open));
+          if (open) $('sd-colours').scrollIntoView({ block: 'nearest' });
+        },
+      },
+    });
+    look.append($('theme-presets'));
+    look.append(
+      sdSwitch('sd-piece-colours', 'Colour pieces by type in the builder', colourByPiece, on => {
+        if (on !== colourByPiece) $('piece-colours').click();
+      })
+    );
+    // Units: two tiles with the same lengths written both ways.
+    const units = sdCard('units', 'Units'),
+      choice = sdEl('div', 'units-choice sd-units');
+    choice.setAttribute('role', 'radiogroup');
+    choice.setAttribute('aria-label', 'Measurement units');
+    choice.dataset.units = 'raw';
+    for (const [value, name, example] of [
+      ['metric', 'Metric', '345 mm · 5.2 m'],
+      ['imperial', 'Imperial', Units.inches(345) + ' · ' + Math.round(5200 / 304.8) + ' ft'],
+    ]) {
+      const tile = sdEl('label', 'sd-unit'),
+        radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'units';
+      radio.value = value;
+      radio.checked = Units.system() === value;
+      radio.onchange = () => {
+        Units.setSystem(value);
+        location.reload();
+      };
+      tile.append(radio, sdEl('b', '', name), sdEl('span', '', example));
+      choice.append(tile);
+    }
+    units.append(
+      choice,
+      sdEl('p', 'sd-note', 'Pieces stay defined in millimetres. Imperial shows inches beside the mm fields.')
+    );
+    // Your saved work: what is kept, where, and the backup.
+    const work = sdCard('work', 'Your saved work', {
+        link: { text: 'More…', id: 'sd-storage-more', run: () => $('storage-open').click() },
+      }),
+      big = sdEl('div', 'sd-stats'),
+      facts = sdEl('p', 'sd-facts'),
+      where = sdEl('p', 'sd-path'),
+      actions = sdEl('div', 'sd-actions');
+    big.id = 'sd-work-big';
+    facts.id = 'sd-work-facts';
+    where.id = 'sd-work-path';
+    const backup = sdEl('button', 'btn sm', 'Save backup…'),
+      copy = sdEl('button', 'btn sm quiet', 'Copy folder path');
+    backup.type = copy.type = 'button';
+    backup.id = 'sd-backup';
+    backup.onclick = () => saveBackup();
+    copy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(DS.directory);
+        say('Folder path copied.');
+      } catch (e) {
+        say('Could not copy the folder path: ' + e.message, true);
+      }
+    };
+    copy.hidden = !DS.directory;
+    actions.append(backup, copy);
+    work.append(big, facts, where, actions);
+    // Updates: the existing update card, moved in.
+    const updates = sdCard('updates', 'Updates'),
+      updateHost = sdEl('div', 'sd-update-host');
+    updates.append(updateHost);
+    // Building: preferences that were remembered silently elsewhere.
+    const building = sdCard('building', 'Building'),
+      steps = [7.5, 15, 22.5, 45];
+    building.append(
+      sdSeg(
+        'Rotate step',
+        (steps.includes(rotateStep) ? steps : [...steps, rotateStep].sort((a, b) => a - b)).map(v => [v, v + '°']),
+        rotateStep,
+        v => {
+          $('rotate-step').value = String(v);
+          $('rotate-step').dispatchEvent(new Event('change'));
+        }
+      ),
+      sdSwitch('sd-ff-snap', 'FreeForm snaps to 10 mm', $('ff-snap')?.getAttribute('aria-pressed') === 'true', on => {
+        if ($('ff-snap') && ($('ff-snap').getAttribute('aria-pressed') === 'true') !== on) $('ff-snap').click();
+      }),
+      sdSwitch('sd-welcome', 'Welcome window at start', !sdWelcomeSeen(), on => {
+        try {
+          if (on) localStorage.removeItem('slotforge.welcome.v1');
+          else localStorage.setItem('slotforge.welcome.v1', 'seen');
+        } catch {}
+      })
+    );
+    // Shortcuts: the ones people use most, and the full list.
+    const keys = sdCard('keys', 'Shortcuts', { link: { text: 'All shortcuts', run: () => CircuitHelp.shortcuts() } }),
+      list = sdEl('dl', 'sd-keys'),
+      builder = CircuitHelp.SHORTCUTS.find(g => g.title === 'Track Builder') || CircuitHelp.SHORTCUTS[0];
+    for (const [label, ...combos] of builder.rows.slice(0, 5)) {
+      const dt = sdEl('dt');
+      for (const k of combos[0]) dt.append(sdEl('kbd', '', k));
+      list.append(dt, sdEl('dd', '', label));
+    }
+    keys.append(list);
+    // About.
+    const about = sdCard('about', 'About Circuit', { wide: true }),
+      line = sdEl(
+        'p',
+        'sd-facts',
+        'SlotForge Circuit ' +
+          I.VERSION +
+          (window.slotforgeDesktop ? ' · desktop app' : ' · in the browser') +
+          (DS.directory ? ' · data in ' + DS.directory : '')
+      ),
+      links = sdEl('div', 'sd-actions');
+    line.dataset.units = 'raw';
+    const welcome = sdEl('button', 'btn sm', 'Welcome screen'),
+      notices = sdEl('button', 'btn sm quiet', 'Third-party notices');
+    welcome.type = notices.type = 'button';
+    welcome.onclick = () => CircuitHelp.welcome(welcomeChoices);
+    notices.onclick = () => window.open('../THIRD-PARTY-NOTICES.txt', '_blank');
+    links.append(welcome, notices);
+    about.append(line, links);
+    // The colour editor opens as a full-width card under Look.
+    const colours = sdEl('section', 'sd-card sd-full');
+    colours.id = 'sd-colours';
+    colours.hidden = true;
+    colours.setAttribute('aria-label', 'Your own colours');
+    colours.append(document.querySelector('#app-theme-settings .theme-custom-card'), $('theme-save-status'));
+    host.replaceChildren(look, units, colours, work, updates, building, keys, about);
+    $('app-theme-settings').hidden = true;
+    UpdateUI.start({ settings: updateHost, say });
+    if (!updateHost.children.length)
+      updateHost.append(sdEl('p', 'sd-note', 'Update checks are part of the desktop app.'));
+    else
+      updates.append(
+        sdEl('p', 'sd-note', 'Only the newest version number is asked for; nothing about you or your work is sent.')
+      );
+    // The track counts are filled when Settings opens (syncSettingsDashboard), not at start-up.
+  }
+  buildSettingsDashboard();
+  // One dialog family (dialog-family.js): the same head, body and foot in every window.
+  DialogFamily.watch();
+  // Routed Wood: the joinery bench (routed-bench.js) groups the profile and draws the board.
+  RoutedBench.mount();
+  // The Tools menu, the inspector's side rail and the sidebar buttons (builder-layout.js).
+  BuilderLayout.mount();
   CircuitHelp.maybeWelcome(welcomeChoices);
 })();

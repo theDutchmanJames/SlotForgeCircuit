@@ -132,6 +132,18 @@
   function remove(id, expectedRevision = null) {
     return queue(() => request('designs/' + encodeURIComponent(id), 'DELETE', { expectedRevision }));
   }
+  function favourite(id, on) {
+    return queue(() => request('design-favourite', 'POST', { id, on }));
+  }
+  function trash() {
+    return request('design-trash');
+  }
+  function restore(id, deletedAt) {
+    return queue(() => request('design-restore', 'POST', { id, deletedAt }));
+  }
+  function purge(id, deletedAt) {
+    return queue(() => request('design-purge', 'POST', { id, deletedAt }));
+  }
   root.LocalWorkspace = {
     init,
     get mode() {
@@ -171,6 +183,10 @@
     get,
     putDesign,
     remove,
+    favourite,
+    trash,
+    restore,
+    purge,
     flush,
     quit: async () => {
       await flush();

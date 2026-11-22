@@ -1,0 +1,324 @@
+/* Routed Wood, the joinery bench: the profile on the left, the board in cross-section and from
+   above in the middle, what the build needs on the right. */
+
+.routed-bench.routed-workspace {
+  grid-template-columns: 330px minmax(0, 1fr);
+}
+.routed-bench .routed-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 18px 0;
+}
+.rb-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+#routed-view h2.rb-label {
+  font: 600 10.5px/1.3 var(--font-ui, system-ui, sans-serif);
+  font-style: normal;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* Starting profiles. */
+.rb-presets {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.rb-preset,
+.rb-tile {
+  display: grid;
+  gap: 2px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg) 40%, var(--panel));
+  color: var(--ink);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.rb-preset:hover,
+.rb-tile:hover {
+  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+}
+.rb-preset:focus-visible,
+.rb-tile:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.rb-preset[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--ui-selected);
+}
+.rb-preset span,
+.rb-tile span {
+  color: var(--muted);
+  font: 500 11px/1.3 var(--font-numbers, Consolas, monospace);
+}
+
+/* The profile in four folding groups. */
+.routed-bench #routed-profile-form {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.rb-groups {
+  display: grid;
+  gap: 8px;
+}
+.rb-group {
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.rb-group > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  list-style: none;
+  cursor: pointer;
+}
+.rb-group > summary::-webkit-details-marker {
+  display: none;
+}
+.rb-group > summary b {
+  font-size: 13.5px;
+}
+.rb-group > summary b::before {
+  content: '▸';
+  display: inline-block;
+  width: 14px;
+  color: var(--muted);
+  transition: transform 0.12s;
+}
+.rb-group[open] > summary b::before {
+  transform: rotate(90deg);
+}
+.rb-summary {
+  overflow: hidden;
+  color: var(--muted);
+  font: 500 11.5px var(--font-numbers, Consolas, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rb-group .rb-field,
+.rb-group .field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 6px 0;
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  font-size: 12.5px;
+}
+.rb-group .field select {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
+}
+.rb-group .field:has(select) {
+  grid-template-columns: minmax(0, 1fr) 150px;
+}
+.rb-group .rb-field input {
+  min-height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font: 500 12.5px var(--font-numbers, Consolas, monospace);
+  text-align: right;
+}
+.rb-group > .fine {
+  margin: 4px 0 10px;
+}
+.rb-apply {
+  position: sticky;
+  bottom: 0;
+  display: grid;
+  gap: 6px;
+  margin-top: auto;
+  padding: 12px 0 16px;
+  background: var(--panel);
+  box-shadow: 0 -12px 16px var(--panel);
+}
+.routed-bench .rb-apply button[type='submit'] {
+  position: static;
+  margin: 0;
+  box-shadow: none;
+}
+.rb-pending {
+  margin: 0;
+  color: var(--ui-warning, var(--accent));
+  font-size: 12px;
+}
+.rb-pending[hidden],
+.rb-apply .error:empty {
+  display: none;
+}
+
+/* The middle and right. */
+.routed-bench .routed-main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 20px 24px 20px;
+  overflow: hidden;
+}
+.rb-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+.rb-head h1 {
+  margin: 0;
+}
+.rb-head-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.rb-columns {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  min-height: 0;
+}
+.rb-centre,
+.rb-right {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+.rb-right {
+  overflow: auto;
+}
+.rb-card {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.rb-stage {
+  background:
+    linear-gradient(color-mix(in srgb, var(--ink) 5%, transparent) 1px, transparent 1px) 0 0 / 20px 20px,
+    linear-gradient(90deg, color-mix(in srgb, var(--ink) 5%, transparent) 1px, transparent 1px) 0 0 / 20px 20px,
+    var(--ui-canvas, var(--bg));
+}
+.rb-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+.rb-card-head h2 {
+  margin: 0;
+  font-size: 15px;
+}
+.rb-meta {
+  margin: 0 0 0 auto;
+  color: var(--muted);
+  font: 500 11.5px var(--font-numbers, Consolas, monospace);
+}
+#routed-table-note.rb-meta {
+  margin: 0;
+}
+.rb-section-svg {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+}
+.rb-wood {
+  fill: #b8925f;
+  stroke: #7a5a32;
+}
+.rb-cut {
+  fill: var(--ui-canvas, var(--bg));
+}
+.rb-dim {
+  fill: var(--accent-text, var(--accent));
+  stroke: var(--accent);
+  stroke-width: 1.2;
+  font: 600 14px var(--font-numbers, Consolas, monospace);
+}
+.rb-dim text,
+.rb-note text {
+  stroke: none;
+}
+.rb-note {
+  fill: var(--muted);
+  stroke: var(--muted);
+  font: 500 14px var(--font-numbers, Consolas, monospace);
+}
+.routed-bench .routed-preview-card {
+  flex: 1;
+  min-height: 140px;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.routed-bench .routed-preview {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.routed-bench .routed-preview-card .routed-preview svg {
+  width: 100%;
+  height: 100%;
+  max-height: 220px;
+}
+.rb-start {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.rb-tile[hidden] {
+  display: none;
+}
+
+/* Your build. */
+.rb-facts .routed-metric {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  padding: 5px 0;
+  font-size: 13px;
+}
+.rb-facts .routed-metric + .routed-metric {
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.rb-facts .routed-metric b {
+  font: 600 12.5px var(--font-numbers, Consolas, monospace);
+  text-align: right;
+}
+.rb-right .fine {
+  margin: 0;
+}
+.rb-right .routed-issues {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+@media (max-width: 1280px) {
+  .rb-columns {
+    grid-template-columns: minmax(0, 1fr) 250px;
+  }
+  .routed-bench.routed-workspace {
+    grid-template-columns: 290px minmax(0, 1fr);
+  }
+}

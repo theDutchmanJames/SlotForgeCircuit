@@ -1,10 +1,17 @@
-SlotForge Circuit — editor iteration (v0.4.1)
+SlotForge Circuit — editor iteration (v0.5.0)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. The rename does not move your data.
 This update automatically migrates installed JSON workspaces to SQLite.
+
+NEW IN v0.5.0 — NEW LOOK, BETTER UPDATES AND SAFER SAVES
+A redesigned Track Library, Print Shop, Track Packs, Settings, Routed Wood,
+Builder side panels, FreeForm guide and dialogs. The update window shows
+what's new and downloads the right file. Faster library pages and saves; pack
+galleries open in their own window; the portable app works when opened twice
+or from a FAT/exFAT USB stick; and Circuit starts normally after a crash.
 
 NEW IN v0.4.1 — ONE CAR PER LANE
 Live preview now drives a car on every lane (up to 8), each in its own colour,

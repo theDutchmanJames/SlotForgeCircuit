@@ -133,14 +133,16 @@ test('Failed pack persistence retains imported pieces for recovery without repor
       $: get,
       persistCustom: () => pending.promise,
       catalogue() {},
-      updateExportNote() {},
+      exportChoice: 'current',
+      wbView: { pack: '', piece: '' },
+      populateExportTracks() {},
       say: (...args) => messages.push(args),
     };
   vm.runInNewContext(oneLine('importPack'), context);
   const done = context.importPack({ format: 'slotforge.custom-pack' });
   assert.equal(messages.length, 0);
   assert.equal(context.customLibrary.packs[0], pack);
-  assert.equal(get('export-pack-select').value, pack.id);
+  assert.equal(context.exportChoice, 'pack:' + pack.id);
   messages.push(['Track packs were not saved', true]);
   pending.resolve(false);
   await done;
@@ -169,6 +171,7 @@ test('Creating a pack does not overwrite a persistence error with a success mess
       CP: { name: v => v },
       F: { uid: () => 'new' },
       location: {},
+      wbView: { pack: '', piece: '' },
       routeSection() {},
       persistCustom: async () => {
         messages.push(['Disk save failed', true]);
@@ -181,5 +184,6 @@ test('Creating a pack does not overwrite a persistence error with a success mess
   await get('new-pack-form').onsubmit({ preventDefault() {} });
   assert.equal(messages.length, 1);
   assert.equal(context.customLibrary.packs.length, 1);
-  assert.equal(context.location.hash, 'custom');
+  assert.equal(context.location.hash, 'packs');
+  assert.equal(context.wbView.pack, context.customLibrary.packs[0].id);
 });

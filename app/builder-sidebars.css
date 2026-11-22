@@ -1,0 +1,449 @@
+/* Track Builder sidebars, remade: the pack card, search with its options and folder tabs on the
+   left; the track sheet (lap per lane, heights, checks, parts against what you own) on the right. */
+
+/* ---------- Left: pack card ---------- */
+.catalogue-panel .panel-heading.lb-packrow {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.lb-pack-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.lb-pack {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 6px 10px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.lb-pack:hover {
+  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+}
+.lb-pack:focus-visible,
+.lb-sq:focus-visible,
+.lb-tabs button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+.lb-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: hsl(var(--wb-hue, 0) 45% 42%);
+  color: #fff;
+  font: 700 10.5px/1 var(--font-numbers, Consolas, monospace);
+}
+.lb-mark.small {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 8.5px;
+}
+.lb-pack-t {
+  display: grid;
+  min-width: 0;
+}
+.lb-pack-t b {
+  overflow: hidden;
+  font-size: 13.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-pack-t small {
+  overflow: hidden;
+  color: var(--muted);
+  font: 500 11px/1.3 var(--font-numbers, Consolas, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lb-chev {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+.lb-pack-menu {
+  left: 0;
+  right: auto;
+  width: 240px;
+  max-height: min(460px, 70vh);
+  overflow: auto;
+}
+.lb-pack-item {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start !important;
+  gap: 8px;
+  text-align: left;
+}
+.lb-pack-item[aria-current='true'] {
+  font-weight: 600;
+}
+.lb-pack-select,
+.catalogue-panel > .lb-pack-info {
+  display: none !important;
+}
+.lb-sq {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 38px;
+  min-width: 38px;
+  height: auto;
+  min-height: 38px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  color: var(--ink);
+  font-size: 18px;
+  cursor: pointer;
+}
+.lb-sq:hover {
+  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
+}
+.catalogue-panel .panel-heading.lb-packrow #hide-pieces {
+  align-self: center;
+  flex: none;
+  width: 26px;
+  min-width: 26px;
+  padding: 0;
+}
+.catalogue-panel .panel-heading.lb-packrow .lb-sq {
+  width: 34px;
+  min-width: 34px;
+}
+.catalogue-panel .panel-heading.lb-packrow {
+  flex-wrap: wrap;
+}
+/* Routed packs: Routed tools take their own line under the pack card. */
+.catalogue-panel .panel-heading.lb-packrow .routed-tools {
+  order: 5;
+  flex: 1 0 100%;
+}
+
+/* ---------- Left: search and its options ---------- */
+.lb-search {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.lb-search > .search {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+.lb-search > .search input {
+  width: 100%;
+}
+.lb-filter-wrap {
+  position: relative;
+}
+.lb-filter[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+.lb-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--accent);
+  color: #fff;
+  font: 700 10px/17px var(--font-numbers, Consolas, monospace);
+  font-style: normal;
+  text-align: center;
+}
+.lb-badge[hidden] {
+  display: none;
+}
+.lb-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 2px;
+  width: 240px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+.lb-menu[hidden] {
+  display: none;
+}
+.lb-menu .menu-label {
+  margin: 4px 6px 2px;
+}
+.lb-check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 6px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.lb-check:hover {
+  background: var(--ui-quiet-hover);
+}
+.lb-check input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+/* The colour switch is a button: draw it as a checkbox. */
+button.lb-check::before {
+  content: '';
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 45%, var(--line));
+  border-radius: 3px;
+}
+button.lb-check[aria-pressed='true']::before {
+  border-color: var(--accent);
+  background: var(--accent)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.5l2.2 2.2 4.8-5' fill='none' stroke='white' stroke-width='1.8'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+}
+
+/* ---------- Left: folder tabs ---------- */
+.lb-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 10px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+}
+.lb-tabs[hidden] {
+  display: none;
+}
+.lb-tabs button {
+  display: inline-flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 5px 4px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.lb-tabs button span {
+  font: 500 10.5px var(--font-numbers, Consolas, monospace);
+  opacity: 0.8;
+}
+.lb-tabs button[aria-selected='true'] {
+  background: color-mix(in srgb, var(--ink) 12%, var(--panel));
+  color: var(--ink);
+  font-weight: 600;
+}
+.catalogue-folder.lb-flat > summary {
+  display: none;
+}
+.catalogue-folder.lb-flat {
+  border: 0;
+  background: none;
+}
+
+/* ---------- Right: the track sheet ---------- */
+.track-sheet {
+  display: grid;
+  gap: 10px;
+  padding: 0 4px 12px;
+}
+.track-sheet > h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.ts-tabs {
+  display: flex !important;
+}
+.ts-tabs > .btn {
+  flex: 1;
+  justify-content: center;
+}
+.ts-panel {
+  display: grid;
+  gap: 8px;
+}
+.ts-panel[hidden] {
+  display: none;
+}
+.ts-label,
+#builder-view h3.ts-label {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font:
+    600 10.5px/1.3 system-ui,
+    sans-serif;
+  font-style: normal;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.ts-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ts-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text, var(--accent));
+  font-size: 12px;
+  cursor: pointer;
+}
+.ts-link::after {
+  content: ' →';
+}
+.ts-lanes {
+  display: grid;
+  gap: 7px;
+}
+.ts-lane {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.ts-lane span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ts-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+}
+.ts-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 99px;
+}
+.ts-lane b {
+  font: 600 12.5px var(--font-numbers, Consolas, monospace);
+}
+.ts-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.ts-note.warn {
+  color: var(--ui-warning, var(--ink));
+}
+.ts-note:empty {
+  display: none;
+}
+#ts-heights .elevation-chart {
+  width: 100%;
+  height: auto;
+}
+.ts-issues {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+}
+.ts-issues li + li {
+  margin-top: 4px;
+}
+.ts-issues li.ok {
+  color: var(--ui-success, var(--ink));
+  list-style: none;
+  margin-left: -18px;
+}
+.ts-parts {
+  display: grid;
+}
+.ts-part {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px 52px 50px;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: 12.5px;
+}
+.ts-part + .ts-part {
+  border-top: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.ts-part-head {
+  color: var(--muted);
+  font-size: 11px;
+}
+.ts-part-name {
+  display: grid;
+  min-width: 0;
+}
+.ts-part-name small {
+  color: var(--muted);
+  font: 500 10.5px var(--font-numbers, Consolas, monospace);
+}
+.ts-part > b {
+  font: 600 12.5px var(--font-numbers, Consolas, monospace);
+  text-align: right;
+}
+.ts-own {
+  width: 100%;
+  min-height: 28px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font: 500 12.5px var(--font-numbers, Consolas, monospace);
+  text-align: right;
+}
+.ts-buy {
+  color: var(--ui-warning, var(--accent)) !important;
+}
+.ts-have {
+  color: var(--ui-success, var(--ink)) !important;
+}
+.ts-summary {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+.ts-summary:empty {
+  display: none;
+}
+.ts-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

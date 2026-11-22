@@ -66,6 +66,127 @@
     const points = S.edgePoints(p, d.geometry, offset);
     return { points, bulges: points.map(() => 0) };
   }
+  // Metadata for SlotForge Foundry (optional fields; format and version stay the same).
+  // The routed profile of each distinct spec, straight from parameters.routed.
+  const PROFILE_FIELDS = [
+    'slotWidthMm',
+    'slotDepthMm',
+    'conductor',
+    'conductorWidthMm',
+    'conductorGapMm',
+    'recessDepthMm',
+    'conductorThicknessMm',
+    'boardThicknessMm',
+    'laneCount',
+    'laneSpacingMm',
+  ];
+  function routedProfiles(roads, defs) {
+    const seen = new Map();
+    for (const placement of roads) {
+      const q = defs[placement.definitionId].parameters,
+        s = q.routed,
+        profile = {};
+      for (const key of PROFILE_FIELDS) if (s[key] !== undefined) profile[key] = s[key];
+      // The whole road surface (FreeForm keeps its road width here too), rounded like the heights.
+      if (Number.isFinite(q.widthMm)) profile.roadWidthMm = Math.round(q.widthMm * 1000) / 1000;
+      const key = JSON.stringify(profile);
+      if (!seen.has(key)) seen.set(key, profile);
+    }
+    return [...seen.values()];
+  }
+  // Spot heights of the running surface on every slot centreline: [x, y, zMm] in builder world
+  // mm (positive Y down, like the paths). Every piece end is kept, and enough points between
+  // that straight-line interpolation of neighbours stays within HEIGHT_TOLERANCE_MM of the real
+  // height; a sample also falls at least every HEIGHT_SPACING_MM so a reader finds one close by.
+  const HEIGHT_TOLERANCE_MM = 0.25,
+    HEIGHT_SPACING_MM = 150;
+  function byDistance(points, heightAt) {
+    const run = [0];
+    for (let i = 1; i < points.length; i++) run.push(run[i - 1] + F.dist(points[i - 1], points[i]));
+    const total = run.at(-1) || 1;
+    return run.map(r => heightAt(r / total));
+  }
+  function pieceHeights(placement, d) {
+    const p = d.parameters,
+      g = d.geometry,
+      lanes = [];
+    if (p.type === 'freeform') {
+      const ref = g.reference;
+      for (let i = 0; i < g.lanePaths.length; i++) {
+        const points = g.lanePaths[i].segments[0].points;
+        lanes.push({
+          points,
+          heights:
+            ref.heightsMm.length === points.length
+              ? ref.heightsMm.slice()
+              : byDistance(points, f => {
+                  const at = f * ref.lengthMm;
+                  let j = ref.distancesMm.findIndex(x => x >= at);
+                  if (j <= 0) return ref.heightsMm[Math.max(0, j)];
+                  const a = ref.distancesMm[j - 1],
+                    b = ref.distancesMm[j];
+                  return ref.heightsMm[j - 1] + (ref.heightsMm[j] - ref.heightsMm[j - 1]) * ((at - a) / (b - a || 1));
+                }),
+        });
+      }
+    } else {
+      const s = F.Elevation.settings(placement.elevation, p.routed.boardThicknessMm || 10),
+        at = t => F.Elevation.at(s, t);
+      for (const offset of p.laneOffsetsMm) {
+        if (p.type === 'straight' || p.type === 'curve') {
+          const length = p.type === 'straight' ? p.lengthMm : F.rad(p.angleDeg) * (p.innerRadiusMm + offset),
+            n = Math.max(1, Math.ceil(length / HEIGHT_SPACING_MM)),
+            points = [],
+            heights = [];
+          for (let k = 0; k <= n; k++) {
+            const t = k / n;
+            points.push(
+              p.type === 'straight' ? [p.lengthMm * t, offset] : F.G.pt(p.innerRadiusMm + offset, F.rad(p.angleDeg * t))
+            );
+            heights.push(at(t));
+          }
+          lanes.push({ points, heights });
+        } else {
+          const points = edge(d, offset).points;
+          lanes.push({
+            points,
+            heights: g.parametersT?.length === points.length ? g.parametersT.map(at) : byDistance(points, at),
+          });
+        }
+      }
+    }
+    return lanes.map(l => ({ points: l.points.map(q => F.point(q, placement)), heights: l.heights }));
+  }
+  // Keeps the first and last sample and only those between that interpolation needs.
+  function thin(points, heights) {
+    const n = points.length,
+      run = [0];
+    for (let i = 1; i < n; i++) run.push(run[i - 1] + F.dist(points[i - 1], points[i]));
+    const keep = [0];
+    let a = 0;
+    for (let j = a + 2; j < n; j++) {
+      let ok = run[j] - run[a] <= HEIGHT_SPACING_MM;
+      for (let k = a + 1; ok && k < j; k++) {
+        const f = (run[k] - run[a]) / (run[j] - run[a] || 1);
+        if (Math.abs(heights[a] + (heights[j] - heights[a]) * f - heights[k]) > HEIGHT_TOLERANCE_MM) ok = false;
+      }
+      if (!ok) {
+        a = j - 1;
+        keep.push(a);
+      }
+    }
+    if (n > 1) keep.push(n - 1);
+    return keep;
+  }
+  const round = v => Math.round(v * 1000) / 1000 || 0;
+  function spotHeights(roads, defs) {
+    const out = [];
+    for (const placement of roads)
+      for (const lane of pieceHeights(placement, defs[placement.definitionId]))
+        for (const i of thin(lane.points, lane.heights))
+          out.push([round(lane.points[i][0]), round(lane.points[i][1]), round(lane.heights[i])]);
+    return out;
+  }
   function reverse(path) {
     const n = path.points.length;
     return {
@@ -390,9 +511,10 @@
         .filter(i => i.code !== 'conductor-height')
         .map(i => i.message),
       excluded = pieces.length - roads.length;
-    if (F.Elevation.active(pieces, defs))
+    const elevated = F.Elevation.active(pieces, defs);
+    if (elevated)
       messages.push(
-        'Height plan exported as XY projection only. Do not route overlapping bridge paths into a single flat board. Heights, ramp lengths and slopes are not encoded as 3D CAD.',
+        'Height plan exported as XY projection only. Do not route overlapping bridge paths into a single flat board. Heights, ramp lengths and slopes are not encoded as 3D CAD; spot heights are carried in the file metadata for SlotForge Foundry.',
         ...F.Elevation.checks(pieces, defs, F).map(i => i.message)
       );
     if (roads.some(p => defs[p.definitionId].parameters.routed.constructionMode === 'table'))
@@ -426,6 +548,8 @@
       removedCaps,
       openSlots,
       messages,
+      routedProfiles: routedProfiles(roads, defs),
+      ...(elevated ? { heights: spotHeights(roads, defs) } : {}),
       sampled: roads.some(
         p =>
           defs[p.definitionId].parameters.type === 'routed-spline' ||
@@ -455,6 +579,20 @@
       } else d += ' L ' + b.map(number).join(' ');
     }
     return d + (p.closed ? ' Z' : '');
+  }
+  // The metadata both files carry (SVG <metadata>, DXF header comment): identical in each.
+  function metadata(model) {
+    return {
+      format: 'slotforge.cad',
+      version: 1,
+      units: 'mm',
+      coordinates: 'builder-world-positive-y-down',
+      joinToleranceMm: TOL,
+      flowingSamplingTargetMm: model.sampled ? 0.025 : null,
+      options: model.config,
+      routedProfiles: model.routedProfiles,
+      ...(model.heights ? { heights: model.heights } : {}),
+    };
   }
   function svgDisplayWeight(model) {
     return Math.max(0.25, (Math.max(model.bounds[2], model.bounds[3]) + 10) / 500);
@@ -504,7 +642,7 @@
         'Routed construction paths; no cutter compensation, depths or toolpaths. SVG stroke weight is for visibility only, not slot width or cutting allowance. ' +
         (model.sampled ? 'Flowing offsets use adaptive samples (0.025 mm target). ' : '') +
         model.messages.join(' ');
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${number(size.widthMm)}mm" height="${number(size.heightMm)}mm" viewBox="${[b[0] - pad, b[1] - pad, width, height].map(number).join(' ')}" role="img"><title>${xml(model.title)} - routed construction${size.denominator === 1 ? '' : ' - scale 1:' + size.denominator}</title><desc>${xml(description)}</desc><metadata>${xml(JSON.stringify({ format: 'slotforge.cad', version: 1, units: 'mm', scaleDenominator: size.denominator, restoreFullSizePercent: size.restorePercent, coordinates: 'builder-world-positive-y-down', joinToleranceMm: TOL, flowingSamplingTargetMm: model.sampled ? 0.025 : null, options: model.config, svgAppearance: appearance, displayStrokeWidth: strokeWidth }))}</metadata>${model.layers
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="${number(size.widthMm)}mm" height="${number(size.heightMm)}mm" viewBox="${[b[0] - pad, b[1] - pad, width, height].map(number).join(' ')}" role="img"><title>${xml(model.title)} - routed construction${size.denominator === 1 ? '' : ' - scale 1:' + size.denominator}</title><desc>${xml(description)}</desc><metadata>${xml(JSON.stringify({ ...metadata(model), scaleDenominator: size.denominator, restoreFullSizePercent: size.restorePercent, svgAppearance: appearance, displayStrokeWidth: strokeWidth }))}</metadata>${model.layers
       .map(
         layer =>
           `<g id="${layer.id}" inkscape:groupmode="layer" inkscape:label="${layer.label}" fill="none" stroke="${appearance === 'black' ? '#000000' : layer.color}" stroke-width="${number(strokeWidth)}" stroke-linecap="butt" stroke-linejoin="round">${model.paths
@@ -1071,6 +1209,8 @@
       -b[1],
       999,
       'SlotForge Circuit - routed construction geometry',
+      999,
+      'SlotForge Circuit metadata ' + dxfText(JSON.stringify(metadata(model))),
       999,
       dxfText(model.title),
       999,

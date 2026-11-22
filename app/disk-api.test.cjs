@@ -114,6 +114,26 @@ test('Library page, summary and preview APIs are authenticated, bounded and omit
   assert.equal((await store.get(saved.id)).revision, saved.revision);
 });
 
+test('Track Library star and Bin APIs need the app session and work end to end', async t => {
+  const { origin, request, store } = await setup(t),
+    raw = require('./integration.js').prepare(
+      require('../integration/slotforge-timing/fixtures/01-closed-oval.slotforge.json')
+    ),
+    saved = await store.putDesign(raw, null);
+  assert.equal((await fetch(origin + '/api/design-trash')).status, 403);
+  assert.equal((await request('design-favourite', 'POST', { id: saved.id, on: true })).status, 200);
+  assert.equal((await store.summaries())[0].favourite, true);
+  await store.remove(saved.id, saved.revision);
+  const bin = await (await request('design-trash')).json();
+  assert.equal(bin.length, 1);
+  assert.equal(bin[0].layout, undefined);
+  const restored = await request('design-restore', 'POST', { id: bin[0].id, deletedAt: bin[0].deletedAt });
+  assert.equal(restored.status, 200);
+  assert.equal((await store.summaries()).length, 1);
+  assert.equal((await request('design-restore', 'POST', { id: bin[0].id, deletedAt: 'x' })).status, 404);
+  assert.equal((await request('design-purge', 'POST', {})).status, 200);
+});
+
 test('Shutdown rejects new requests before closing the worker', async t => {
   const { request, store, options } = await setup(t);
   options.onQuit = () => {};

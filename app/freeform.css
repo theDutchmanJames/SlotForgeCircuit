@@ -47,9 +47,6 @@
   flex-wrap: wrap;
   border-bottom: 1px solid var(--line);
 }
-.ff-toolbar .btn {
-  font-size: 11px;
-}
 .ff-toolbar [aria-pressed='true'] {
   border-color: var(--accent);
   color: var(--accent);
@@ -163,14 +160,6 @@ body[data-freeform='true'] .catalogue-panel .panel-heading #routed-controls {
   min-height: 42px;
   padding: 8px 2px;
   cursor: pointer;
-}
-.ff-tabs button[aria-selected='true'] {
-  color: var(--ink);
-  border-bottom-color: var(--accent);
-}
-.ff-tabs button:hover {
-  color: var(--ink);
-  background: var(--bg);
 }
 .ff-tabs button:focus-visible,
 #ff-status:focus-visible {

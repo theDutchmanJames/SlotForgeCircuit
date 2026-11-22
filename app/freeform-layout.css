@@ -1,0 +1,495 @@
+/* FreeForm Drawing in line with the Track Builder (freeform-editor.js): a Pit Board top bar with
+   the name, facts, checks, modes and tools; the canvas first with a start card and builder-style
+   zoom controls; the settings on the right as an icon rail with one section at a time. */
+
+/* ---------- Top bar ---------- */
+#freeform-dialog .ff-header.pitboard {
+  gap: 10px;
+  min-height: 64px;
+  padding: 8px 16px;
+}
+#freeform-dialog .ff-header.pitboard > div:not(.ff-toolbar) {
+  flex: none; /* the old header let its first block grow */
+}
+#freeform-dialog .ff-header .pb-name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+#freeform-dialog .ff-header .spacer {
+  flex: 1;
+}
+#freeform-dialog .ff-header .title-label input {
+  max-width: min(320px, 24vw);
+}
+#freeform-dialog #ff-status.ff-checks-pill {
+  display: inline-flex;
+  align-items: center;
+  width: auto;
+  flex: none;
+  font-weight: 500;
+  text-align: center;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#freeform-dialog #ff-status.ff-checks-pill::after {
+  content: none;
+}
+#freeform-dialog .ff-checks-pill:hover {
+  background: var(--ui-quiet-hover);
+  color: var(--ink);
+}
+#freeform-dialog .ff-checks-pill[data-state='good'] {
+  border-color: color-mix(in srgb, var(--ui-success) 55%, var(--line));
+  color: var(--ui-success);
+}
+#freeform-dialog .ff-checks-pill[data-state='warn'] {
+  border-color: color-mix(in srgb, var(--ui-warning) 60%, var(--line));
+  color: var(--ui-warning);
+}
+#freeform-dialog .ff-checks-pill[data-state='start'] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--accent-text, var(--accent));
+}
+#freeform-dialog .ff-header .ff-toolbar {
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  min-width: 0;
+  border-bottom: 0;
+}
+/* the modes as one switch: you see which one is on */
+#freeform-dialog .ff-modes {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  margin-right: 6px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+}
+#freeform-dialog .ff-modes > button {
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: 500 12.5px inherit;
+  cursor: pointer;
+}
+#freeform-dialog .ff-modes > button:hover:not(:disabled) {
+  background: var(--ui-quiet-hover);
+  color: var(--ink);
+}
+#freeform-dialog .ff-modes > button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--ink) 12%, var(--panel));
+  color: var(--ink);
+  font-weight: 600;
+}
+#freeform-dialog .ff-modes > button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+#freeform-dialog .ff-modes > button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+#freeform-dialog .ff-shape {
+  flex: none;
+}
+/* the shape tools are words, not pictures: they keep their width in narrow windows */
+#freeform-dialog .pb-tools .ff-shape > .btn:not(.big) {
+  width: auto;
+  padding: 0 9px;
+}
+#freeform-dialog .ff-shape > .btn[hidden] {
+  display: none;
+}
+#freeform-dialog .ff-toolbar > #ff-snap,
+#freeform-dialog .ff-toolbar > .ff-design-menu > summary {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 11px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+#freeform-dialog .ff-toolbar > #ff-snap {
+  margin-left: 4px;
+}
+#freeform-dialog .ff-toolbar > .ff-design-menu {
+  position: relative;
+  flex: none;
+  margin-left: 4px;
+}
+#freeform-dialog .ff-toolbar > .ff-design-menu > summary {
+  gap: 6px;
+  border-radius: 6px;
+  font-weight: 500;
+  list-style: none;
+}
+#freeform-dialog .ff-toolbar > .ff-design-menu > summary::-webkit-details-marker {
+  display: none;
+}
+#freeform-dialog .ff-toolbar > .ff-design-menu > summary::after {
+  content: '▾';
+  font-size: 11px;
+}
+#freeform-dialog .ff-design-menu > div {
+  top: calc(100% + 6px);
+  min-width: 240px;
+  gap: 2px;
+  padding: 6px;
+}
+#freeform-dialog .ff-design-menu > div .btn {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 30px;
+  border: 0;
+  background: transparent;
+}
+#freeform-dialog .ff-design-menu > div .btn:hover {
+  background: var(--ui-quiet-hover);
+}
+#freeform-dialog .ff-design-menu > div .btn[aria-pressed='true']::after {
+  content: '✓';
+  margin-left: auto;
+  color: var(--accent-text, var(--accent));
+}
+#freeform-dialog .ff-header .menu-label,
+#freeform-dialog .ff-design-menu .menu-label {
+  margin: 6px 8px 2px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+#freeform-dialog .ff-header .menu-anchor > .menu-popover {
+  top: calc(100% + 6px);
+  right: 0;
+}
+
+/* ---------- Body: canvas first, settings on the right ---------- */
+#freeform-dialog .ff-body {
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+#freeform-dialog .ff-settings {
+  order: 2;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+#freeform-dialog .ff-sidebar-heading {
+  grid-row: 1 / 3;
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 10px 6px;
+  border-bottom: 0;
+  border-right: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 40%, var(--panel));
+}
+#freeform-dialog .ff-panel-scroll {
+  grid-column: 2;
+  grid-row: 1;
+}
+#freeform-dialog .ff-sidebar-footer {
+  grid-column: 2;
+  grid-row: 2;
+}
+#freeform-dialog .ff-tabs.ff-rail {
+  display: grid;
+  grid-template-columns: 32px;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+#freeform-dialog .ff-tabs.ff-rail > button,
+#freeform-dialog .ff-rail-hide {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+#freeform-dialog .ff-tabs.ff-rail > button:hover,
+#freeform-dialog .ff-rail-hide:hover {
+  background: var(--ui-quiet-hover);
+  color: var(--ink);
+}
+#freeform-dialog .ff-tabs.ff-rail > button[aria-selected='true'] {
+  background: var(--ui-selected);
+  color: var(--accent-text, var(--accent));
+}
+#freeform-dialog .ff-rail .bl-ico,
+#freeform-dialog .ff-rail-hide .bl-ico,
+#freeform-dialog .ff-zoom .bl-ico {
+  width: 18px;
+  height: 18px;
+}
+#freeform-dialog .ff-rail-badge {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--ui-warning);
+  color: var(--bg);
+  font: 700 10px/15px var(--font-numbers, monospace);
+}
+#freeform-dialog .ff-rail-badge[hidden] {
+  display: none;
+}
+#freeform-dialog.ff-canvas-only .ff-body {
+  grid-template-columns: minmax(0, 1fr);
+}
+#freeform-dialog.ff-canvas-only .ff-settings {
+  display: none;
+}
+
+/* ---------- Canvas: start card, controls, curvature key ---------- */
+#freeform-dialog .ff-stage {
+  position: relative;
+}
+#freeform-dialog .ff-start-card {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  z-index: 3;
+  width: min(400px, calc(100% - 32px));
+  padding: 18px 20px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 22%);
+  transform: translate(-50%, -50%);
+}
+#freeform-dialog .ff-start-card[hidden] {
+  display: none;
+}
+#freeform-dialog .ff-start-card h3 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+#freeform-dialog .ff-start-card p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+#freeform-dialog .ff-start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#freeform-dialog .ff-canvas-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
+}
+#freeform-dialog .ff-canvas-bottom #ff-help {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+#freeform-dialog .ff-zoom {
+  flex: none;
+}
+#freeform-dialog .ff-zoom #ff-zoom-level {
+  min-width: 42px;
+  font-size: 11px;
+  text-align: center;
+}
+#freeform-dialog .ff-zoom > #ff-canvas-only[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent-text, var(--accent));
+}
+#freeform-dialog .ff-stage > .edge-tab {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 4;
+  width: 20px;
+  height: 56px;
+  margin-top: -28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-right: 0;
+  border-radius: 8px 0 0 8px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 16px;
+  cursor: pointer;
+}
+#freeform-dialog .ff-stage > .edge-tab[hidden] {
+  display: none;
+}
+#freeform-dialog .ff-stage > .ff-curvature-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 56px;
+  z-index: 3;
+  max-width: min(440px, calc(100% - 24px));
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+}
+#freeform-dialog .ff-stage > .ff-curvature-legend[hidden] {
+  display: none;
+}
+
+/* ---------- Settings: Point and Lanes ---------- */
+#freeform-dialog .ff-point-nav {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+#freeform-dialog .ff-point-nav select {
+  min-width: 0;
+}
+#freeform-dialog .ff-point-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 10px;
+}
+#freeform-dialog .ff-point-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+#freeform-dialog .ff-point-actions .btn {
+  margin: 0;
+}
+#freeform-dialog .ff-seg {
+  display: inline-flex;
+  gap: 2px;
+  margin: 4px 0 10px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg) 60%, var(--panel));
+}
+#freeform-dialog .ff-seg > button {
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: 500 12.5px inherit;
+  cursor: pointer;
+}
+#freeform-dialog .ff-seg > button[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--ink) 12%, var(--panel));
+  color: var(--ink);
+  font-weight: 600;
+}
+#freeform-dialog .ff-seg > button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+#freeform-dialog .ff-seg > button:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 1px;
+}
+#freeform-dialog .ff-side-field {
+  display: grid;
+  gap: 2px;
+  margin: 10px 0;
+}
+#freeform-dialog .ff-side-field > small {
+  margin-top: -6px;
+  color: var(--muted);
+  font-size: 11px;
+}
+#freeform-dialog .ff-stepper {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) 30px;
+  gap: 4px;
+  margin-top: 4px;
+}
+#freeform-dialog .ff-stepper > button {
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--ui-button, transparent);
+  color: var(--ink);
+  cursor: pointer;
+}
+#freeform-dialog .ff-stepper > input {
+  min-width: 0;
+  height: 34px;
+  margin: 0;
+  text-align: center;
+}
+#freeform-dialog #ff-issues .btn {
+  height: auto;
+  min-height: 30px;
+  padding: 6px 10px;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.4;
+}
+#freeform-dialog [hidden] {
+  display: none !important;
+}
+
+/* ---------- Narrower windows ---------- */
+@media (max-width: 1400px) {
+  #freeform-dialog .ff-body {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+  #freeform-dialog .pb-tools .pb-gl {
+    display: none;
+  }
+}
+@media (max-width: 1180px) {
+  #freeform-dialog .ff-header.pitboard {
+    flex-wrap: wrap;
+  }
+  #freeform-dialog .ff-header .ff-toolbar {
+    order: 10;
+    flex: 1 0 100%;
+    margin: 0;
+    padding: 6px 0 0;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  #freeform-dialog .ff-body {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+}

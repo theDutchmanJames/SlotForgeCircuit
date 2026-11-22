@@ -97,6 +97,8 @@ test('Late library lookup cannot overwrite a newer Save dialog or a closed one',
     integrationState: { designId: 'track' },
     librarySource: null,
     layout: () => ({ design: { revision: 'rev' } }),
+    showSavePreview() {},
+    syncSaveChoices() {},
   };
   vm.createContext(context);
   vm.runInContext(fn, context);
@@ -106,7 +108,7 @@ test('Late library lookup cannot overwrite a newer Save dialog or a closed one',
   pending[1].resolve([]);
   await latest;
   const label = get('design-save-submit').textContent;
-  assert.equal(label, 'Save design');
+  assert.equal(label, 'Save track');
   pending[0].reject(Error('Old request failed'));
   await old;
   assert.equal(get('design-save-error').textContent, '');

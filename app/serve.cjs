@@ -12,6 +12,7 @@ const types = {
   '.png': 'image/png',
   '.zip': 'application/zip',
   '.txt': 'text/plain; charset=utf-8',
+  '.ttf': 'font/ttf',
 };
 function createHandler(directory, options = {}) {
   // Native realpath matches fs.promises.realpath below, including expanded Windows 8.3 short names.
@@ -120,6 +121,16 @@ function createHandler(directory, options = {}) {
             return json(200, await store.page(Object.fromEntries(url.searchParams)));
           if (decoded.startsWith('/api/design-preview/') && req.method === 'GET')
             return json(200, await store.preview(decoded.slice(20)));
+          if (decoded === '/api/design-favourite' && req.method === 'POST')
+            return json(200, await store.favourite(String(body?.id || ''), body?.on === true));
+          if (decoded === '/api/design-trash' && req.method === 'GET') return json(200, await store.trash());
+          if (decoded === '/api/design-restore' && req.method === 'POST')
+            return json(200, await store.restore(String(body?.id || ''), String(body?.deletedAt || '')));
+          if (decoded === '/api/design-purge' && req.method === 'POST')
+            return json(
+              200,
+              await store.purge(body?.id == null ? null : String(body.id), String(body?.deletedAt || ''))
+            );
           if (decoded === '/api/designs' && req.method === 'GET') return json(200, await store.list());
           if (decoded === '/api/designs' && req.method === 'PUT')
             return json(200, await store.putDesign(body.data, body.expectedRevision));

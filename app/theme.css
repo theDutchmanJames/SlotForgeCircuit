@@ -1,8 +1,16 @@
 /* App Theme follows SlotForge Timing. Palette variables come from the shared
    presets or validated custom colours. Physical artwork keeps its own colours. */
+/* Graphite (SlotForge Restyle): neutral surfaces from these mixes, one accent. */
 html[data-theme] {
-  --ui-button: color-mix(in srgb, var(--ink) 5%, var(--panel));
-  --ui-hover: color-mix(in srgb, var(--ink) 10%, var(--panel));
+  --ui-button: color-mix(in srgb, var(--ink) 8%, var(--panel));
+  --ui-hover: color-mix(in srgb, var(--ink) 13%, var(--panel));
+  --ui-pressed: color-mix(in srgb, var(--ink) 17%, var(--panel));
+  --ui-quiet-hover: color-mix(in srgb, var(--ink) 6%, transparent);
+  --ui-selected: color-mix(in srgb, var(--ink) 10%, var(--panel));
+  --ui-rail: color-mix(in srgb, var(--bg) 55%, var(--panel));
+  --ui-box: color-mix(in srgb, var(--ink) 4%, var(--panel));
+  --ui-good: #3ecf8e;
+  --ui-focus: #4c9aff;
   --ui-inset: color-mix(in srgb, var(--bg) 75%, var(--panel));
   --ui-canvas: color-mix(in srgb, var(--bg) 94%, var(--panel));
   --ui-link: color-mix(in srgb, var(--accent) 75%, var(--ink));
@@ -10,8 +18,19 @@ html[data-theme] {
   --ui-error: #ff9b9f;
   --ui-success: #a6e2bd;
 }
+/* Light themes (SlotForge Restyle): the dark tracks behind segmented controls and the unlit
+   lights become a thin ink tint and a soft grey in Light, Ocean and a light Custom theme. */
+:root {
+  --sf-track: rgb(0 0 0 / 22%);
+  --sf-lightoff: #1b1f25;
+  --sf-lightoff-ring: color-mix(in srgb, var(--panel) 70%, #000);
+}
+:root:is([data-theme='light'], [data-theme='ocean'], [data-tone='light']) {
+  --sf-track: color-mix(in srgb, var(--ink) 7%, transparent);
+  --sf-lightoff: #d5d9df;
+  --sf-lightoff-ring: color-mix(in srgb, var(--ink) 8%, var(--panel));
+}
 html[data-tone='light'] {
-  --ui-button: color-mix(in srgb, var(--ink) 4%, var(--bg));
   --ui-warning: #815a13;
   --ui-error: #b5222b;
   --ui-success: #25623a;
@@ -26,39 +45,16 @@ html[data-theme] :is(button, input, select, textarea) {
 html[data-theme] :is(input, select, textarea) {
   background: var(--bg);
 }
-html[data-theme] :is(button, a, input, select, summary):focus-visible {
-  outline-color: var(--accent);
+html[data-theme] :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid var(--ui-focus);
+  outline-offset: 2px;
 }
-html[data-theme] .btn {
-  background: var(--ui-button);
-  color: var(--ink);
-}
-html[data-theme] .btn:hover:not(:disabled) {
-  background: var(--ui-hover);
-}
-html[data-theme] .btn.quiet {
-  background: transparent;
-}
-html[data-theme] :is(.btn.primary, .link) {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-html[data-theme] .btn.primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
-  border-color: var(--accent);
-}
-html[data-theme] .btn.toggle[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--ui-success) 14%, var(--panel));
-  border-color: color-mix(in srgb, var(--ui-success) 55%, var(--line));
-  color: var(--ui-success);
-}
-html[data-theme] :is(.piece-card, .catalogue-folder) {
+html[data-theme] .piece-card {
   background: var(--ui-inset);
 }
 html[data-theme] .piece-card:hover {
   background: var(--ui-hover);
-  border-color: var(--muted);
+  border-color: color-mix(in srgb, var(--ink) 30%, var(--line));
 }
 html[data-theme] .toolbar {
   background: var(--panel);
@@ -107,16 +103,8 @@ html[data-theme] .metric-grid > div {
   background: var(--ui-inset);
   border-color: var(--line);
 }
-html[data-theme] :is(.custom-preview, .design-thumbnail) {
+html[data-theme] .custom-preview {
   background: var(--ui-inset);
-}
-html[data-theme] .title-label input {
-  background: var(--bg);
-  border-color: var(--muted);
-}
-html[data-theme] .title-label input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 html[data-theme] input[readonly] {
   color: var(--muted);
@@ -124,7 +112,8 @@ html[data-theme] input[readonly] {
 }
 html[data-theme] #curve-family-table .active {
   color: var(--ink);
-  background: color-mix(in srgb, var(--accent) 18%, var(--panel));
+  background: var(--ui-selected);
+  font-weight: 600;
 }
 html[data-theme] :is(.badge, .meta, .piece-card .reference, #borders-missing, #storage-error) {
   color: var(--ui-warning);
@@ -132,8 +121,11 @@ html[data-theme] :is(.badge, .meta, .piece-card .reference, #borders-missing, #s
 html[data-theme] :is(.custom-preview p.error, .export-source-card .error, #design-save-error, .error) {
   color: var(--ui-error);
 }
-html[data-theme] :is(.eyebrow, .slider-label output) {
-  color: var(--ui-link);
+html[data-theme] .eyebrow {
+  color: var(--muted);
+}
+html[data-theme] .slider-label output {
+  color: var(--ink);
 }
 html[data-theme] .text-button {
   color: var(--ui-link);
@@ -141,17 +133,11 @@ html[data-theme] .text-button {
 html[data-theme] .notice {
   border-left-color: var(--ui-warning);
 }
-html[data-theme] dialog {
-  border-color: var(--line);
-}
-html[data-theme] dialog::backdrop {
-  background: #080c1370;
-}
 html[data-theme] #toast {
-  background: var(--panel);
+  background: var(--ui-box);
   color: var(--ink);
-  border-color: var(--muted);
-  box-shadow: 0 8px 28px #0003;
+  border-color: var(--line);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 35%);
 }
 html[data-theme] .space-guide-area {
   fill: color-mix(in srgb, var(--ui-link) 5%, transparent);
@@ -204,11 +190,7 @@ html[data-theme] #snap-guide path {
 .sf-header .theme-switch {
   display: flex;
   align-items: center;
-  gap: 3px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  padding: 4px;
-  background: var(--bg);
+  flex-wrap: nowrap;
   flex-shrink: 0;
 }
 .sf-header .theme-switch button {
@@ -230,18 +212,8 @@ html[data-theme] #snap-guide path {
   box-shadow: none;
   transform: none;
 }
-.sf-header .theme-switch button:hover {
-  color: var(--ink);
-  background: var(--ui-hover);
-}
-.sf-header .theme-switch button[aria-pressed='true'] {
-  color: var(--ink);
-  background: var(--panel);
-  border-color: var(--accent);
-  box-shadow: inset 0 -2px 0 var(--accent);
-}
 .sf-header .theme-switch button:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 3px solid var(--ui-focus);
   outline-offset: 2px;
 }
 .sf-header .sf-brand img {
@@ -264,8 +236,19 @@ html[data-theme] .sf-header .sf-nav-link:hover {
 .theme-settings {
   max-width: 1100px;
 }
-.theme-settings .export-card {
-  margin-bottom: 22px;
+.theme-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.theme-group-head .theme-current-label {
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+}
+.theme-presets-card .theme-note {
+  margin-top: 10px;
 }
 .theme-settings .section-row {
   gap: 20px;
@@ -277,9 +260,6 @@ html[data-theme] .sf-header .sf-nav-link:hover {
 }
 .theme-current-label strong {
   color: var(--ink);
-}
-.theme-settings .export-card > p {
-  margin: 10px 0 22px;
 }
 .theme-presets {
   display: grid;
@@ -336,20 +316,6 @@ html[data-theme] .sf-header .sf-nav-link:hover {
 }
 .theme-swatches i:nth-child(4) {
   background: var(--accent);
-}
-.theme-copy-row {
-  display: flex;
-  align-items: flex-end;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin: 18px 0 24px;
-}
-.theme-copy-row .field {
-  margin: 0;
-  min-width: 200px;
-}
-.theme-copy-row > .fine {
-  margin: 0 0 7px;
 }
 .theme-colors {
   display: grid;

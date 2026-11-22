@@ -1,12 +1,12 @@
 /* All colours are variables. A theme sets them on the page (the Custom theme does it from themeui.js) and on its own tile in App Settings > App Theme, which is why these rules do not say :root. */
-[data-theme="dark"]{--bg:#171b21;--panel:#222831;--ink:#e8e6e1;--muted:#98a0ab;--line:#343b47;--accent:#e5484d;--on-accent:#fff}
+[data-theme="dark"]{--bg:#171b21;--panel:#222831;--ink:#e8e6e1;--muted:#98a0ab;--line:#343b47;--accent:#e5484d;--on-accent:#fff;--accent-text:#f06b6f;--accent-fill:#d6383e}
 [data-theme="midnight"]{--bg:#0e1624;--panel:#16233a;--ink:#e6edf7;--muted:#8fa3bf;--line:#2a3b57;--accent:#4c9aff;--on-accent:#06101f}
 [data-theme="forest"]{--bg:#121a16;--panel:#1b2721;--ink:#e5efe8;--muted:#93a89b;--line:#2f4137;--accent:#3ecf8e;--on-accent:#06150e}
 [data-theme="sunset"]{--bg:#1c1512;--panel:#2a1f1a;--ink:#f3e8e0;--muted:#b49a8a;--line:#46352c;--accent:#ff7a3d;--on-accent:#1f0d03}
 [data-theme="violet"]{--bg:#17131f;--panel:#221c2e;--ink:#ece6f5;--muted:#a094b5;--line:#3a3150;--accent:#a46bff;--on-accent:#12061f}
 [data-theme="carbon"]{--bg:#121212;--panel:#1e1e1e;--ink:#eaeaea;--muted:#9a9a9a;--line:#333333;--accent:#ffd400;--on-accent:#000000}
-[data-theme="ocean"]{--bg:#e8f1f6;--panel:#ffffff;--ink:#12232e;--muted:#5a7080;--line:#c9d9e3;--accent:#0f7ac0;--on-accent:#ffffff}
-[data-theme="light"]{--bg:#f1efea;--panel:#ffffff;--ink:#1d2229;--muted:#656c76;--line:#d9d6cf;--accent:#d62828;--on-accent:#fff}
+[data-theme="ocean"]{--bg:#e8f1f6;--panel:#ffffff;--ink:#12232e;--muted:#5a7080;--line:#c9d9e3;--accent:#0d70b0;--on-accent:#ffffff}
+[data-theme="light"]{--bg:#f1efea;--panel:#ffffff;--ink:#1d2229;--muted:#656c76;--line:#d9d6cf;--accent:#c92424;--on-accent:#fff}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Segoe UI",system-ui,sans-serif}
 header{display:flex;align-items:center;gap:24px;padding:12px 20px;border-bottom:1px solid var(--line);background:var(--panel)}

@@ -4,6 +4,12 @@
 //   macOS:   .dmg (installer)        + .zip (portable .app)
 //   Linux:   .deb (installer)        + .AppImage (portable)
 // Never reads or changes saved track data.
+//
+// The Windows portable sets "unpackDirName": true in package.json so every launch unpacks into
+// its own temporary folder. With the default (one fixed folder per build) each launch and each
+// exit wipes that shared folder, so opening the portable while it is already running deleted the
+// running copy's files ("Cannot find module …disk-store.cjs"). electron-builder documents `false`
+// for this, but 26.x treats `false` like unset; `true` is what reaches the per-launch folder.
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');

@@ -1333,9 +1333,15 @@
         }[key] || null
       );
     return (
-      { r: e.shiftKey ? 'rotateBack' : 'rotate', m: 'mirror', delete: 'remove', backspace: 'remove', escape: 'escape' }[
-        key
-      ] || null
+      {
+        r: e.shiftKey ? 'rotateBack' : 'rotate',
+        m: 'mirror',
+        f: 'fitSelection',
+        h: 'toggleSidebars',
+        delete: 'remove',
+        backspace: 'remove',
+        escape: 'escape',
+      }[key] || null
     );
   }
   function animationLoop(request, cancel, render) {

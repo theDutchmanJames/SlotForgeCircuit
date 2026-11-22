@@ -13,23 +13,19 @@ const { functionSource } = require('./test-source.cjs');
 const close = (a, b, eps = 1e-5) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
 
 test('Track Packs Configure opens Routed Wood for regenerated packs', () => {
-  const app = source('app.js'),
-    start = app.indexOf('function renderTrackPacks()'),
-    end = app.indexOf('function renderCustomLibrary()', start);
+  const app = source('app.js');
   const element = () => ({
     children: [],
     dataset: {},
+    style: { setProperty() {} },
     value: '',
     append(...nodes) {
       this.children.push(...nodes);
     },
-    replaceChildren() {
-      this.children = [];
+    replaceChildren(...nodes) {
+      this.children = nodes;
     },
     setAttribute() {},
-    querySelector() {
-      return { dataset: { packFilter: 'all' } };
-    },
   });
   for (const settings of [R.defaults, { ...R.defaults, laneCount: 4, constructionMode: 'table' }]) {
     const nodes = new Map(),
@@ -39,16 +35,21 @@ test('Track Packs Configure opens Routed Wood for regenerated packs', () => {
       },
       location = { href: 'http://127.0.0.1:8173/app/#packs' },
       pack = R.pack(settings);
-    vm.runInNewContext(app.slice(start, end) + ';renderTrackPacks();', {
-      $: get,
-      document: { createElement: element },
-      F,
-      packs: [pack],
-      customLibrary: { packs: [] },
-      location,
-    });
-    const descendants = node => [node, ...node.children.flatMap(descendants)],
-      configure = descendants(get('pack-library')).find(n => n.textContent === 'Configure');
+    vm.runInNewContext(
+      [functionSource(app, 'renderWbPackBar'), 'const wbOwn = p => customLibrary.packs.includes(p);'].join('\n') +
+        ';renderWbPackBar(pack);',
+      {
+        $: get,
+        document: { createElement: element },
+        wbEl: (tag, className, text) => Object.assign(element(), { className, textContent: text }),
+        F,
+        pack,
+        customLibrary: { packs: [] },
+        location,
+      }
+    );
+    const descendants = node => [node, ...(node.children || []).flatMap(descendants)],
+      configure = descendants(get('wb-pack-bar')).find(n => n.textContent === 'Configure in Routed Wood');
     assert.ok(configure);
     configure.onclick();
     const target = new URL(location.href, 'http://127.0.0.1:8173/app/');

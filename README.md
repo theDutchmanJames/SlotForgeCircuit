@@ -274,7 +274,7 @@ Circuit is a desktop app for **Windows, macOS and Linux**. Pick the **installer*
 
 The installers and portable apps are built with Electron. On each system, with Node.js 24 or newer, run **Build Windows.cmd**, **Build macOS.command** or `sh "Build Linux.sh"`. Each one installs its build tools, runs the tests, builds the installer and portable app into `dist/desktop/v<version>/`, and checks that the built app starts.
 
-For development, `npm install` then `npm start` opens the app from the source files. `npm test` runs the unit tests, `npm run test:ui` clicks through the real app in a hidden window (29 interface tests), and `npm run format` tidies the code with Prettier. The version number is set only in `app/integration.js`; `npm run version:sync` (and every build) copies it into `package.json`.
+For development, `npm install` then `npm start` opens the app from the source files. `npm test` runs the unit tests, `npm run test:ui` clicks through the real app in a hidden window (48 interface tests), and `npm run format` tidies the code with Prettier. The version number is set only in `app/integration.js`; `npm run version:sync` (and every build) copies it into `package.json`.
 
 ### Browser edition (previous installer)
 

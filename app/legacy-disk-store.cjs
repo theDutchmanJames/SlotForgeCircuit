@@ -11,6 +11,38 @@ const NO_WRITE = Symbol('no-write'),
   MAX = 50 * 1024 * 1024,
   clone = x => structuredClone(x),
   revision = () => crypto.randomUUID();
+// The write lock names the program that holds it (SlotForgeCircuit.exe, electron, node…).
+const PROGRAM = path.basename(process.execPath),
+  NO_LINKS = new Set(['EPERM', 'ENOTSUP', 'ENOSYS', 'EINVAL', 'EXDEV']);
+// The program now running as `pid`, or null when that cannot be found out (then the lock is
+// treated as held, the safe choice). Only asked when a lock is found in the way.
+function programOf(pid) {
+  try {
+    const { spawnSync } = require('node:child_process');
+    if (process.platform === 'win32') {
+      const out = spawnSync('tasklist', ['/FI', `PID eq ${pid}`, '/FO', 'CSV', '/NH'], {
+        encoding: 'utf8',
+        timeout: 5000,
+        windowsHide: true,
+      }).stdout;
+      const name = /^"([^"]+)","(\d+)"/m.exec(out || '');
+      return name && Number(name[2]) === pid ? name[1] : null;
+    }
+    const out = spawnSync('ps', ['-o', 'comm=', '-p', String(pid)], { encoding: 'utf8', timeout: 5000 }).stdout;
+    return out?.trim() ? path.basename(out.trim()) : null;
+  } catch {
+    return null;
+  }
+}
+// Linux shortens program names to 15 characters; Windows ignores case.
+function sameProgram(a, b) {
+  const clean = s =>
+    s
+      .toLowerCase()
+      .replace(/\.exe$/, '')
+      .slice(0, 15);
+  return clean(a) === clean(b);
+}
 // Circuit retains the original installation path so upgrades find saved work.
 function home(platform = process.platform, env = process.env, user = os.homedir()) {
   if (env.SLOTFORGE_HOME) return path.resolve(env.SLOTFORGE_HOME);
@@ -112,29 +144,46 @@ class DiskStore {
   }
   async lock() {
     const file = path.join(this.directory, '.write-lock'),
-      token = revision();
-    for (let i = 0; i < 100; i++) {
-      let acquired = false;
-      try {
-        const handle = await fs.open(file, 'wx', 0o600);
-        acquired = true;
+      token = revision(),
+      checked = new Map();
+    let linkable = true;
+    // The lock is written whole into a temporary file and then linked into place, which fails
+    // if a lock is already there: a crash can no longer leave an empty or half-written lock.
+    const temp = path.join(this.directory, '.write-lock-' + token + '.tmp');
+    await fs.writeFile(temp, JSON.stringify({ pid: process.pid, program: PROGRAM, token }), {
+      mode: 0o600,
+      flag: 'wx',
+    });
+    try {
+      for (let i = 0; i < 100; i++) {
         try {
-          await handle.writeFile(JSON.stringify({ pid: process.pid, token }));
-        } finally {
-          await handle.close();
+          if (linkable) await fs.link(temp, file);
+          else {
+            // FAT and exFAT drives (USB sticks) have no hard links: create, then fill.
+            const handle = await fs.open(file, 'wx', 0o600);
+            try {
+              await handle.writeFile(await fs.readFile(temp));
+            } catch (e) {
+              await handle.close().catch(() => {});
+              await fs.unlink(file).catch(() => {});
+              throw e;
+            }
+            await handle.close();
+          }
+          return async () => {
+            try {
+              const value = JSON.parse(await fs.readFile(file, 'utf8'));
+              if (value.token === token) await fs.unlink(file);
+            } catch {}
+          };
+        } catch (e) {
+          if (linkable && NO_LINKS.has(e.code)) {
+            linkable = false;
+            i--;
+            continue;
+          }
+          if (e.code !== 'EEXIST') throw e;
         }
-        return async () => {
-          try {
-            const value = JSON.parse(await fs.readFile(file, 'utf8'));
-            if (value.token === token) await fs.unlink(file);
-          } catch {}
-        };
-      } catch (e) {
-        if (acquired) {
-          await fs.unlink(file).catch(() => {});
-          throw e;
-        }
-        if (e.code !== 'EEXIST') throw e;
         try {
           const before = await fs.lstat(file),
             text = await fs.readFile(file, 'utf8');
@@ -146,12 +195,19 @@ class DiskStore {
           if (Number.isInteger(value?.pid) && value.pid > 0) {
             try {
               process.kill(value.pid, 0);
+              // Windows soon gives a finished process's number to another program. A lock
+              // whose number now belongs to a different program was left by a crash.
+              if (typeof value.program === 'string') {
+                if (!checked.has(value.pid)) checked.set(value.pid, programOf(value.pid));
+                const now = checked.get(value.pid);
+                abandoned = now !== null && !sameProgram(now, value.program);
+              }
             } catch (check) {
               abandoned = check.code === 'ESRCH';
             }
           }
-          // A crash between creating and filling the lock can leave an empty or
-          // partial file. Allow time for a live writer to finish before recovery.
+          // Older copies of Circuit created the lock first and filled it after, so a crash in
+          // between could leave an empty or partial file. Allow time for a live writer to finish.
           else abandoned = before.isFile() && Date.now() - before.mtimeMs > 30000;
           if (abandoned) {
             const after = await fs.lstat(file);
@@ -169,6 +225,8 @@ class DiskStore {
         } catch {}
         await new Promise(r => setTimeout(r, 25));
       }
+    } finally {
+      await fs.unlink(temp).catch(() => {});
     }
     throw error('Another SlotForge window is writing files. Please retry.', 409);
   }

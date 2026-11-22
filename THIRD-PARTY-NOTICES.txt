@@ -1,4 +1,4 @@
-SlotForge Circuit — bundled PDF dependencies
+SlotForge Circuit — bundled third-party files
 
 jsPDF 4.2.1: https://github.com/parallax/jsPDF/tree/v4.2.1
 License: MIT. Full notice: app/vendor/jspdf-LICENSE.txt.
@@ -20,3 +20,10 @@ Official release URLs and SHA-256 hashes: installer/node-runtimes.json.
 Full upstream license notices: installer/NODE-LICENSE.txt, also retained with
 manual private runtime copies. Bootstrap downloads the official archive and
 checks the pinned digest before execution. Node is not installed globally.
+
+Interface fonts (the shared SlotForge look, same files as SlotForge Timing):
+Barlow Condensed Bold and Bold Italic: https://github.com/google/fonts/tree/main/ofl/barlowcondensed
+Roboto Mono (variable weight): https://github.com/google/fonts/tree/main/ofl/robotomono
+License: SIL Open Font License 1.1. Full notices: app/fonts/barlowcondensed/OFL.txt
+and app/fonts/robotomono/OFL.txt. Unmodified TTF files; Roboto Mono is stored as
+app/fonts/robotomono/RobotoMono-Variable.ttf (renamed from RobotoMono[wght].ttf).

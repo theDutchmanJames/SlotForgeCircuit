@@ -225,6 +225,8 @@
       });
     if (cache.size >= 8) cache.delete(cache.keys().next().value);
     cache.set(key, issues);
+    // Keep only the last few layouts (undo and redo hit these); older ones are dropped.
+    while (cache.size > 6) cache.delete(cache.keys().next().value);
     return structuredClone(issues);
   }
   return { height, settings, at, active, checks, overlap, clearance };

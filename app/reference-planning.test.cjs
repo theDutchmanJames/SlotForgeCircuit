@@ -211,3 +211,21 @@ test('Planning geometry uses road outlines for selection and scales port widths 
   assert.ok(Math.abs(F.ports(F.pose(larger), { [larger.id]: larger })[0].width - 500) < 1e-6);
   assert.equal(larger.geometry.lanePaths.length, 0);
 });
+test('Undo snapshots keep the reference picture once and give it back unchanged', () => {
+  const big = 'data:image/png;base64,' + 'A'.repeat(400000),
+    state = {
+      planning: { version: 1, measurements: [], owned: {}, reference: { image: big, x: 0, y: 0 } },
+      title: 'T',
+    },
+    a = F.Planning.snapshotText(state),
+    b = F.Planning.snapshotText(structuredClone(state));
+  assert.ok(a.length < 1000, 'the snapshot text holds a token, not the picture');
+  assert.equal(a, b, 'equal pictures give equal snapshots');
+  assert.deepEqual(F.Planning.snapshotValue(a), state);
+  const other = F.Planning.snapshotText({
+    ...state,
+    planning: { ...state.planning, reference: { ...state.planning.reference, image: big + 'B' } },
+  });
+  assert.notEqual(other, a, 'a different picture is a change');
+  assert.equal(F.Planning.snapshotValue(JSON.stringify({ image: 'picture:999' })).image, 'picture:999');
+});

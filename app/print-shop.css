@@ -1,0 +1,536 @@
+/* Import & Export, the Print Shop: what to export on the left (Import at its foot), the output
+   itself in the middle, the format's options and its one Save button on the right. */
+
+#export-view.shop {
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+  min-height: calc(100vh - 110px);
+}
+.shop-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 24px;
+  margin-bottom: 16px;
+}
+.shop-head h1 {
+  margin: 0;
+}
+.shop-formats {
+  margin-left: auto;
+}
+.shop {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 270px minmax(0, 1fr) 300px;
+  gap: 16px;
+  min-height: 560px;
+  height: calc(100vh - 230px);
+}
+.shop-label {
+  margin: 0 0 6px;
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* ---------- Left: what to export, and the way in ---------- */
+.shop-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.shop-sources {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px 10px 6px;
+}
+.shop-group-list + .shop-group-list {
+  margin-top: 12px;
+}
+.shop-group-list > .shop-label {
+  margin-left: 4px;
+}
+.shop-source {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0 0 3px;
+  padding: 5px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.shop-source:hover {
+  background: var(--ui-quiet-hover);
+}
+.shop-source:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: -1px;
+}
+.shop-source[aria-selected='true'] {
+  border-color: color-mix(in srgb, var(--accent) 60%, var(--line));
+  background: var(--ui-selected);
+}
+.shop-thumb {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 40px;
+  padding: 3px;
+  border-radius: 7px;
+  background: var(--ui-canvas, var(--bg));
+  color: var(--muted);
+}
+.shop-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.shop-icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.shop-source-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.shop-source-text strong {
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shop-source-text span {
+  overflow: hidden;
+  color: var(--muted);
+  font: 500 11px/1.3 var(--font-numbers, Consolas, monospace);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shop-import {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--bg) 35%, var(--panel));
+  border-radius: 0 0 12px 12px;
+}
+.shop-drop {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 14px 10px;
+  border: 2px dashed color-mix(in srgb, var(--ink) 22%, var(--line));
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.shop-drop svg {
+  color: var(--accent);
+}
+.shop-drop strong {
+  color: var(--ink);
+  font-size: 13.5px;
+}
+.shop-drop:hover {
+  border-color: var(--accent);
+  background: var(--ui-selected);
+}
+.shop-drop:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+.shop-import-button {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ---------- Middle: the output ---------- */
+.shop-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--ui-canvas, var(--bg));
+}
+.shop-message {
+  max-width: 420px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+.shop-paper-wrap {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+.shop-paper {
+  display: flex;
+  flex-direction: column;
+  width: min(430px, 100%);
+  aspect-ratio: 210 / 297;
+  padding: 30px 34px 22px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.28);
+  color: #222;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+.shop-paper.landscape {
+  width: min(600px, 100%);
+  aspect-ratio: 297 / 210;
+  padding: 22px 30px 16px;
+}
+.shop-paper-wrap {
+  width: 100%;
+}
+.shop-paper h3 {
+  margin: 0;
+  color: #111;
+  font: italic 700 21px/1.1 var(--font-title, sans-serif);
+  text-transform: uppercase;
+}
+.shop-paper-sub {
+  margin: 4px 0 10px;
+  color: #666;
+  font-size: 10.5px;
+}
+.shop-paper-picture {
+  flex: none;
+  height: 40%;
+  padding: 6px;
+  border: 1px solid #e4e4e4;
+  border-radius: 3px;
+}
+.shop-paper.landscape .shop-paper-picture {
+  height: 34%;
+}
+.shop-paper.landscape .shop-table {
+  margin-top: 6px;
+}
+.shop-paper-picture svg {
+  width: 100%;
+  height: 100%;
+}
+.shop-paper .shop-table {
+  margin-top: 10px;
+  color: #222;
+  font-size: 9.5px;
+}
+.shop-paper .shop-table th {
+  border-bottom-color: #ddd;
+  background: #f3f5f7;
+  color: #777;
+}
+.shop-paper .shop-table td {
+  border-bottom-color: #efefef;
+}
+.shop-paper-more {
+  margin: 6px 0 0;
+  color: #888;
+  font-size: 9.5px;
+}
+.shop-paper-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: auto;
+  color: #999;
+  font-size: 9px;
+}
+.shop-caption {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.shop-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.shop-table th {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+}
+.shop-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+}
+.shop-canvas {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  min-height: 300px;
+  padding: 24px;
+  border-radius: 10px;
+}
+.shop-canvas[data-background='transparent'] {
+  background: repeating-conic-gradient(color-mix(in srgb, var(--ink) 9%, transparent) 0 25%, transparent 0 50%) 0 0 /
+    22px 22px;
+}
+.shop-canvas[data-background='white'] {
+  background: #fff;
+}
+.shop-canvas[data-background='dark'] {
+  background: #15171c;
+}
+.shop-canvas img,
+.shop-drawing img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.shop-drawing {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+.shop-stage[data-format='csv'],
+.shop-stage[data-format='pack'] {
+  place-items: start stretch;
+}
+.shop-sheet {
+  width: 100%;
+  padding: 6px 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+.shop-sheet .shop-table td:nth-child(4),
+.shop-sheet .shop-table td:nth-child(5) {
+  font-family: var(--font-numbers, Consolas, monospace);
+}
+.shop-file {
+  display: grid;
+  gap: 14px;
+  width: min(520px, 100%);
+  padding: 22px 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.shop-file-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--accent);
+}
+.shop-file-head > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.shop-file-head strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.shop-file-head span {
+  color: var(--muted);
+  font: 500 12px var(--font-numbers, Consolas, monospace);
+}
+.shop-file-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0 0 0 18px;
+  font-size: 13.5px;
+}
+.shop-timing {
+  margin: -8px 0 0;
+  color: var(--ui-success, var(--ink));
+  font-size: 13px;
+}
+.shop-timing.warn {
+  color: var(--ui-warning, var(--ink));
+}
+
+/* ---------- Right: the options and Save ---------- */
+.shop-options {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.shop-options h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.shop-note {
+  margin: -8px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.shop-options-body {
+  display: grid;
+  gap: 14px;
+}
+.shop-options-body:empty {
+  display: none;
+}
+.shop-group .pack-hub-filters {
+  display: flex;
+}
+.shop-group .pack-hub-filters > .btn {
+  flex: 1;
+  justify-content: center;
+}
+.shop-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.shop-save {
+  width: 100%;
+  justify-content: center;
+}
+.shop-save.primary {
+  min-height: 40px;
+  font-size: 14px;
+}
+.shop-save[hidden] {
+  display: none;
+}
+.shop-meta {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font: 500 11.5px/1.4 var(--font-numbers, Consolas, monospace);
+  text-align: center;
+}
+.shop-meta:empty,
+.shop-options .error:empty {
+  display: none;
+}
+
+/* ---------- Drop anywhere ---------- */
+.shop-drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  pointer-events: none;
+}
+.shop-drop-overlay[hidden] {
+  display: none;
+}
+.shop-drop-overlay > div {
+  display: grid;
+  gap: 4px;
+  padding: 28px 40px;
+  border: 2px dashed var(--accent);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--muted);
+  text-align: center;
+}
+.shop-drop-overlay strong {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+/* ---------- The review window for an imported file ---------- */
+.import-review {
+  width: min(560px, calc(100vw - 32px));
+}
+.import-review-body {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+}
+.import-review-body:has(> .import-review-picture[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+.import-review-picture {
+  display: grid;
+  place-items: center;
+  height: 110px;
+  padding: 6px;
+  border-radius: 8px;
+  background: var(--ui-canvas, var(--bg));
+  color: var(--muted);
+}
+.import-review-picture[hidden] {
+  display: none;
+}
+.import-review-picture img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.import-review-picture .shop-icon {
+  width: 40px;
+  height: 40px;
+}
+.import-review-facts {
+  margin: 0 0 6px;
+  font: 500 13px/1.4 var(--font-numbers, Consolas, monospace);
+}
+
+@media (max-width: 1280px) {
+  .shop {
+    grid-template-columns: 230px minmax(0, 1fr) 260px;
+  }
+  .shop-paper {
+    width: min(360px, 100%);
+  }
+  .shop-paper.landscape {
+    width: min(480px, 100%);
+  }
+}
+@media (max-width: 1000px) {
+  .shop {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+  }
+  .shop-list {
+    max-height: 360px;
+  }
+  .shop-stage {
+    min-height: 480px;
+  }
+}

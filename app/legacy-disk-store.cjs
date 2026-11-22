@@ -28,6 +28,16 @@ function programOf(pid) {
       const name = /^"([^"]+)","(\d+)"/m.exec(out || '');
       return name && Number(name[2]) === pid ? name[1] : null;
     }
+    // Linux: /proc names the real program; ps reports thread names such as "MainThread".
+    if (process.platform === 'linux') {
+      try {
+        return path.basename(
+          require('node:fs')
+            .readlinkSync(`/proc/${pid}/exe`)
+            .replace(/ \(deleted\)$/, '')
+        );
+      } catch {}
+    }
     const out = spawnSync('ps', ['-o', 'comm=', '-p', String(pid)], { encoding: 'utf8', timeout: 5000 }).stdout;
     return out?.trim() ? path.basename(out.trim()) : null;
   } catch {

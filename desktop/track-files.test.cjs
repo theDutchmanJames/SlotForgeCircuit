@@ -88,15 +88,13 @@ test('recent files: newest first, no duplicates whatever the case, at most 8, ke
     files = env.make(),
     paths = Array.from({ length: 10 }, (_, i) => env.file(`Track ${i}.slotforge`));
   for (const p of paths) files.remember(p);
-  files.remember(paths[9].toUpperCase());
+  // Windows and macOS ignore case in file names, so another case is the same file; on Linux it is not.
+  const again = process.platform === 'linux' ? paths[9] : paths[9].toUpperCase();
+  files.remember(again);
   const saved = env.recent();
   assert.equal(saved.recent.length, 8);
-  assert.equal(
-    saved.recent[0],
-    path.resolve(paths[9].toUpperCase()),
-    'the same file in another case is not listed twice'
-  );
-  assert.ok(!saved.recent.includes(paths[9]));
+  assert.equal(saved.recent[0], path.resolve(again), 'the same file is not listed twice');
+  assert.equal(saved.recent.filter(p => p.toLowerCase() === paths[9].toLowerCase()).length, 1);
   assert.ok(!saved.recent.includes(paths[0]) && !saved.recent.includes(paths[1]), 'the oldest drop off');
   assert.equal(saved.lastFolder.toLowerCase(), env.dir.toLowerCase());
   assert.equal(env.recentDocs.length, 11, 'every .slotforge file goes to the jump list');

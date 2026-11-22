@@ -30,7 +30,9 @@ function createTrackFiles({ app, dialog, ipcMain, getWindow, log, automated = fa
   };
   function remember(file) {
     const full = path.resolve(file);
-    state.recent = [full, ...state.recent.filter(p => p.toLowerCase() !== full.toLowerCase())].slice(0, MAX_RECENT);
+    // Windows and macOS ignore case in file names; Linux does not.
+    const same = process.platform === 'linux' ? p => p === full : p => p.toLowerCase() === full.toLowerCase();
+    state.recent = [full, ...state.recent.filter(p => !same(p))].slice(0, MAX_RECENT);
     state.lastFolder = path.dirname(full);
     persist();
     try {

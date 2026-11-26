@@ -1,0 +1,146 @@
+/* Power panel (inspector) and power marks on the track. */
+.power-summary {
+  margin-top: 0;
+}
+.power-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 10px;
+}
+.power-head {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.power-feeds {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 12.5px;
+}
+.power-feeds li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.power-feeds li span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.power-mark {
+  min-width: 30px;
+  height: 22px;
+  border-radius: 11px;
+  border: 0;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #20242b;
+  background: #f2c94c;
+}
+.power-mark.base {
+  background: #f2994a;
+}
+.power-remove {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.power-remove:hover {
+  background: var(--ui-quiet-hover);
+  color: var(--ink);
+}
+.power-stretches li.bad {
+  color: var(--ui-warning);
+}
+.power-stretches li.ok {
+  list-style: disc;
+  margin-left: 0;
+  color: inherit;
+}
+#power-suggest {
+  margin-top: 8px;
+}
+.power-rules {
+  display: grid;
+  gap: 6px;
+}
+.power-rules .field-error:empty {
+  display: none;
+}
+.power-rules .field-error {
+  margin: 0;
+  color: var(--ui-error);
+  font-size: 12px;
+}
+.linklike {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--ui-link);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.power-sheet {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 8px 0 12px;
+  font-size: 12px;
+}
+.power-sheet caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 4px;
+}
+.power-sheet th,
+.power-sheet td {
+  padding: 3px 4px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  font-weight: normal;
+}
+.power-sheet thead th {
+  color: var(--muted);
+  font-size: 11px;
+}
+.power-sheet input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 2px 4px;
+}
+.power-sheet th:nth-child(1) {
+  width: 18%;
+}
+.power-sheet th:nth-child(2) {
+  width: 28%;
+}
+.power-sheet th:nth-child(3) {
+  width: 28%;
+}
+.power-sheet td:last-child {
+  white-space: nowrap;
+}
+.power-sheet tr.bad td:last-child {
+  color: var(--ui-error);
+  font-weight: 600;
+}
+.power-sheet tr.ok td:last-child {
+  color: var(--ui-success);
+}

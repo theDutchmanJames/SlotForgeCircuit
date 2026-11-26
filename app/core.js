@@ -7,7 +7,8 @@
       require('./elevation.js'),
       require('./preview-car.js'),
       require('./plastic-lanes.js'),
-      require('./planning-data.js')
+      require('./planning-data.js'),
+      require('./power.js')
     );
   else
     root.Forge = factory(
@@ -17,9 +18,10 @@
       root.TrackElevation,
       root.PreviewCar,
       root.PlasticLanes,
-      root.PlanningData
+      root.PlanningData,
+      root.TrackPower
     );
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (G, R, FF, H, PC, PL, PD) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (G, R, FF, H, PC, PL, PD, PW) {
   'use strict';
   const rad = d => (d * Math.PI) / 180,
     deg = r => (r * 180) / Math.PI,
@@ -939,14 +941,23 @@
       routed = raw.workspace?.routed === undefined ? null : R.workspace(raw.workspace.routed);
     const previewCar = raw.workspace?.previewCar === undefined ? null : PC.settings(raw.workspace.previewCar);
     const planning = raw.workspace?.planning === undefined ? null : PD.validate(raw.workspace.planning);
+    // Power taps belong to pieces of this layout; feeds and readings of removed pieces are dropped.
+    const power =
+      raw.workspace?.power === undefined
+        ? null
+        : PW.prune(
+            PW.settings(raw.workspace.power),
+            pieces.map(p => p.id)
+          );
     return {
-      ...(guide || routed || previewCar || planning
+      ...(guide || routed || previewCar || planning || (power && PW.used(power))
         ? {
             workspace: {
               ...(planning ? { planning } : {}),
               ...(guide ? { spaceGuide: guide } : {}),
               ...(routed ? { routed } : {}),
               ...(previewCar ? { previewCar } : {}),
+              ...(power && PW.used(power) ? { power } : {}),
             },
           }
         : {}),
@@ -1425,6 +1436,7 @@
     Planning: PD,
     PlasticLanes: PL,
     PreviewCar: PC,
+    Power: PW,
     Elevation: H,
     FreeForm: FF,
     Routed: R,

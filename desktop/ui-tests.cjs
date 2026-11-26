@@ -1073,6 +1073,92 @@ test('a template from the File menu replaces the track with a closed circuit fro
   await h.click('#confirm-go');
 });
 
+test('power taps: a power base from the piece menu, a suggested tap, the test sheet and the PDF', async h => {
+  // The example oval: 18 pieces, so one feed is past the 15-joint rule.
+  assert(/Closed circuit/.test(await h.text('#connection-state')), 'the example track is not closed');
+  const point = await canvasPoint(h, true);
+  assert(point, 'could not find a piece on screen');
+  await h.rightClick(point.x, point.y);
+  await h.waitFor(`return !document.getElementById('context-menu')?.hidden;`, 'piece menu');
+  await h.js(
+    `[...document.querySelectorAll('#context-menu [role=menuitem]')].find(b => b.firstChild.textContent === 'Power base here').click();`
+  );
+  await h.click('#insp-power');
+  assert(
+    await h.js(`return document.getElementById('power-folder').closest('section').offsetParent !== null;`),
+    'the Power taps section is not shown'
+  );
+  assert((await h.text('#power-badge')) === '1 too long', 'badge: ' + (await h.text('#power-badge')));
+  assert(/over 15 joints/.test(await h.text('#power-stretches')), 'stretch: ' + (await h.text('#power-stretches')));
+  await h.click('#insp-sheet');
+  // The sheet catches up a moment after it is shown.
+  await h.waitFor(
+    `return /Power: 1 stretch/.test(document.getElementById('ts-checks').textContent);`,
+    'power in the Track sheet checks'
+  );
+  await h.click('#insp-power');
+  const marks = () =>
+    h.js(
+      `const l = document.getElementById('power-layer'); return { text: [...l.querySelectorAll('text')].map(t => t.textContent), weak: l.querySelectorAll('polyline').length };`
+    );
+  await h.shot('power-1-base');
+  let m = await marks();
+  assert(m.text.includes('B') && m.text.includes('P1') && m.weak === 1, 'marks before: ' + JSON.stringify(m));
+  // Following the suggestion clears the warning and adds T1.
+  await h.click('#power-suggest');
+  await h.waitFor(`return document.getElementById('power-badge').textContent === 'OK';`, 'power OK');
+  m = await marks();
+  assert(['B', 'T1', 'P1', 'P2'].every(t => m.text.includes(t)) && m.weak === 0, 'marks after: ' + JSON.stringify(m));
+  // Test sheet: 1.5 V below the base is flagged; a reading is kept after Tab.
+  await h.js(`document.getElementById('power-test').open = true;`);
+  const enter = (lane, point, v) =>
+    h.js(
+      `const i = document.querySelector('[data-lane="${lane}"][data-point="' + (${JSON.stringify(point)} === 'P2' ? document.querySelectorAll('.power-sheet')[0].querySelectorAll('tbody tr')[2].querySelector('input').dataset.point : ${JSON.stringify(point)}) + '"]'); i.value = '${v}'; i.dispatchEvent(new Event('change'));`
+    );
+  await enter('lane-1', 'base', 12);
+  await new Promise(r => setTimeout(r, 50));
+  await enter('lane-1', 'P2', 10.5);
+  await h.waitFor(
+    `return document.querySelectorAll('.power-sheet')[0]?.querySelectorAll('tbody tr')[2]?.classList.contains('bad');`,
+    'P2 flagged'
+  );
+  assert(/−1\.5 V/.test(await h.text('.power-sheet')), 'the drop is not shown');
+  await h.js(`document.getElementById('power-test').scrollIntoView({ block: 'end' });`);
+  await new Promise(r => setTimeout(r, 400));
+  await h.shot('power-2-sheet');
+  // The marks and readings are saved with the track and come back after a restart.
+  await h.waitFor(`return document.getElementById('save-state').dataset.state === 'clean';`, 'the track saved', 5000);
+  await h.reload();
+  await h.click('#insp-power');
+  assert((await h.text('#power-badge')) === 'OK', 'after reload the badge is ' + (await h.text('#power-badge')));
+  await h.waitFor(
+    `return document.getElementById('power-layer').querySelectorAll('text').length === 4;`,
+    'marks after reload'
+  );
+  await h.js(`document.getElementById('power-test').open = true;`);
+  assert(/−1\.5 V/.test(await h.text('.power-sheet')), 'the readings were not kept');
+  // PDF with the test sheet.
+  const downloads = [];
+  const listen = (_e, item) => downloads.push(item.getFilename());
+  require('electron').session.defaultSession.on('will-download', listen);
+  try {
+    await h.click('#power-print');
+    for (let i = 0; i < 150 && !downloads.length; i++) await new Promise(r => setTimeout(r, 100));
+    assert(
+      downloads.some(n => n.endsWith('.pdf')),
+      `no PDF downloaded (${downloads.join(', ')})`
+    );
+  } finally {
+    require('electron').session.defaultSession.removeListener('will-download', listen);
+  }
+  // Undo takes the last change back; a new example track has no power marks.
+  await h.click('#demo');
+  await h.waitFor(`return document.getElementById('confirm-dialog').open;`, 'confirm for example');
+  await h.click('#confirm-go');
+  await h.waitFor(`return document.getElementById('power-badge').textContent === 'Not set';`, 'power reset');
+  assert((await marks()).text.length === 0, 'marks left on a new track');
+});
+
 test('the figure eight template opens in FreeForm as a closed circuit with a bridge', async h => {
   await h.click('#file-menu-button');
   await h.click('#open-template');

@@ -1,10 +1,16 @@
-SlotForge Circuit — editor iteration (v0.5.0)
+SlotForge Circuit — editor iteration (v0.6.0)
 
 Previously SlotForge Track Builder. Use SlotForge Circuit.html for the named
 file launcher; the previous HTML launcher remains a compatibility alias.
 Existing installations keep their SlotForgeTrackBuilder folder, saved workspace,
 storage keys and layout formats. The rename does not move your data.
 This update automatically migrates installed JSON workspaces to SQLite.
+
+NEW IN v0.6.0 — POWER TAPS
+Mark the power base and extra feed wires on the track. Circuit checks every
+stretch between feeds (plastic track: 10 m and 15 joints; routed wood: by braid
+or copper tape), suggests where to add taps, and gives a lane-by-lane voltage
+test sheet, also in the PDF report.
 
 NEW IN v0.5.0 — NEW LOOK, BETTER UPDATES AND SAFER SAVES
 A redesigned Track Library, Print Shop, Track Packs, Settings, Routed Wood,

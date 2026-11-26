@@ -12,6 +12,7 @@
     stairs: '<path d="M3 20h5v-5h5v-5h5V5h3"/>',
     flag: '<path d="M5 21V4"/><path d="M5 4h11l-2 4 2 4H5"/>',
     ruler: '<path d="M3 17 17 3l4 4L7 21z"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2"/>',
+    bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     route:
       '<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a4 4 0 0 0 0-8h-4a4 4 0 0 1 0-8h6"/>',
     list: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h1M4 12h1M4 18h1"/>',
@@ -124,6 +125,7 @@
       { key: 'selection', text: 'Selected piece', icon: 'pointer', el: $('inspector-selection') },
       { key: 'heights', text: 'Heights and bridges', icon: 'stairs', el: sec('#height-folder') },
       { key: 'timing', text: 'Timing line and direction', icon: 'flag', el: sec('#timing-folder') },
+      { key: 'power', text: 'Power taps', icon: 'bolt', el: sec('#power-folder') },
       { key: 'lengths', text: 'Lengths and lanes', icon: 'ruler', el: sec('#measurements-folder') },
       { key: 'routed', text: 'Routed materials and checks', icon: 'route', el: $('routed-overview') },
       { key: 'parts', text: 'Parts list', icon: 'list', el: sec('#parts-folder') },

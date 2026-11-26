@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="builder-sidebars.css" />
     <link rel="stylesheet" href="freeform-guide.css" />
     <link rel="stylesheet" href="dialog-family.css" />
+    <link rel="stylesheet" href="power.css" />
     <link rel="stylesheet" href="type.css" />
   </head>
   <body>
@@ -297,6 +298,7 @@
             <g id="reference-layer"></g>
             <g id="roads"></g>
             <g id="timing-line" pointer-events="none"></g>
+            <g id="power-layer" pointer-events="none"></g>
             <g id="ports"></g>
             <g id="snap-guide" pointer-events="none" aria-hidden="true"></g>
             <g id="design-overlay" pointer-events="none"></g>
@@ -475,6 +477,12 @@
                   </p>
                 </details>
               </div>
+            </details>
+          </section>
+          <section class="inspector-section">
+            <details class="inspector-folder" id="power-folder">
+              <summary><span>Power taps</span><span id="power-badge" class="inspector-badge">Not set</span></summary>
+              <div class="inspector-folder-body" id="power-body"></div>
             </details>
           </section>
           <section class="inspector-section">
@@ -1607,6 +1615,7 @@
     <script src="preview-car.js"></script>
     <script src="plastic-lanes.js"></script>
     <script src="planning-data.js"></script>
+    <script src="power.js"></script>
     <script src="core.js"></script>
     <script src="routed-checks.js"></script>
     <script src="routed-curve-editor.js"></script>
@@ -1636,6 +1645,7 @@
     <script src="freeform-tools.js"></script>
     <script src="freeform-tools-ui.js"></script>
     <script src="design-tools-ui.js"></script>
+    <script src="power-ui.js"></script>
     <script src="units.js"></script>
     <script src="update-ui.js"></script>
     <script src="side-rail.js"></script>

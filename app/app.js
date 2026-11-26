@@ -49,6 +49,10 @@
     exportSourceGeneration = 0;
   let planning = F.Planning.validate(),
     designToolsUI = null;
+  // Power base and feed wires on this track (power.js), and the latest check of them.
+  let power = F.Power.empty(),
+    powerCheck = null,
+    powerUI = null;
   let previewCar = F.PreviewCar.settings(),
     routedState = F.Routed.workspace(),
     routedUI = null;
@@ -139,6 +143,7 @@
       items,
       planning,
       previewCar,
+      power,
       routedState,
       spaceGuide,
       librarySource,
@@ -161,6 +166,7 @@
     items = p.items;
     planning = F.Planning.validate(p.planning);
     previewCar = F.PreviewCar.settings(p.previewCar);
+    power = F.Power.settings(p.power);
     routedState = F.Routed.workspace(p.routedState);
     syncRoutedPack();
     spaceGuide = F.validateSpaceGuide(p.spaceGuide);
@@ -315,7 +321,13 @@
         pieces: items,
         definitions: used.map(id => exportDefinition(defs[id])),
         profile,
-        workspace: { planning, previewCar, routed: routedState, ...(spaceGuide ? { spaceGuide } : {}) },
+        workspace: {
+          planning,
+          previewCar,
+          routed: routedState,
+          ...(spaceGuide ? { spaceGuide } : {}),
+          ...(F.Power.used(power) ? { power } : {}),
+        },
       },
       integrationState,
       withRoutes
@@ -358,6 +370,15 @@
     );
     const label = svg('text', { x: a[0], y: a[1] - 18, fill: '#fff', 'font-size': 20 }, layer);
     label.textContent = 'START / FINISH';
+  }
+  // Power base, taps, test points and too-long stretches, drawn from the last power check.
+  function renderPower() {
+    if (!powerUI) return;
+    const layer = $('power-layer');
+    // Labels about 13 px across at any zoom, never smaller than 24 mm on the track.
+    layer.innerHTML = F.Power.used(power)
+      ? F.Power.svg(F.Power.marks(powerCheck, network, F.at), Math.max(1, portRadius() / 7.5))
+      : '';
   }
   function updateTimingControls() {
     const ref = integrationState.startFinish,
@@ -479,6 +500,7 @@
     items = merged.pieces;
     planning = F.Planning.validate(result.workspace?.planning);
     previewCar = F.PreviewCar.settings(result.workspace?.previewCar);
+    power = F.Power.settings(result.workspace?.power);
     routedState = F.Routed.workspace(result.workspace?.routed);
     syncRoutedPack();
     if (items.length && items.every(p => defOf(p).parameters.routed)) $('pack').value = F.Routed.ID;
@@ -788,6 +810,7 @@
     renderSpaceGuide();
     renderPieces();
     renderTimingLine();
+    renderPower();
     const con = F.connections(items, defs),
       portFragment = document.createDocumentFragment(),
       radius = portRadius();
@@ -820,6 +843,7 @@
       $('grid-bg').setAttribute(k, v);
     $('zoom-level').textContent = Math.round((100 * 1000) / view.w) + '%';
     renderSpaceGuide();
+    renderPower(); // power labels keep their size on screen
   }
   let fitPending = false;
   function fit() {
@@ -904,6 +928,7 @@
     };
   }
   function updateInspector() {
+    powerUI?.render();
     $('builder-cad').hidden = !items.some(p => defOf(p).parameters.routed);
     const s = summary();
     const ff = items.find(p => defOf(p).parameters.type === 'freeform'),
@@ -1049,6 +1074,7 @@
     network = I.network(items, defs);
     integrationState = I.reconcile(integrationState, network);
     if (!network.closed) stop();
+    powerCheck = F.Power.analyse(network, items, defs, power);
     const visual = items.some(p => defOf(p).parameters.planning || defOf(p).parameters.foldOverride),
       known = items.some(p => defOf(p).geometry.lanePaths.length),
       visualEnds = visual
@@ -1206,6 +1232,12 @@
     if (items.length && !network.closed) {
       const li = document.createElement('li');
       li.textContent = 'The track is not one closed loop yet.';
+      list.append(li);
+    }
+    // Power: only once the track has power marks, so tracks that don't use them are left alone.
+    if (F.Power.used(power) && powerCheck?.state === 'problems') {
+      const li = document.createElement('li');
+      li.textContent = 'Power: ' + powerCheck.message.charAt(0).toLowerCase() + powerCheck.message.slice(1);
       list.append(li);
     }
     for (const issue of issues.slice(0, 3)) {
@@ -1960,6 +1992,7 @@
     librarySource = null;
     integrationState = I.newState();
     planning = F.Planning.validate();
+    power = F.Power.empty();
     spaceGuide = null;
     routedState = F.Routed.workspace();
     syncRoutedPack();
@@ -1993,6 +2026,7 @@
     librarySource = null;
     integrationState = I.newState();
     planning = F.Planning.validate();
+    power = F.Power.empty();
     spaceGuide = null;
     routedState = F.Routed.workspace();
     syncRoutedPack();
@@ -2666,6 +2700,23 @@
             action: () => $('add-borders').click(),
           },
           { label: 'Heights & bridges…', disabled: !$('height-folder'), action: () => openFolder('height-folder') },
+          ...(() => {
+            // Power marks go on one piece at a time.
+            const role = many ? null : F.Power.role(power, id),
+              free = defOf(chosen[0]).parameters.type === 'freeform';
+            return [
+              {
+                label: role === 'base' ? 'Remove power base' : 'Power base here',
+                disabled: many || free,
+                action: () => markPower(id, role === 'base' ? null : 'base'),
+              },
+              {
+                label: role === 'tap' ? 'Remove power tap' : 'Power tap here',
+                disabled: many || free,
+                action: () => markPower(id, role === 'tap' ? null : 'tap'),
+              },
+            ];
+          })(),
           {
             label: locked ? 'Unlock' : 'Lock in place',
             disabled: !$('lock-pieces'),
@@ -2785,6 +2836,7 @@
     renderSnapGuide(guide);
     renderPieces();
     renderTimingLine();
+    $('power-layer').replaceChildren(); // power marks follow the track once the pieces are dropped
     const radius = portRadius(),
       fragment = document.createDocumentFragment();
     for (const port of openPorts)
@@ -3198,8 +3250,11 @@
     $('catalogue-tabs').querySelector('[aria-selected="true"]')?.focus();
   };
   // The track sheet: it skips its work while hidden and catches up when it is shown.
+  // On the next frame: redrawing inside the observer resizes the sheet again, which the
+  // browser reports as a "ResizeObserver loop" error.
   new ResizeObserver(() => {
-    if (trackSheetDirty && $('track-sheet').offsetParent) renderTrackSheet();
+    if (trackSheetDirty && $('track-sheet').offsetParent)
+      requestAnimationFrame(() => trackSheetDirty && $('track-sheet').offsetParent && renderTrackSheet());
   }).observe($('track-sheet'));
   for (const t of ['overview', 'parts'])
     $('ts-tab-' + t).onclick = () => {
@@ -3437,6 +3492,7 @@
       items = merged.pieces;
       planning = F.Planning.validate(saved.workspace?.planning);
       previewCar = F.PreviewCar.settings(saved.workspace?.previewCar);
+      power = F.Power.settings(saved.workspace?.power);
       routedState = F.Routed.workspace(saved.workspace?.routed);
       syncRoutedPack();
       spaceGuide = saved.workspace?.spaceGuide || null;
@@ -5962,6 +6018,7 @@
         integrationState = I.newState();
         routedState = config;
         planning = F.Planning.validate();
+        power = F.Power.empty();
         items = [];
         setSelection([]);
         syncRoutedPack();
@@ -6049,6 +6106,7 @@
       defs[d.id] = d;
       items = [p];
       planning = F.Planning.validate(newPlanning);
+      power = F.Power.empty();
       spaceGuide = F.validateSpaceGuide(table);
       routedState = F.Routed.workspace({ settings: d.parameters.routed });
       title = name;
@@ -6181,6 +6239,38 @@
     renderCanvas();
     updateInspector();
   }
+  function markPower(id, role) {
+    checkpoint();
+    power = F.Power.mark(power, id, role);
+    refresh();
+    say(role === 'base' ? 'Power base set.' : role === 'tap' ? 'Power tap added.' : 'Power mark removed.');
+  }
+  async function savePowerPdf() {
+    const raw = layout(),
+      result = await makePdf(raw, 'portrait');
+    download(XM.filename(result.title) + '.pdf', result.bytes, 'application/pdf');
+    say('PDF saved with the power test sheet: ' + result.title);
+  }
+  powerUI = window.PowerUI.init({
+    power: () => power,
+    analysis: () => powerCheck || F.Power.analyse(network, items, defs, power),
+    selected: () => (selectedIds.size === 1 ? current()?.id || null : null),
+    // Readings (quiet) don't change the check: save them and redraw only the panel.
+    update: (next, message, quiet = false) => {
+      checkpoint();
+      power = F.Power.settings(next);
+      if (quiet) {
+        persist();
+        setTimeout(() => powerUI.render());
+      } else refresh();
+      if (message) say(message);
+    },
+    focus: ids => focusIssue({ pieceIds: ids }),
+    print: () => savePowerPdf().catch(e => say(e.message)),
+  });
+  // The saved track was restored before this panel existed: show its power marks now.
+  powerUI.render();
+  renderPower();
   designToolsUI = window.DesignToolsUI.init({
     // get(true) is for drawing only: it skips the change token, which hashes the whole design.
     get: (drawing = false) => ({

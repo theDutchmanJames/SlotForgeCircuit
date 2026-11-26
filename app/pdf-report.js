@@ -295,6 +295,64 @@
         );
       }
     }
+    // Power taps and the lane-by-lane test sheet, on its own page, when the track has power marks.
+    function powerSheet() {
+      const P = F.Power,
+        saved = model.layout.workspace?.power;
+      if (!P || !saved || !P.used(P.settings(saved))) return;
+      const a = P.analyse(model.network, model.pieces, model.definitions, saved);
+      if (!a.stretches?.length) return;
+      newPage();
+      text('Power taps and test sheet', margin, y + 5, 13, true);
+      y += 12;
+      paragraph(
+        `${a.message} Limits: at most ${a.rules.maxMetres} m${a.rules.maxJoints ? ' and ' + a.rules.maxJoints + ' joints' : ''} between two feeds. ` +
+          'B is the power base, T1, T2 … the extra feed wires, P1, P2 … the test points half way between feeds.',
+        9,
+        body
+      );
+      for (const f of a.feeds)
+        paragraph(`${f.label}  ${f.role === 'base' ? 'Power base' : 'Power tap'} · ${f.name}`, 9, body);
+      for (const x of a.stretches)
+        paragraph(
+          `${x.from.label} to ${x.to.label}: ${metres(x.worst.mm)}, ${x.joints} joints` +
+            (x.tooLong ? ' · longer than the limit' : ''),
+          9,
+          x.tooLong ? [160, 40, 40] : body
+        );
+      y += 2;
+      paragraph(
+        "Set the controller to full with a car running on the lane. Measure across that lane's rails at B, then at each P. " +
+          'More than 1 V below B means a bad joint or a missing tap.',
+        9
+      );
+      const results = P.results(a, saved),
+        cols = [0.14, 0.42, 0.18, 0.13, 0.13].map(v => v * width),
+        cx = cols.reduce((list, w, i) => [...list, list[i] + w], [margin]),
+        row = (cells, bold = false) => {
+          ensure(8);
+          cells.forEach((c, i) => text(c, cx[i] + 2, y + 5, 9, bold, bold ? muted : body));
+          doc.setDrawColor(223, 227, 231);
+          doc.line(margin, y + 7.5, W - margin, y + 7.5);
+          y += 8;
+        };
+      results.forEach((lane, n) => {
+        ensure(30);
+        y += 4;
+        text('Lane ' + (n + 1), margin, y + 5, 11, true);
+        y += 9;
+        row(['Point', 'Piece', 'After base', 'Volts', 'Result'], true);
+        row(['B', 'Power base', '0 m', lane.base === null ? '' : lane.base.toFixed(1) + ' V', '']);
+        for (const r of lane.rows)
+          row([
+            r.stretch.test.label,
+            r.stretch.test.name,
+            metres(r.stretch.test.afterBaseMm),
+            r.volts === null ? '' : r.volts.toFixed(1) + ' V',
+            r.ok === null ? '' : r.ok ? 'OK' : '-' + r.drop.toFixed(1) + ' V',
+          ]);
+      });
+    }
     // Whole rows move together; each continuation page repeats the column headings.
     const fractions = [0.16, 0.34, 0.24, 0.08, 0.18],
       columns = fractions.map(v => v * width),
@@ -356,6 +414,7 @@
     }
     y += 6;
     paragraph(notice, 8);
+    powerSheet();
     const pages = doc.getNumberOfPages();
     for (let i = 1; i <= pages; i++) {
       doc.setPage(i);

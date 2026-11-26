@@ -24,6 +24,13 @@
         }
     return [x, y, x2 - x, y2 - y];
   }
+  // Power base, taps and test points, so the test sheet can be read against the picture.
+  function powerMarks(model) {
+    const saved = model.layout.workspace?.power;
+    if (!saved) return '';
+    const a = F.Power.analyse(model.network, model.pieces, model.definitions, saved);
+    return F.Power.svg(F.Power.marks(a, model.network, F.at));
+  }
   function pdfDiagram(raw) {
     const model = XM.build(raw),
       table = model.routed.sections || model.routed.planningSections ? model.layout.workspace?.spaceGuide : null,
@@ -38,7 +45,8 @@
       model.pieces
         .map(p => `<g transform="${transform(p)}">${drawBody(model.definitions[p.definitionId], true)}</g>`)
         .join('') +
-      F.Planning.draw(model.layout.workspace?.planning, true);
+      F.Planning.draw(model.layout.workspace?.planning, true) +
+      powerMarks(model);
     return {
       width,
       height,
